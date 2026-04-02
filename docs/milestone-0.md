@@ -12,7 +12,7 @@
 4. ~~Configure Drizzle and run the migration~~ ✓
 5. ~~Write the DB client~~ ✓
 6. ~~Implement API routes~~ ✓
-7. [Build pages and components](#7-pages-and-components)
+7. ~~Build pages and components~~ ✓
 8. [Deploy to Vercel](#8-deploy)
 
 ---
@@ -340,7 +340,7 @@ export async function GET(
 
 ---
 
-## 7. Pages and Components
+## 7. Pages and Components ✓
 
 Server components query the DB directly — no HTTP round-trip to your own API routes. Client components (`"use client"`) handle form submissions and call `router.refresh()` after mutations to re-render server data.
 
