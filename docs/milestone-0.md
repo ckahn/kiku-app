@@ -11,7 +11,7 @@
 3. ~~Write the Drizzle schema (all 6 tables)~~ ✓
 4. ~~Configure Drizzle and run the migration~~ ✓
 5. ~~Write the DB client~~ ✓
-6. [Implement API routes](#6-api-routes)
+6. ~~Implement API routes~~ ✓
 7. [Build pages and components](#7-pages-and-components)
 8. [Deploy to Vercel](#8-deploy)
 
@@ -223,7 +223,7 @@ Import `db` from `@/db` everywhere. Never instantiate Drizzle more than once.
 
 ---
 
-## 6. API Routes
+## 6. API Routes ✓
 
 > **Next.js 15 gotcha:** `params` in route handlers is `Promise<{ id: string }>`. Always `await params` before destructuring.
 
