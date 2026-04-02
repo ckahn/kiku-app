@@ -6,7 +6,7 @@
 
 ## Subtasks
 
-1. [Bootstrap the Next.js project](#1-bootstrap)
+1. ~~Bootstrap the Next.js project~~ ✓
 2. [Provision Vercel Postgres + Blob](#2-provision-vercel-storage)
 3. [Write the Drizzle schema (all 6 tables)](#3-drizzle-schema)
 4. [Configure Drizzle and run the migration](#4-migration)
@@ -17,7 +17,7 @@
 
 ---
 
-## 1. Bootstrap
+## 1. Bootstrap ✓
 
 ```bash
 npx create-next-app@latest . \
@@ -27,11 +27,15 @@ npx create-next-app@latest . \
   --src-dir \
   --import-alias "@/*"
 
-npm install drizzle-orm @vercel/postgres @vercel/blob
+npm install drizzle-orm @neondatabase/serverless @vercel/blob
 npm install -D drizzle-kit
 ```
 
 Choices: App Router, `src/` directory, `@/*` alias. No `--eslint` flag needed — create-next-app includes it by default.
+
+> **Note:** `@vercel/postgres` is deprecated. Vercel Postgres databases were migrated to Neon. Use `@neondatabase/serverless` instead. The Drizzle adapter changes from `drizzle-orm/vercel-postgres` to `drizzle-orm/neon-http`, and the env var is `DATABASE_URL` (see sections 2 and 5).
+
+Versions installed: Next.js 16.2.2, React 19, Drizzle ORM 0.45, drizzle-kit 0.31, Tailwind 4, TypeScript 5.
 
 ---
 
@@ -40,11 +44,8 @@ Choices: App Router, `src/` directory, `@/*` alias. No `--eslint` flag needed �
 Do this in the Vercel dashboard before writing any code that touches the DB.
 
 1. Create a Vercel project linked to the repo (or `vercel link`).
-2. **Storage → Create → Postgres** — Vercel injects these env vars automatically:
-   - `POSTGRES_URL` (pooled, for runtime)
-   - `POSTGRES_URL_NON_POOLING` (direct connection, for migrations)
-   - `POSTGRES_USER`, `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE`
-3. **Storage → Create → Blob** — injects `BLOB_READ_WRITE_TOKEN`
+2. **Storage → Add Store → Neon Postgres** — Vercel injects `DATABASE_URL` (and optionally `DATABASE_URL_UNPOOLED` for direct connections).
+3. **Storage → Add Store → Blob** — injects `BLOB_READ_WRITE_TOKEN`
 4. Pull to local:
 
 ```bash
@@ -55,12 +56,8 @@ Create `.env.example` with all keys present but empty values, and commit it. Nev
 
 ```bash
 # .env.example
-POSTGRES_URL=
-POSTGRES_URL_NON_POOLING=
-POSTGRES_USER=
-POSTGRES_HOST=
-POSTGRES_PASSWORD=
-POSTGRES_DATABASE=
+DATABASE_URL=            # Neon pooled connection string (runtime queries)
+DATABASE_URL_UNPOOLED=   # Neon direct connection string (migrations)
 BLOB_READ_WRITE_TOKEN=
 
 # Future milestones
@@ -185,12 +182,12 @@ export default defineConfig({
   out: './drizzle/migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.POSTGRES_URL_NON_POOLING!,
+    url: process.env.DATABASE_URL_UNPOOLED!,
   },
 });
 ```
 
-> **Why `POSTGRES_URL_NON_POOLING`?** The default `POSTGRES_URL` goes through PgBouncer in transaction mode. PgBouncer cannot run DDL statements (`CREATE TYPE`, `CREATE TABLE`) reliably. Always use the non-pooling URL for migrations.
+> **Why `DATABASE_URL_UNPOOLED`?** Neon's pooled connection string routes through a connection pooler that cannot run DDL statements (`CREATE TYPE`, `CREATE TABLE`) reliably. Always use the direct/unpooled URL for migrations.
 
 Run:
 
@@ -213,10 +210,11 @@ vercel env pull .env.local && npx drizzle-kit migrate
 **`src/db/index.ts`**:
 
 ```ts
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import { sql } from '@vercel/postgres';
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
+const sql = neon(process.env.DATABASE_URL!);
 export const db = drizzle(sql, { schema });
 ```
 
