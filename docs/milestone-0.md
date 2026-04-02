@@ -7,10 +7,10 @@
 ## Subtasks
 
 1. ~~Bootstrap the Next.js project~~ ✓
-2. [Provision Vercel Postgres + Blob](#2-provision-vercel-storage)
-3. [Write the Drizzle schema (all 6 tables)](#3-drizzle-schema)
-4. [Configure Drizzle and run the migration](#4-migration)
-5. [Write the DB client](#5-db-client)
+2. ~~Provision Vercel Postgres + Blob~~ ✓
+3. ~~Write the Drizzle schema (all 6 tables)~~ ✓
+4. ~~Configure Drizzle and run the migration~~ ✓
+5. ~~Write the DB client~~ ✓
 6. [Implement API routes](#6-api-routes)
 7. [Build pages and components](#7-pages-and-components)
 8. [Deploy to Vercel](#8-deploy)
@@ -33,18 +33,18 @@ npm install -D drizzle-kit
 
 Choices: App Router, `src/` directory, `@/*` alias. No `--eslint` flag needed — create-next-app includes it by default.
 
-> **Note:** `@vercel/postgres` is deprecated. Vercel Postgres databases were migrated to Neon. Use `@neondatabase/serverless` instead. The Drizzle adapter changes from `drizzle-orm/vercel-postgres` to `drizzle-orm/neon-http`, and the env var is `DATABASE_URL` (see sections 2 and 5).
+> **Note:** `@vercel/postgres` is deprecated. Vercel Postgres databases were migrated to Neon. Use `@neondatabase/serverless` instead. The Drizzle adapter changes from `drizzle-orm/vercel-postgres` to `drizzle-orm/neon-http`, and the env var is `KIKU_APP_DATABASE_URL` (see sections 2 and 5).
 
 Versions installed: Next.js 16.2.2, React 19, Drizzle ORM 0.45, drizzle-kit 0.31, Tailwind 4, TypeScript 5.
 
 ---
 
-## 2. Provision Vercel Storage
+## 2. Provision Vercel Storage ✓
 
 Do this in the Vercel dashboard before writing any code that touches the DB.
 
 1. Create a Vercel project linked to the repo (or `vercel link`).
-2. **Storage → Add Store → Neon Postgres** — Vercel injects `DATABASE_URL` (and optionally `DATABASE_URL_UNPOOLED` for direct connections).
+2. **Storage → Add Store → Neon Postgres** — Vercel injects `KIKU_APP_DATABASE_URL` (and optionally `KIKU_APP_DATABASE_URL_UNPOOLED` for direct connections).
 3. **Storage → Add Store → Blob** — injects `BLOB_READ_WRITE_TOKEN`
 4. Pull to local:
 
@@ -56,8 +56,8 @@ Create `.env.example` with all keys present but empty values, and commit it. Nev
 
 ```bash
 # .env.example
-DATABASE_URL=            # Neon pooled connection string (runtime queries)
-DATABASE_URL_UNPOOLED=   # Neon direct connection string (migrations)
+KIKU_APP_DATABASE_URL=            # Neon pooled connection string (runtime queries)
+KIKU_APP_DATABASE_URL_UNPOOLED=   # Neon direct connection string (migrations)
 BLOB_READ_WRITE_TOKEN=
 
 # Future milestones
@@ -66,9 +66,10 @@ ANTHROPIC_API_KEY=
 USE_MOCKS=true
 ```
 
+
 ---
 
-## 3. Drizzle Schema
+## 3. Drizzle Schema ✓
 
 Define all 6 tables and 3 enums upfront in one file. This is the single migration for the entire project — later milestones just start querying tables that are already there.
 
@@ -170,7 +171,7 @@ export type Drilldown = typeof drilldowns.$inferSelect;
 
 ---
 
-## 4. Migration
+## 4. Migration ✓
 
 **`drizzle.config.ts`** (project root):
 
@@ -182,12 +183,12 @@ export default defineConfig({
   out: './drizzle/migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL_UNPOOLED!,
+    url: process.env.KIKU_APP_DATABASE_URL_UNPOOLED!,
   },
 });
 ```
 
-> **Why `DATABASE_URL_UNPOOLED`?** Neon's pooled connection string routes through a connection pooler that cannot run DDL statements (`CREATE TYPE`, `CREATE TABLE`) reliably. Always use the direct/unpooled URL for migrations.
+> **Why `KIKU_APP_DATABASE_URL_UNPOOLED`?** Neon's pooled connection string routes through a connection pooler that cannot run DDL statements (`CREATE TYPE`, `CREATE TABLE`) reliably. Always use the direct/unpooled URL for migrations.
 
 Run:
 
@@ -205,7 +206,7 @@ vercel env pull .env.local && npx drizzle-kit migrate
 
 ---
 
-## 5. DB Client
+## 5. DB Client ✓
 
 **`src/db/index.ts`**:
 
@@ -214,7 +215,7 @@ import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
-const sql = neon(process.env.DATABASE_URL!);
+const sql = neon(process.env.KIKU_APP_DATABASE_URL!);
 export const db = drizzle(sql, { schema });
 ```
 
