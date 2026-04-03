@@ -320,6 +320,19 @@ when you need to test against real APIs.
 
 ---
 
+### Milestone 1.5: Design Foundation
+**Goal:** Establish a visual design system before building the transcript/study UI, so M2+ screens look good from the start rather than being rebuilt in M6.
+
+- [ ] Choose and load Japanese font (Noto Sans JP) alongside a Latin fallback
+- [ ] Define Tailwind theme tokens: color palette, spacing scale, typography scale
+- [ ] Polish existing screens (podcast list, podcast detail, episode detail) to production quality
+- [ ] Establish reusable component patterns: cards, status badges, form inputs, buttons, page layout shell
+- [ ] Responsive layout (mobile-first — this is a listening app)
+
+**Deliverable:** Existing screens look intentional. A consistent visual language is in place for all future milestones to build on.
+
+---
+
 ### Milestone 2: Transcription Pipeline
 **Goal:** Upload triggers transcription, raw transcript is stored.
 

@@ -1,29 +1,45 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getErrorMessage } from '@/lib/utils';
 
-export default function EpisodeUploadForm({ podcastId }: { podcastId: string }) {
+interface EpisodeUploadFormProps {
+  podcastId: string;
+}
+
+export default function EpisodeUploadForm({ podcastId }: EpisodeUploadFormProps) {
   const router = useRouter();
   const [episodeNumber, setEpisodeNumber] = useState('');
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
     setLoading(true);
-    const body = new FormData();
-    body.append('episodeNumber', episodeNumber);
-    if (title) body.append('title', title);
-    body.append('file', file);
-    await fetch(`/api/podcasts/${podcastId}/episodes`, { method: 'POST', body });
-    setEpisodeNumber('');
-    setTitle('');
-    setFile(null);
-    (e.target as HTMLFormElement).reset();
-    setLoading(false);
-    router.refresh();
+    setError(null);
+    try {
+      const body = new FormData();
+      body.append('episodeNumber', episodeNumber);
+      if (title) body.append('title', title);
+      body.append('file', file);
+      const res = await fetch(`/api/podcasts/${podcastId}/episodes`, { method: 'POST', body });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error ?? `Upload failed (${res.status})`);
+      }
+      setEpisodeNumber('');
+      setTitle('');
+      setFile(null);
+      (e.target as HTMLFormElement).reset();
+      router.refresh();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -58,6 +74,9 @@ export default function EpisodeUploadForm({ podcastId }: { podcastId: string }) 
       </button>
       {loading && (
         <p className="text-sm text-gray-500">Uploading… this may take a moment.</p>
+      )}
+      {error && (
+        <p className="text-sm text-red-600">{error}</p>
       )}
     </form>
   );
