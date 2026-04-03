@@ -276,15 +276,15 @@ type PlayerState = {
 ### Milestone 0: Foundation (Skeleton + Upload + Storage)
 **Goal:** Create a podcast, upload an MP3 episode to it, see it listed.
 
-- [ ] `npx create-next-app` with App Router, TypeScript, Tailwind
-- [ ] Set up Vercel Postgres — schema migration (use Drizzle ORM or raw SQL via `@vercel/postgres`)
-- [ ] Set up Vercel Blob for audio storage
-- [ ] Build podcast list page (`/`) — create podcast form + list of existing podcasts
-- [ ] Build podcast detail page (`/podcasts/[id]`) — metadata, episode list, upload form
-- [ ] `POST /api/podcasts` — create a podcast
-- [ ] `POST /api/podcasts/[id]/episodes` — upload audio to Blob, insert episode row
-- [ ] Episode detail page (`/podcasts/[id]/episodes/[id]`) — just metadata for now
-- [ ] Deploy to Vercel, confirm end-to-end flow works
+- [x] `npx create-next-app` with App Router, TypeScript, Tailwind
+- [x] Set up Vercel Postgres — schema migration (use Drizzle ORM or raw SQL via `@vercel/postgres`)
+- [x] Set up Vercel Blob for audio storage
+- [x] Build podcast list page (`/`) — create podcast form + list of existing podcasts
+- [x] Build podcast detail page (`/podcasts/[id]`) — metadata, episode list, upload form
+- [x] `POST /api/podcasts` — create a podcast
+- [x] `POST /api/podcasts/[id]/episodes` — upload audio to Blob, insert episode row
+- [x] Episode detail page (`/podcasts/[id]/episodes/[id]`) — just metadata for now
+- [x] Deploy to Vercel, confirm end-to-end flow works
 
 **Deliverable:** You can create a podcast, upload episodes to it, and navigate the hierarchy.
 
@@ -293,27 +293,19 @@ type PlayerState = {
 ### Milestone 1: Dev Mocks + API Fixtures
 **Goal:** Establish development workflow that avoids unnecessary API costs.
 
-- [ ] Create a short test audio clip (~1-2 min of Japanese podcast audio)
-- [ ] Make one real ElevenLabs call on the test clip, save the full JSON response as a fixture
-  (`/fixtures/elevenlabs-transcript.json`) — needed because the word-level timestamp
-  structure is complex and must match real output exactly
-- [ ] Hand-write Claude fixtures based on the prompt schemas:
-  - `/fixtures/chunks.json` — chunked transcript with word indices
-  - `/fixtures/furigana.json` — text with `<ruby>` tags
-  - `/fixtures/drilldown.json` — sentence translations + grammar structures
-- [ ] Build a simple mock layer — env var `USE_MOCKS=true` that swaps API calls for fixture data:
-  ```ts
-  // e.g., src/lib/api/elevenlabs.ts
-  export async function transcribe(file: File) {
-    if (process.env.USE_MOCKS === 'true') {
-      return require('@/fixtures/elevenlabs-transcript.json');
-    }
-    // real API call
-  }
-  ```
-- [ ] Store the test MP3 in the repo (or gitignored local path) so the full pipeline
-  can run locally without uploading to Blob
-- [ ] Add `.env.local` with `USE_MOCKS=true` as default for development
+- [x] Hand-craft fixture files based on the real Scribe v2 response format:
+  - `fixtures/elevenlabs-transcript.json` — 36-word Japanese excerpt (~49s) with word-level timestamps, `speaker_id`, `logprob`
+  - `fixtures/chunks.json` — 5 chunks with `first_word_index`/`last_word_index`
+  - `fixtures/furigana.json` — `<ruby>` annotations (kanji only)
+  - `fixtures/drilldown.json` — sentence translations + grammar structures
+- [x] Build mock layer in `src/lib/api/` — `USE_MOCKS=true` swaps API calls for fixtures:
+  - `src/lib/api/types.ts` — shared domain types
+  - `src/lib/api/elevenlabs.ts` — `transcribe()` with mock/real/key-guard branches
+  - `src/lib/api/claude.ts` — `chunkTranscript()`, `addFurigana()`, `generateDrilldown()`
+- [x] Add `USE_MOCKS=true` to `.env.local` as default for development
+- [x] Write fixture consistency test suite (37 tests, 100% coverage on API layer)
+- [x] Add `scripts/capture-elevenlabs-fixture.ts` to replace hand-crafted fixture with real API response when ready
+- [x] Set up GitHub Actions CI (lint + test on push/PR to `main` and `preview`)
 
 **Deliverable:** Full pipeline testable locally with zero API costs. Flip `USE_MOCKS=false`
 when you need to test against real APIs.
