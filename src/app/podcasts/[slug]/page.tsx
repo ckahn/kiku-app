@@ -22,15 +22,34 @@ export default async function PodcastPage({
     .orderBy(desc(episodes.createdAt));
 
   return (
-    <PageShell backHref="/" backLabel="All podcasts">
-      <h1 className="text-2xl font-bold text-ink mb-1">{podcast.name}</h1>
-      {podcast.description && (
-        <p className="text-muted mb-6">{podcast.description}</p>
-      )}
-      <h2 className="text-base font-semibold text-ink mb-3">Upload episode</h2>
-      <EpisodeUploadForm podcastId={String(podcast.id)} />
-      <h2 className="text-base font-semibold text-ink mt-8 mb-3">Episodes</h2>
-      <EpisodeList episodes={episodeList} podcastSlug={slug} />
+    <PageShell backHref="/" backLabel="Library">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-ink">{podcast.name}</h1>
+        {podcast.description && (
+          <p className="text-muted mt-1">{podcast.description}</p>
+        )}
+      </div>
+
+      <div className="mb-8">
+        <h2 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">
+          Upload episode
+        </h2>
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <EpisodeUploadForm podcastId={String(podcast.id)} />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">
+          Episodes
+          {episodeList.length > 0 && (
+            <span className="ml-2 text-xs font-normal text-muted normal-case tracking-normal">
+              {episodeList.length}
+            </span>
+          )}
+        </h2>
+        <EpisodeList episodes={episodeList} podcastSlug={slug} />
+      </div>
     </PageShell>
   );
 }
