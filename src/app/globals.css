@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --canvas: #f8f7f5;
+  --surface: #ffffff;
+  --border: #e5e2dc;
+  --border-subtle: #f0ede7;
+  --ink: #1a1917;
+  --muted: #6b6763;
+  --disabled: #a19e9a;
+  --primary: #4338ca;
+  --primary-hover: #3730a3;
+  --primary-subtle: #eef2ff;
+  --info-subtle: #dbeafe;
+  --info-on-subtle: #1e40af;
+  --warning-subtle: #fef9c3;
+  --warning-on-subtle: #713f12;
+  --success-subtle: #dcfce7;
+  --success-on-subtle: #166534;
+  --error-subtle: #fee2e2;
+  --error-on-subtle: #991b1b;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --canvas: #111110;
+    --surface: #1c1b1a;
+    --border: #2e2c2a;
+    --border-subtle: #252422;
+    --ink: #f0ede8;
+    --muted: #a19e9a;
+    --disabled: #6b6763;
+    --primary: #818cf8;
+    --primary-hover: #a5b4fc;
+    --primary-subtle: #1e1b4b;
+    --info-subtle: #1e3a5f;
+    --info-on-subtle: #93c5fd;
+    --warning-subtle: #451a03;
+    --warning-on-subtle: #fcd34d;
+    --success-subtle: #052e16;
+    --success-on-subtle: #86efac;
+    --error-subtle: #450a0a;
+    --error-on-subtle: #fca5a5;
   }
 }
 
+@theme inline {
+  --font-sans: var(--font-inter), var(--font-noto-jp), ui-sans-serif, system-ui, sans-serif;
+  --font-jp: var(--font-noto-jp), ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-disabled: var(--disabled);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-subtle: var(--primary-subtle);
+
+  --color-info-subtle: var(--info-subtle);
+  --color-info-on-subtle: var(--info-on-subtle);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-on-subtle: var(--warning-on-subtle);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-on-subtle: var(--success-on-subtle);
+  --color-error-subtle: var(--error-subtle);
+  --color-error-on-subtle: var(--error-on-subtle);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+ruby rt {
+  font-size: 0.5em;
+  color: var(--muted);
 }
