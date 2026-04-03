@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation';
 import { db } from '@/db';
-import { episodes, podcasts } from '@/db/schema';
+import { episodes, podcasts, rawTranscripts } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { Badge } from '@/components/ui';
 import { PageShell } from '@/components/layout';
+import EpisodeStatusPoller from '@/components/EpisodeStatusPoller';
 
 type BadgeVariant = 'info' | 'warning' | 'success' | 'error' | 'neutral';
 
@@ -37,6 +38,17 @@ export default async function EpisodePage({
     .where(and(eq(episodes.podcastId, podcast.id), eq(episodes.episodeNumber, Number(number))));
   if (!episode) notFound();
 
+  // Fetch transcript text server-side when ready so the initial render
+  // shows it without a client round-trip.
+  let transcriptText: string | null = null;
+  if (episode.status === 'ready') {
+    const [raw] = await db
+      .select({ payload: rawTranscripts.payload })
+      .from(rawTranscripts)
+      .where(eq(rawTranscripts.episodeId, episode.id));
+    transcriptText = (raw?.payload as { text?: string } | null)?.text ?? null;
+  }
+
   return (
     <PageShell backHref={`/podcasts/${slug}`} backLabel={podcast.name}>
       <div className="flex items-start justify-between gap-4 mb-6">
@@ -50,12 +62,6 @@ export default async function EpisodePage({
           {episode.status}
         </Badge>
       </div>
-
-      {episode.status === 'error' && episode.errorMessage && (
-        <div className="mb-6 rounded-lg border border-error-subtle bg-error-subtle px-4 py-3 text-sm text-error-on-subtle">
-          {episode.errorMessage}
-        </div>
-      )}
 
       <dl className="space-y-3 text-sm mb-8">
         {episode.durationMs && (
@@ -83,25 +89,15 @@ export default async function EpisodePage({
         </div>
       </dl>
 
-      {/* TODO(M3): replace with real chunks */}
       <section aria-label="Transcript">
         <h2 className="text-base font-semibold text-ink mb-3">Transcript</h2>
         <div className="rounded-lg border border-border bg-surface p-4">
-          {episode.status === 'ready' ? (
-            <p className="text-sm text-muted">Chunks will appear here.</p>
-          ) : (
-            <>
-              <p className="text-xs text-muted mb-4 pb-3 border-b border-border-subtle">
-                Sample — transcript pending
-              </p>
-              {/* Static sample from fixtures to validate Japanese typography */}
-              <div className="space-y-4 font-jp leading-loose">
-                <p>おはようございます。<ruby>今日<rt>きょう</rt></ruby>も<ruby>朝<rt>あさ</rt></ruby><ruby>早<rt>はや</rt></ruby>く<ruby>起<rt>お</rt></ruby>きてしまいました。</p>
-                <p>でも、コーヒーを<ruby>飲<rt>の</rt></ruby>みながら、ゆっくり<ruby>準備<rt>じゅんび</rt></ruby>するのが<ruby>好<rt>す</rt></ruby>きなんです。</p>
-                <p><ruby>時間<rt>じかん</rt></ruby>があれば、もっと<ruby>勉強<rt>べんきょう</rt></ruby>したいと<ruby>思<rt>おも</rt></ruby>っています。</p>
-              </div>
-            </>
-          )}
+          <EpisodeStatusPoller
+            episodeId={episode.id}
+            initialStatus={episode.status}
+            transcriptText={transcriptText ?? undefined}
+            errorMessage={episode.errorMessage}
+          />
         </div>
       </section>
     </PageShell>
