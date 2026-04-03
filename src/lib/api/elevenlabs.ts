@@ -28,7 +28,7 @@ export async function transcribe(
   formData.append('timestamps_granularity', 'word');
   formData.append(
     'file',
-    new Blob([audioBuffer], { type: mimeType }),
+    new Blob([audioBuffer as unknown as ArrayBuffer], { type: mimeType }),
     'audio.mp3'
   );
 
