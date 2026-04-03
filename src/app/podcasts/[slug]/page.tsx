@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { db } from '@/db';
 import { podcasts, episodes } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import EpisodeList from '@/components/EpisodeList';
 import EpisodeUploadForm from '@/components/EpisodeUploadForm';
+import { PageShell } from '@/components/layout';
 
 export default async function PodcastPage({
   params,
@@ -22,16 +22,15 @@ export default async function PodcastPage({
     .orderBy(desc(episodes.createdAt));
 
   return (
-    <main className="max-w-2xl mx-auto p-6">
-      <Link href="/" className="text-sm text-blue-600 hover:underline mb-4 block">← Back</Link>
-      <h1 className="text-2xl font-bold mb-1">{podcast.name}</h1>
+    <PageShell backHref="/" backLabel="All podcasts">
+      <h1 className="text-2xl font-bold text-ink mb-1">{podcast.name}</h1>
       {podcast.description && (
-        <p className="text-gray-500 mb-6">{podcast.description}</p>
+        <p className="text-muted mb-6">{podcast.description}</p>
       )}
-      <h2 className="text-lg font-semibold mb-2">Upload episode</h2>
+      <h2 className="text-base font-semibold text-ink mb-3">Upload episode</h2>
       <EpisodeUploadForm podcastId={String(podcast.id)} />
-      <h2 className="text-lg font-semibold mt-8 mb-2">Episodes</h2>
+      <h2 className="text-base font-semibold text-ink mt-8 mb-3">Episodes</h2>
       <EpisodeList episodes={episodeList} podcastSlug={slug} />
-    </main>
+    </PageShell>
   );
 }
