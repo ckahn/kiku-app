@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { put } from '@vercel/blob';
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
 import { getErrorMessage } from '@/lib/utils';
+import { apiOk, apiErr } from '@/lib/api-response';
 
 export const maxDuration = 60;
 
@@ -28,7 +28,7 @@ export async function POST(
       title: formData.get('title') ?? undefined,
     });
     if (!result.success) {
-      return NextResponse.json({ error: result.error.issues[0].message }, { status: 400 });
+      return apiErr(result.error.issues[0].message, 400);
     }
     const { file, episodeNumber, title } = result.data;
     const trimmedTitle = title?.trim() || null;
@@ -44,8 +44,8 @@ export async function POST(
       .values({ podcastId, title: trimmedTitle ?? `Episode ${episodeNumber}`, audioUrl: blob.url, episodeNumber })
       .returning();
 
-    return NextResponse.json(episode, { status: 201 });
+    return apiOk(episode, 201);
   } catch (error: unknown) {
-    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
+    return apiErr(getErrorMessage(error), 500);
   }
 }

@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { podcasts, episodes } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { apiOk, apiErr } from '@/lib/api-response';
 
 export async function GET(
   _request: Request,
@@ -9,7 +9,7 @@ export async function GET(
 ) {
   const { id } = await params;
   const [podcast] = await db.select().from(podcasts).where(eq(podcasts.id, Number(id)));
-  if (!podcast) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (!podcast) return apiErr('not found', 404);
 
   const episodeRows = await db
     .select()
@@ -17,5 +17,5 @@ export async function GET(
     .where(eq(episodes.podcastId, Number(id)))
     .orderBy(desc(episodes.createdAt));
 
-  return NextResponse.json({ ...podcast, episodes: episodeRows });
+  return apiOk({ ...podcast, episodes: episodeRows });
 }
