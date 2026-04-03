@@ -6,9 +6,10 @@ import { Button, Input } from '@/components/ui';
 
 interface EpisodeUploadFormProps {
   podcastId: string;
+  podcastSlug: string;
 }
 
-export default function EpisodeUploadForm({ podcastId }: EpisodeUploadFormProps) {
+export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUploadFormProps) {
   const router = useRouter();
   const [episodeNumber, setEpisodeNumber] = useState('');
   const [title, setTitle] = useState('');
@@ -27,15 +28,12 @@ export default function EpisodeUploadForm({ podcastId }: EpisodeUploadFormProps)
       if (title) body.append('title', title);
       body.append('file', file);
       const res = await fetch(`/api/podcasts/${podcastId}/episodes`, { method: 'POST', body });
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
         throw new Error(json.error ?? `Upload failed (${res.status})`);
       }
-      setEpisodeNumber('');
-      setTitle('');
-      setFile(null);
-      (e.target as HTMLFormElement).reset();
-      router.refresh();
+      const episode = json.data;
+      router.push(`/podcasts/${podcastSlug}/episodes/${episode.episodeNumber}`);
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {

@@ -7,6 +7,9 @@ vi.mock('ai', () => ({
 }));
 vi.mock('@ai-sdk/elevenlabs', () => ({
   elevenlabs: { transcription: vi.fn().mockReturnValue('mocked-model') },
+  createElevenLabs: vi.fn().mockReturnValue({
+    transcription: vi.fn().mockReturnValue('mocked-model'),
+  }),
 }));
 
 describe('transcribe() — mock mode', () => {
@@ -58,7 +61,7 @@ describe('transcribe() — non-mock mode', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.resetAllMocks();
+    vi.clearAllMocks();
   });
 
   it('throws when ELEVENLABS_API_KEY is not set', async () => {

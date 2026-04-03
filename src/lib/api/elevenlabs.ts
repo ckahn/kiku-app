@@ -1,5 +1,5 @@
 import { experimental_transcribe as sdkTranscribe } from 'ai';
-import { elevenlabs } from '@ai-sdk/elevenlabs';
+import { createElevenLabs } from '@ai-sdk/elevenlabs';
 import type { ElevenLabsTranscript } from './types';
 import fixtureData from '../../../fixtures/elevenlabs-transcript.json';
 
@@ -25,8 +25,12 @@ export async function transcribe(
     throw new Error('ELEVENLABS_API_KEY is not configured');
   }
 
+  // Use createElevenLabs to pass the key explicitly rather than relying on
+  // the default provider's env lookup, which can be unreliable in some runtimes.
+  const provider = createElevenLabs({ apiKey });
+
   const result = await sdkTranscribe({
-    model: elevenlabs.transcription('scribe_v1'),
+    model: provider.transcription('scribe_v1'),
     audio: audioBuffer,
     providerOptions: {
       elevenlabs: {
