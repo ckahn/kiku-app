@@ -1,7 +1,7 @@
 import {
   pgTable,
   pgEnum,
-  uuid,
+  serial,
   text,
   integer,
   jsonb,
@@ -17,20 +17,21 @@ export const studyStatusEnum = pgEnum('study_status', ['new', 'studying', 'learn
 export const reviewOutcomeEnum = pgEnum('review_outcome', ['comfortable', 'needs_work']);
 
 export const podcasts = pgTable('podcasts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
+  id: serial('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  slug: text('slug').notNull().unique(),
   description: text('description'),
   imageUrl: text('image_url'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
 
 export const episodes = pgTable('episodes', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  podcastId: uuid('podcast_id')
+  id: serial('id').primaryKey(),
+  podcastId: integer('podcast_id')
     .notNull()
     .references(() => podcasts.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
-  episodeNumber: integer('episode_number'),
+  episodeNumber: integer('episode_number').notNull(),
   audioUrl: text('audio_url').notNull(),
   durationMs: integer('duration_ms'),
   status: episodeStatusEnum('status').notNull().default('uploaded'),
@@ -40,11 +41,11 @@ export const episodes = pgTable('episodes', {
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => [unique().on(table.podcastId, table.episodeNumber)]);
 
 export const rawTranscripts = pgTable('raw_transcripts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  episodeId: uuid('episode_id')
+  id: serial('id').primaryKey(),
+  episodeId: integer('episode_id')
     .notNull()
     .references(() => episodes.id, { onDelete: 'cascade' }),
   payload: jsonb('payload').notNull(),
@@ -52,8 +53,8 @@ export const rawTranscripts = pgTable('raw_transcripts', {
 });
 
 export const chunks = pgTable('chunks', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  episodeId: uuid('episode_id')
+  id: serial('id').primaryKey(),
+  episodeId: integer('episode_id')
     .notNull()
     .references(() => episodes.id, { onDelete: 'cascade' }),
   chunkIndex: integer('chunk_index').notNull(),
@@ -66,8 +67,8 @@ export const chunks = pgTable('chunks', {
 }, (table) => [unique().on(table.episodeId, table.chunkIndex)]);
 
 export const drilldowns = pgTable('drilldowns', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  chunkId: uuid('chunk_id')
+  id: serial('id').primaryKey(),
+  chunkId: integer('chunk_id')
     .notNull()
     .references(() => chunks.id, { onDelete: 'cascade' }),
   content: jsonb('content').notNull(),
@@ -76,8 +77,8 @@ export const drilldowns = pgTable('drilldowns', {
 }, (table) => [unique().on(table.chunkId)]);
 
 export const reviewLog = pgTable('review_log', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  episodeId: uuid('episode_id')
+  id: serial('id').primaryKey(),
+  episodeId: integer('episode_id')
     .notNull()
     .references(() => episodes.id, { onDelete: 'cascade' }),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }).defaultNow(),

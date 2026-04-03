@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { db } from '@/db';
-import { episodes } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { episodes, podcasts } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
 
 const STATUS_COLORS: Record<string, string> = {
   uploaded:     'bg-blue-100 text-blue-800',
@@ -15,15 +15,21 @@ const STATUS_COLORS: Record<string, string> = {
 export default async function EpisodePage({
   params,
 }: {
-  params: Promise<{ id: string; episodeId: string }>;
+  params: Promise<{ slug: string; number: string }>;
 }) {
-  const { id: podcastId, episodeId } = await params;
-  const [episode] = await db.select().from(episodes).where(eq(episodes.id, episodeId));
+  const { slug, number } = await params;
+  const [podcast] = await db.select().from(podcasts).where(eq(podcasts.slug, slug));
+  if (!podcast) notFound();
+
+  const [episode] = await db
+    .select()
+    .from(episodes)
+    .where(and(eq(episodes.podcastId, podcast.id), eq(episodes.episodeNumber, Number(number))));
   if (!episode) notFound();
 
   return (
     <main className="max-w-2xl mx-auto p-6">
-      <Link href={`/podcasts/${podcastId}`} className="text-sm text-blue-600 hover:underline mb-4 block">
+      <Link href={`/podcasts/${slug}`} className="text-sm text-blue-600 hover:underline mb-4 block">
         ← Back
       </Link>
       <div className="flex items-center gap-3 mb-6">
@@ -41,7 +47,7 @@ export default async function EpisodePage({
         )}
         <dt className="text-gray-500">Audio</dt>
         <dd>
-          <a href={episode.audioUrl} className="text-blue-600 hover:underline" target="_blank" rel="noreferrer">
+          <a href={`/api/episodes/${episode.id}/audio`} className="text-blue-600 hover:underline" target="_blank" rel="noreferrer">
             Open audio
           </a>
         </dd>

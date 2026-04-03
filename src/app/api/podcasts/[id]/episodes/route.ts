@@ -9,24 +9,31 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: podcastId } = await params;
+  const { id } = await params;
+  const podcastId = Number(id);
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
-  const title = formData.get('title') as string | null;
+  const episodeNumberRaw = formData.get('episodeNumber') as string | null;
+  const title = (formData.get('title') as string | null)?.trim() || null;
 
-  if (!file || !title?.trim()) {
-    return NextResponse.json({ error: 'file and title are required' }, { status: 400 });
+  if (!file || !episodeNumberRaw) {
+    return NextResponse.json({ error: 'file and episodeNumber are required' }, { status: 400 });
+  }
+  const episodeNumber = Number(episodeNumberRaw);
+  if (!Number.isInteger(episodeNumber) || episodeNumber < 1) {
+    return NextResponse.json({ error: 'episodeNumber must be a positive integer' }, { status: 400 });
   }
 
   const blob = await put(file.name, file, {
-    access: 'public',
+    access: 'private',
     contentType: file.type || 'audio/mpeg',
+    allowOverwrite: true,
   });
 
   const [episode] = await db
     .insert(episodes)
-    .values({ podcastId, title, audioUrl: blob.url })
+    .values({ podcastId, title: title ?? `Episode ${episodeNumber}`, audioUrl: blob.url, episodeNumber })
     .returning();
 
   return NextResponse.json(episode, { status: 201 });

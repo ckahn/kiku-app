@@ -8,13 +8,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const [podcast] = await db.select().from(podcasts).where(eq(podcasts.id, id));
+  const [podcast] = await db.select().from(podcasts).where(eq(podcasts.id, Number(id)));
   if (!podcast) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   const episodeRows = await db
     .select()
     .from(episodes)
-    .where(eq(episodes.podcastId, id))
+    .where(eq(episodes.podcastId, Number(id)))
     .orderBy(desc(episodes.createdAt));
 
   return NextResponse.json({ ...podcast, episodes: episodeRows });

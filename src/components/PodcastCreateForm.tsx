@@ -7,15 +7,23 @@ export default function PodcastCreateForm() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await fetch('/api/podcasts', {
+    setError(null);
+    const res = await fetch('/api/podcasts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description }),
     });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error);
+      setLoading(false);
+      return;
+    }
     setName('');
     setDescription('');
     setLoading(false);
@@ -37,6 +45,7 @@ export default function PodcastCreateForm() {
         placeholder="Description (optional)"
         className="border rounded px-3 py-2 w-full"
       />
+      {error && <p className="text-red-600 text-sm">{error}</p>}
       <button
         type="submit"
         disabled={loading}

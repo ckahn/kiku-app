@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**聴く (Kiku)** — a Japanese podcast study app. Users upload MP3s, the app transcribes them via ElevenLabs, chunks the transcript into study segments using Claude, adds furigana annotations, and provides a drill-down view with translations and grammar explanations. Includes a spaced repetition review system.
+**KIKU (聴く)** — a Japanese podcast study app. Users upload MP3s, the app transcribes them via ElevenLabs, chunks the transcript into study segments and add furigana annotations using Claude, adds furigana annotations, and provides a drill-down view with translations and grammar explanations (also via Claude). Includes a spaced repetition review system.
 
 ## Tech Stack
 

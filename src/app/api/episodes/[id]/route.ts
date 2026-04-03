@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const [episode] = await db.select().from(episodes).where(eq(episodes.id, id));
+  const [episode] = await db.select().from(episodes).where(eq(episodes.id, Number(id)));
   if (!episode) return NextResponse.json({ error: 'not found' }, { status: 404 });
   return NextResponse.json(episode);
 }

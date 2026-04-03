@@ -11,10 +11,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function EpisodeList({
   episodes,
-  podcastId,
+  podcastSlug,
 }: {
   episodes: Episode[];
-  podcastId: string;
+  podcastSlug: string;
 }) {
   if (episodes.length === 0) {
     return <p className="text-gray-500">No episodes yet.</p>;
@@ -24,7 +24,7 @@ export default function EpisodeList({
       {episodes.map((ep) => (
         <li key={ep.id}>
           <Link
-            href={`/podcasts/${podcastId}/episodes/${ep.id}`}
+            href={`/podcasts/${podcastSlug}/episodes/${ep.episodeNumber}`}
             className="block border rounded p-4 hover:bg-gray-50"
           >
             <div className="flex items-center justify-between">

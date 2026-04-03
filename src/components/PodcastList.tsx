@@ -10,7 +10,7 @@ export default function PodcastList({ podcasts }: { podcasts: Podcast[] }) {
       {podcasts.map((p) => (
         <li key={p.id}>
           <Link
-            href={`/podcasts/${p.id}`}
+            href={`/podcasts/${p.slug}`}
             className="block border rounded p-4 hover:bg-gray-50"
           >
             <p className="font-medium">{p.name}</p>
