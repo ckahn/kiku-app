@@ -1,0 +1,32 @@
+[
+  {
+    "text": "おはようございます。今日も朝早く起きてしまいました。",
+    "text_furigana": "おはようございます。<ruby>今日<rt>きょう</rt></ruby>も<ruby>朝<rt>あさ</rt></ruby><ruby>早<rt>はや</rt></ruby>く<ruby>起<rt>お</rt></ruby>きてしまいました。",
+    "first_word_index": 0,
+    "last_word_index": 5
+  },
+  {
+    "text": "でも、コーヒーを飲みながら、ゆっくり準備するのが好きなんです。",
+    "text_furigana": "でも、コーヒーを<ruby>飲<rt>の</rt></ruby>みながら、ゆっくり<ruby>準備<rt>じゅんび</rt></ruby>するのが<ruby>好<rt>す</rt></ruby>きなんです。",
+    "first_word_index": 6,
+    "last_word_index": 13
+  },
+  {
+    "text": "今日は大事な会議があるのに、まだ準備ができていません。",
+    "text_furigana": "<ruby>今日<rt>きょう</rt></ruby>は<ruby>大事<rt>だいじ</rt></ruby>な<ruby>会議<rt>かいぎ</rt></ruby>があるのに、まだ<ruby>準備<rt>じゅんび</rt></ruby>ができていません。",
+    "first_word_index": 14,
+    "last_word_index": 20
+  },
+  {
+    "text": "時間があれば、もっと勉強したいと思っています。でも、なかなか難しいですね。",
+    "text_furigana": "<ruby>時間<rt>じかん</rt></ruby>があれば、もっと<ruby>勉強<rt>べんきょう</rt></ruby>したいと<ruby>思<rt>おも</rt></ruby>っています。でも、なかなか<ruby>難<rt>むずか</rt></ruby>しいですね。",
+    "first_word_index": 21,
+    "last_word_index": 28
+  },
+  {
+    "text": "リスナーの皆さんも、毎日少しずつ練習すれば、きっと上手くなりますよ。",
+    "text_furigana": "リスナーの<ruby>皆<rt>みな</rt></ruby>さんも、<ruby>毎日<rt>まいにち</rt></ruby><ruby>少<rt>すこ</rt></ruby>しずつ<ruby>練習<rt>れんしゅう</rt></ruby>すれば、きっと<ruby>上手<rt>うま</rt></ruby>くなりますよ。",
+    "first_word_index": 29,
+    "last_word_index": 35
+  }
+]

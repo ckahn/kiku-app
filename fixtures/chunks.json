@@ -1,0 +1,27 @@
+[
+  {
+    "text": "おはようございます。今日も朝早く起きてしまいました。",
+    "first_word_index": 0,
+    "last_word_index": 5
+  },
+  {
+    "text": "でも、コーヒーを飲みながら、ゆっくり準備するのが好きなんです。",
+    "first_word_index": 6,
+    "last_word_index": 13
+  },
+  {
+    "text": "今日は大事な会議があるのに、まだ準備ができていません。",
+    "first_word_index": 14,
+    "last_word_index": 20
+  },
+  {
+    "text": "時間があれば、もっと勉強したいと思っています。でも、なかなか難しいですね。",
+    "first_word_index": 21,
+    "last_word_index": 28
+  },
+  {
+    "text": "リスナーの皆さんも、毎日少しずつ練習すれば、きっと上手くなりますよ。",
+    "first_word_index": 29,
+    "last_word_index": 35
+  }
+]

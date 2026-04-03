@@ -12,7 +12,19 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated directories:
+    "coverage/**",
   ]),
+  {
+    rules: {
+      // Honour the TypeScript convention of prefixing intentionally unused
+      // parameters with _ (e.g. stub functions that will be implemented later).
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_" },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

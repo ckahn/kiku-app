@@ -1,0 +1,139 @@
+import { describe, it, expect } from 'vitest';
+import transcript from '@fixtures/elevenlabs-transcript.json';
+import chunks from '@fixtures/chunks.json';
+import furigana from '@fixtures/furigana.json';
+import drilldown from '@fixtures/drilldown.json';
+
+describe('elevenlabs-transcript.json', () => {
+  it('has a non-empty text field', () => {
+    expect(transcript.text.length).toBeGreaterThan(0);
+  });
+
+  it('has a non-empty words array', () => {
+    expect(transcript.words.length).toBeGreaterThan(0);
+  });
+
+  it('has a high language probability', () => {
+    expect(transcript.language_probability).toBeGreaterThanOrEqual(0.95);
+  });
+
+  it('has non-overlapping timestamps (each word start >= previous word end)', () => {
+    for (let i = 1; i < transcript.words.length; i++) {
+      const prev = transcript.words[i - 1];
+      const curr = transcript.words[i];
+      expect(curr.start).toBeGreaterThanOrEqual(prev.end - 0.001); // tiny float tolerance
+    }
+  });
+
+  it('has non-negative start times', () => {
+    for (const word of transcript.words) {
+      expect(word.start).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('text equals concatenation of all word texts', () => {
+    const concatenated = transcript.words.map((w) => w.text).join('');
+    expect(concatenated).toBe(transcript.text);
+  });
+});
+
+describe('chunks.json', () => {
+  it('has at least one chunk', () => {
+    expect(chunks.length).toBeGreaterThan(0);
+  });
+
+  it('all word indices are within bounds of transcript.words', () => {
+    const maxIndex = transcript.words.length - 1;
+    for (const chunk of chunks) {
+      expect(chunk.first_word_index).toBeGreaterThanOrEqual(0);
+      expect(chunk.last_word_index).toBeLessThanOrEqual(maxIndex);
+      expect(chunk.first_word_index).toBeLessThanOrEqual(chunk.last_word_index);
+    }
+  });
+
+  it('chunk text equals concatenation of its word range', () => {
+    for (const chunk of chunks) {
+      const wordsInRange = transcript.words.slice(
+        chunk.first_word_index,
+        chunk.last_word_index + 1
+      );
+      const concatenated = wordsInRange.map((w) => w.text).join('');
+      expect(concatenated).toBe(chunk.text);
+    }
+  });
+
+  it('chunks cover non-overlapping, sequential word ranges', () => {
+    const sorted = [...chunks].sort((a, b) => a.first_word_index - b.first_word_index);
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      expect(curr.first_word_index).toBeGreaterThan(prev.last_word_index);
+    }
+  });
+});
+
+describe('furigana.json', () => {
+  it('has the same length as chunks.json', () => {
+    expect(furigana.length).toBe(chunks.length);
+  });
+
+  it('each entry text matches the corresponding chunk text', () => {
+    for (let i = 0; i < furigana.length; i++) {
+      expect(furigana[i].text).toBe(chunks[i].text);
+    }
+  });
+
+  it('each entry carries the same word indices as the corresponding chunk', () => {
+    for (let i = 0; i < furigana.length; i++) {
+      expect(furigana[i].first_word_index).toBe(chunks[i].first_word_index);
+      expect(furigana[i].last_word_index).toBe(chunks[i].last_word_index);
+    }
+  });
+
+  it('each text_furigana contains at least one <ruby> tag', () => {
+    for (const entry of furigana) {
+      expect(entry.text_furigana).toContain('<ruby');
+    }
+  });
+
+  it('text_furigana contains the plain text content', () => {
+    // Remove <rt>...</rt> readings first (their text content is not part of the base text),
+    // then strip remaining HTML tags — the result should equal the plain chunk text.
+    for (const entry of furigana) {
+      const stripped = entry.text_furigana
+        .replace(/<rt>[^<]*<\/rt>/g, '')
+        .replace(/<[^>]+>/g, '');
+      expect(stripped).toBe(entry.text);
+    }
+  });
+});
+
+describe('drilldown.json', () => {
+  it('has a non-empty sentences array', () => {
+    expect(drilldown.sentences.length).toBeGreaterThan(0);
+  });
+
+  it('each sentence has non-empty japanese and english fields', () => {
+    for (const sentence of drilldown.sentences) {
+      expect(sentence.japanese.length).toBeGreaterThan(0);
+      expect(sentence.english.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('each sentence has at least one grammar structure', () => {
+    for (const sentence of drilldown.sentences) {
+      expect(sentence.structures.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('each structure has pattern, explanation, and example with ja/en', () => {
+    for (const sentence of drilldown.sentences) {
+      for (const structure of sentence.structures) {
+        expect(structure.pattern.length).toBeGreaterThan(0);
+        expect(structure.explanation.length).toBeGreaterThan(0);
+        expect(structure.example.ja.length).toBeGreaterThan(0);
+        expect(structure.example.en.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
