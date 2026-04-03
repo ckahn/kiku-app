@@ -35,7 +35,7 @@ export default async function PodcastPage({
           Upload episode
         </h2>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <EpisodeUploadForm podcastId={String(podcast.id)} />
+          <EpisodeUploadForm podcastId={String(podcast.id)} podcastSlug={slug} />
         </div>
       </div>
 

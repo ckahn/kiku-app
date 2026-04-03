@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { TranscriptChunk, ElevenLabsWord } from '../types';
 
 const DUMMY_WORDS: ElevenLabsWord[] = [
-  { text: 'テスト', start: 0, end: 0.5, type: 'word', speaker_id: 'speaker_0', logprob: -0.1 },
+  { text: 'テスト', startSecond: 0, endSecond: 0.5 },
 ];
 
 const DUMMY_CHUNKS: TranscriptChunk[] = [

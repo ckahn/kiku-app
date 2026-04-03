@@ -1,17 +1,20 @@
+import { experimental_transcribe as sdkTranscribe } from 'ai';
+import { createElevenLabs } from '@ai-sdk/elevenlabs';
 import type { ElevenLabsTranscript } from './types';
 import fixtureData from '../../../fixtures/elevenlabs-transcript.json';
 
-const SCRIBE_V2_URL = 'https://api.elevenlabs.io/v1/speech-to-text';
-
 /**
- * Transcribe audio using ElevenLabs Scribe v2.
- * Returns word-level timestamps for Japanese (or any language).
+ * Transcribe audio using ElevenLabs via the Vercel AI SDK.
+ * Returns word-level timestamps for Japanese.
  *
  * Set USE_MOCKS=true to return the fixture instead of calling the API.
+ *
+ * Note: uses experimental_transcribe (ai@^4). When the function graduates
+ * to stable, drop the alias import.
  */
 export async function transcribe(
   audioBuffer: Buffer,
-  mimeType: string = 'audio/mpeg'
+  _mimeType: string = 'audio/mpeg'
 ): Promise<ElevenLabsTranscript> {
   if (process.env.USE_MOCKS === 'true') {
     return fixtureData as ElevenLabsTranscript;
@@ -22,27 +25,33 @@ export async function transcribe(
     throw new Error('ELEVENLABS_API_KEY is not configured');
   }
 
-  const formData = new FormData();
-  formData.append('model_id', 'scribe_v2');
-  formData.append('language_code', 'ja');
-  formData.append('timestamps_granularity', 'word');
-  formData.append(
-    'file',
-    new Blob([audioBuffer as unknown as ArrayBuffer], { type: mimeType }),
-    'audio.mp3'
-  );
+  // Use createElevenLabs to pass the key explicitly rather than relying on
+  // the default provider's env lookup, which can be unreliable in some runtimes.
+  const provider = createElevenLabs({ apiKey });
 
-  const response = await fetch(SCRIBE_V2_URL, {
-    method: 'POST',
-    headers: { 'xi-api-key': apiKey },
-    body: formData,
+  const result = await sdkTranscribe({
+    model: provider.transcription('scribe_v1'),
+    audio: audioBuffer,
+    providerOptions: {
+      elevenlabs: {
+        timestampsGranularity: 'word',
+        languageCode: 'ja',
+      },
+    },
   });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`ElevenLabs API error ${response.status}: ${body}`);
-  }
+  const metadata = result.providerMetadata?.elevenlabs as
+    | { languageCode?: string; languageProbability?: number }
+    | undefined;
 
-  const data = await response.json();
-  return data as ElevenLabsTranscript;
+  return {
+    language_code: metadata?.languageCode ?? 'ja',
+    language_probability: metadata?.languageProbability ?? 1.0,
+    text: result.text,
+    segments: result.segments.map((s) => ({
+      text: s.text,
+      startSecond: s.startSecond,
+      endSecond: s.endSecond,
+    })),
+  };
 }

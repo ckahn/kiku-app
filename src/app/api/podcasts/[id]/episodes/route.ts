@@ -5,6 +5,16 @@ import { episodes } from '@/db/schema';
 import { getErrorMessage } from '@/lib/utils';
 import { apiOk, apiErr } from '@/lib/api-response';
 
+// PostgreSQL unique violation error code
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: unknown }).code === '23505'
+  );
+}
+
 export const maxDuration = 60;
 
 const episodeFormSchema = z.object({
@@ -46,6 +56,10 @@ export async function POST(
 
     return apiOk(episode, 201);
   } catch (error: unknown) {
+    // Unique constraint violation: (podcast_id, episode_number)
+    if (isUniqueViolation(error)) {
+      return apiErr(`An episode with that number already exists for this podcast`, 409);
+    }
     return apiErr(getErrorMessage(error), 500);
   }
 }

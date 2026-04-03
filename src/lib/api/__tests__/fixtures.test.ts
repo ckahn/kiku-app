@@ -9,30 +9,30 @@ describe('elevenlabs-transcript.json', () => {
     expect(transcript.text.length).toBeGreaterThan(0);
   });
 
-  it('has a non-empty words array', () => {
-    expect(transcript.words.length).toBeGreaterThan(0);
+  it('has a non-empty segments array', () => {
+    expect(transcript.segments.length).toBeGreaterThan(0);
   });
 
   it('has a high language probability', () => {
     expect(transcript.language_probability).toBeGreaterThanOrEqual(0.95);
   });
 
-  it('has non-overlapping timestamps (each word start >= previous word end)', () => {
-    for (let i = 1; i < transcript.words.length; i++) {
-      const prev = transcript.words[i - 1];
-      const curr = transcript.words[i];
-      expect(curr.start).toBeGreaterThanOrEqual(prev.end - 0.001); // tiny float tolerance
+  it('has non-overlapping timestamps (each segment startSecond >= previous segment endSecond)', () => {
+    for (let i = 1; i < transcript.segments.length; i++) {
+      const prev = transcript.segments[i - 1];
+      const curr = transcript.segments[i];
+      expect(curr.startSecond).toBeGreaterThanOrEqual(prev.endSecond - 0.001); // tiny float tolerance
     }
   });
 
   it('has non-negative start times', () => {
-    for (const word of transcript.words) {
-      expect(word.start).toBeGreaterThanOrEqual(0);
+    for (const segment of transcript.segments) {
+      expect(segment.startSecond).toBeGreaterThanOrEqual(0);
     }
   });
 
-  it('text equals concatenation of all word texts', () => {
-    const concatenated = transcript.words.map((w) => w.text).join('');
+  it('text equals concatenation of all segment texts', () => {
+    const concatenated = transcript.segments.map((s) => s.text).join('');
     expect(concatenated).toBe(transcript.text);
   });
 });
@@ -42,8 +42,8 @@ describe('chunks.json', () => {
     expect(chunks.length).toBeGreaterThan(0);
   });
 
-  it('all word indices are within bounds of transcript.words', () => {
-    const maxIndex = transcript.words.length - 1;
+  it('all word indices are within bounds of transcript.segments', () => {
+    const maxIndex = transcript.segments.length - 1;
     for (const chunk of chunks) {
       expect(chunk.first_word_index).toBeGreaterThanOrEqual(0);
       expect(chunk.last_word_index).toBeLessThanOrEqual(maxIndex);
@@ -51,13 +51,13 @@ describe('chunks.json', () => {
     }
   });
 
-  it('chunk text equals concatenation of its word range', () => {
+  it('chunk text equals concatenation of its segment range', () => {
     for (const chunk of chunks) {
-      const wordsInRange = transcript.words.slice(
+      const segmentsInRange = transcript.segments.slice(
         chunk.first_word_index,
         chunk.last_word_index + 1
       );
-      const concatenated = wordsInRange.map((w) => w.text).join('');
+      const concatenated = segmentsInRange.map((s) => s.text).join('');
       expect(concatenated).toBe(chunk.text);
     }
   });
