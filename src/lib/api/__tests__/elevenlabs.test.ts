@@ -14,15 +14,15 @@ describe('transcribe() — mock mode', () => {
     const { transcribe } = await import('../elevenlabs');
     const result = await transcribe(Buffer.from('dummy'));
     expect(result).toHaveProperty('text');
-    expect(result).toHaveProperty('words');
+    expect(result).toHaveProperty('segments');
     expect(result).toHaveProperty('language_code');
     expect(result).toHaveProperty('language_probability');
   });
 
-  it('returns a words array with at least one entry', async () => {
+  it('returns a segments array with at least one entry', async () => {
     const { transcribe } = await import('../elevenlabs');
     const result: ElevenLabsTranscript = await transcribe(Buffer.from('dummy'));
-    expect(result.words.length).toBeGreaterThan(0);
+    expect(result.segments.length).toBeGreaterThan(0);
   });
 
   it('does not make any HTTP requests', async () => {
@@ -33,16 +33,13 @@ describe('transcribe() — mock mode', () => {
     fetchSpy.mockRestore();
   });
 
-  it('each word entry has text, start, end, type, speaker_id, logprob', async () => {
+  it('each segment entry has text, startSecond, endSecond', async () => {
     const { transcribe } = await import('../elevenlabs');
     const result = await transcribe(Buffer.from('dummy'));
-    for (const word of result.words) {
-      expect(word).toHaveProperty('text');
-      expect(word).toHaveProperty('start');
-      expect(word).toHaveProperty('end');
-      expect(word).toHaveProperty('type');
-      expect(word).toHaveProperty('speaker_id');
-      expect(word).toHaveProperty('logprob');
+    for (const segment of result.segments) {
+      expect(segment).toHaveProperty('text');
+      expect(segment).toHaveProperty('startSecond');
+      expect(segment).toHaveProperty('endSecond');
     }
   });
 });
@@ -71,7 +68,7 @@ describe('transcribe() — non-mock mode', () => {
       language_code: 'ja',
       language_probability: 0.99,
       text: 'テスト',
-      words: [{ text: 'テスト', start: 0, end: 0.5, type: 'word', speaker_id: 'speaker_0', logprob: -0.1 }],
+      segments: [{ text: 'テスト', startSecond: 0, endSecond: 0.5 }],
     };
 
     vi.stubEnv('ELEVENLABS_API_KEY', 'test-api-key');
@@ -87,7 +84,7 @@ describe('transcribe() — non-mock mode', () => {
     expect(url).toContain('speech-to-text');
     expect((init.headers as Record<string, string>)['xi-api-key']).toBe('test-api-key');
     expect(result.text).toBe('テスト');
-    expect(result.words).toHaveLength(1);
+    expect(result.segments).toHaveLength(1);
   });
 
   it('throws on a non-OK API response', async () => {
