@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { put } from '@vercel/blob';
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
 import { getErrorMessage } from '@/lib/utils';
@@ -15,10 +14,9 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
-export const maxDuration = 60;
-
-const episodeFormSchema = z.object({
-  file: z.instanceof(File, { message: 'file is required' }),
+const episodeBodySchema = z.object({
+  // blobUrl is the Vercel Blob URL returned after a client upload
+  blobUrl: z.string().url('blobUrl must be a valid URL'),
   episodeNumber: z.coerce.number().int().min(1, 'episodeNumber must be a positive integer'),
   title: z.string().optional(),
 });
@@ -31,27 +29,17 @@ export async function POST(
     const { id } = await params;
     const podcastId = Number(id);
 
-    const formData = await request.formData();
-    const result = episodeFormSchema.safeParse({
-      file: formData.get('file'),
-      episodeNumber: formData.get('episodeNumber'),
-      title: formData.get('title') ?? undefined,
-    });
+    const body: unknown = await request.json();
+    const result = episodeBodySchema.safeParse(body);
     if (!result.success) {
       return apiErr(result.error.issues[0].message, 400);
     }
-    const { file, episodeNumber, title } = result.data;
+    const { blobUrl, episodeNumber, title } = result.data;
     const trimmedTitle = title?.trim() || null;
-
-    const blob = await put(file.name, file, {
-      access: 'private',
-      contentType: file.type || 'audio/mpeg',
-      allowOverwrite: true,
-    });
 
     const [episode] = await db
       .insert(episodes)
-      .values({ podcastId, title: trimmedTitle ?? `Episode ${episodeNumber}`, audioUrl: blob.url, episodeNumber })
+      .values({ podcastId, title: trimmedTitle ?? `Episode ${episodeNumber}`, audioUrl: blobUrl, episodeNumber })
       .returning();
 
     return apiOk(episode, 201);

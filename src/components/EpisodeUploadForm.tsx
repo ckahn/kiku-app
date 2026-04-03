@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { upload } from '@vercel/blob/client';
 import { getErrorMessage } from '@/lib/utils';
 import { Button, Input } from '@/components/ui';
 
@@ -23,11 +24,22 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUpl
     setLoading(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.append('episodeNumber', episodeNumber);
-      if (title) body.append('title', title);
-      body.append('file', file);
-      const res = await fetch(`/api/podcasts/${podcastId}/episodes`, { method: 'POST', body });
+      // Step 1: Upload file directly to Vercel Blob (bypasses function body size limit)
+      const blob = await upload(file.name, file, {
+        access: 'private',
+        handleUploadUrl: '/api/blob/upload',
+      });
+
+      // Step 2: Create episode record using the returned blob URL
+      const res = await fetch(`/api/podcasts/${podcastId}/episodes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blobUrl: blob.url,
+          episodeNumber: Number(episodeNumber),
+          title: title || undefined,
+        }),
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(json.error ?? `Upload failed (${res.status})`);
