@@ -44,5 +44,5 @@ export async function insertRawTranscript(
 ): Promise<void> {
   await db
     .insert(rawTranscripts)
-    .values({ episodeId, payload: transcript as Record<string, unknown> });
+    .values({ episodeId, payload: transcript as unknown as Record<string, unknown> });
 }
