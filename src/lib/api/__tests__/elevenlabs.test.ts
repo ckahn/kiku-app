@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ElevenLabsTranscript } from '../types';
 
+// Top-level mock so vi.mocked() works per-test without hoisting conflicts.
+vi.mock('ai', () => ({
+  experimental_transcribe: vi.fn(),
+}));
+vi.mock('@ai-sdk/elevenlabs', () => ({
+  elevenlabs: { transcription: vi.fn().mockReturnValue('mocked-model') },
+}));
+
 describe('transcribe() — mock mode', () => {
   beforeEach(() => {
     vi.stubEnv('USE_MOCKS', 'true');
@@ -25,12 +33,11 @@ describe('transcribe() — mock mode', () => {
     expect(result.segments.length).toBeGreaterThan(0);
   });
 
-  it('does not make any HTTP requests', async () => {
-    const fetchSpy = vi.spyOn(global, 'fetch');
+  it('does not call the AI SDK', async () => {
+    const { experimental_transcribe } = await import('ai');
     const { transcribe } = await import('../elevenlabs');
     await transcribe(Buffer.from('dummy'));
-    expect(fetchSpy).not.toHaveBeenCalled();
-    fetchSpy.mockRestore();
+    expect(experimental_transcribe).not.toHaveBeenCalled();
   });
 
   it('each segment entry has text, startSecond, endSecond', async () => {
@@ -47,12 +54,11 @@ describe('transcribe() — mock mode', () => {
 describe('transcribe() — non-mock mode', () => {
   beforeEach(() => {
     vi.stubEnv('USE_MOCKS', 'false');
-    vi.resetModules();
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.restoreAllMocks();
+    vi.resetAllMocks();
   });
 
   it('throws when ELEVENLABS_API_KEY is not set', async () => {
@@ -63,37 +69,37 @@ describe('transcribe() — non-mock mode', () => {
     );
   });
 
-  it('calls the ElevenLabs API with the correct headers and returns parsed JSON', async () => {
-    const fakeResponse = {
-      language_code: 'ja',
-      language_probability: 0.99,
+  it('maps AI SDK result to ElevenLabsTranscript shape', async () => {
+    vi.stubEnv('ELEVENLABS_API_KEY', 'test-api-key');
+    const { experimental_transcribe } = await import('ai');
+    vi.mocked(experimental_transcribe).mockResolvedValueOnce({
       text: 'テスト',
       segments: [{ text: 'テスト', startSecond: 0, endSecond: 0.5 }],
-    };
-
-    vi.stubEnv('ELEVENLABS_API_KEY', 'test-api-key');
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify(fakeResponse), { status: 200 })
-    );
+      language: 'ja',
+      durationInSeconds: 0.5,
+      providerMetadata: {
+        elevenlabs: { languageCode: 'ja', languageProbability: 0.99 },
+      },
+      warnings: [],
+      responses: [],
+    });
 
     const { transcribe } = await import('../elevenlabs');
     const result = await transcribe(Buffer.from('audio-data'));
 
-    expect(fetch).toHaveBeenCalledOnce();
-    const [url, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
-    expect(url).toContain('speech-to-text');
-    expect((init.headers as Record<string, string>)['xi-api-key']).toBe('test-api-key');
     expect(result.text).toBe('テスト');
     expect(result.segments).toHaveLength(1);
+    expect(result.segments[0].startSecond).toBe(0);
+    expect(result.language_code).toBe('ja');
+    expect(result.language_probability).toBe(0.99);
   });
 
-  it('throws on a non-OK API response', async () => {
+  it('propagates AI SDK errors', async () => {
     vi.stubEnv('ELEVENLABS_API_KEY', 'test-api-key');
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce(
-      new Response('Unauthorized', { status: 401 })
-    );
+    const { experimental_transcribe } = await import('ai');
+    vi.mocked(experimental_transcribe).mockRejectedValueOnce(new Error('API error 401'));
 
     const { transcribe } = await import('../elevenlabs');
-    await expect(transcribe(Buffer.from('dummy'))).rejects.toThrow('ElevenLabs API error 401');
+    await expect(transcribe(Buffer.from('dummy'))).rejects.toThrow('API error 401');
   });
 });
