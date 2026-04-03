@@ -3,7 +3,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input } from '@/components/ui';
 
-export default function PodcastCreateForm() {
+interface PodcastCreateFormProps {
+  onClose?: () => void;
+}
+
+export default function PodcastCreateForm({ onClose }: PodcastCreateFormProps) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -19,20 +23,18 @@ export default function PodcastCreateForm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description }),
     });
+    const data = await res.json();
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error);
+      setError(data.error ?? 'Something went wrong.');
       setLoading(false);
       return;
     }
-    setName('');
-    setDescription('');
-    setLoading(false);
-    router.refresh();
+    onClose?.();
+    router.push(`/podcasts/${data.data.slug}`);
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mb-8 space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -45,8 +47,8 @@ export default function PodcastCreateForm() {
         placeholder="Description (optional)"
       />
       {error && <p className="text-xs text-error-on-subtle">{error}</p>}
-      <Button type="submit" loading={loading}>
-        {loading ? 'Creating…' : 'Add Podcast'}
+      <Button type="submit" loading={loading} className="w-full">
+        {loading ? 'Creating…' : 'Add podcast'}
       </Button>
     </form>
   );
