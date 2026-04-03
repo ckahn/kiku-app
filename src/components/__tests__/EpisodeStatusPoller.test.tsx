@@ -130,4 +130,50 @@ describe('EpisodeStatusPoller', () => {
       expect(screen.getByText('Timeout exceeded')).toBeInTheDocument();
     }, { timeout: 2000 });
   });
+
+  it('stops polling once status reaches ready', async () => {
+    mockFetch
+      .mockResolvedValueOnce(makeProcessResponse())
+      .mockResolvedValueOnce(makeEpisodeResponse('transcribing'))
+      .mockResolvedValue(makeEpisodeResponse('ready', { transcriptText: '完了' }));
+
+    render(
+      <EpisodeStatusPoller episodeId={1} initialStatus="uploaded" pollIntervalMs={FAST_POLL} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('完了')).toBeInTheDocument();
+    }, { timeout: 2000 });
+
+    const callCountAtReady = mockFetch.mock.calls.length;
+
+    // Wait several more poll intervals — no additional fetches should fire
+    await new Promise((r) => setTimeout(r, FAST_POLL * 5));
+    expect(mockFetch.mock.calls.length).toBe(callCountAtReady);
+  });
+
+  it('does not start polling if unmounted before process fetch resolves', async () => {
+    // Simulate Strict Mode: cleanup fires before the async process fetch completes.
+    // The cleanedUp flag should prevent the interval from being created.
+    let resolveProcess!: (r: Response) => void;
+    mockFetch.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveProcess = resolve;
+      })
+    );
+
+    const { unmount } = render(
+      <EpisodeStatusPoller episodeId={1} initialStatus="uploaded" pollIntervalMs={FAST_POLL} />
+    );
+
+    unmount();
+    resolveProcess(makeProcessResponse()); // resolve after unmount
+
+    // Wait several poll intervals — no GET calls should have been made
+    await new Promise((r) => setTimeout(r, FAST_POLL * 5));
+    const pollCalls = mockFetch.mock.calls.filter(
+      ([url]) => !(url as string).includes('/process')
+    );
+    expect(pollCalls).toHaveLength(0);
+  });
 });

@@ -28,10 +28,14 @@ export default function EpisodeStatusPoller({
   useEffect(() => {
     if (TERMINAL_STATUSES.has(status)) return;
 
+    let cleanedUp = false;
+
     async function startProcessing() {
       if (status === 'uploaded') {
         await fetch(`/api/episodes/${episodeId}/process`, { method: 'POST' });
       }
+
+      if (cleanedUp) return;
 
       intervalRef.current = setInterval(async () => {
         const res = await fetch(`/api/episodes/${episodeId}`);
@@ -53,6 +57,7 @@ export default function EpisodeStatusPoller({
 
         if (TERMINAL_STATUSES.has(episode.status)) {
           clearInterval(intervalRef.current!);
+          intervalRef.current = null;
         }
       }, pollIntervalMs);
     }
@@ -60,7 +65,11 @@ export default function EpisodeStatusPoller({
     startProcessing();
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      cleanedUp = true;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — runs once on mount
