@@ -1,46 +1,55 @@
 @import "tailwindcss";
 
 :root {
-  --canvas: #f8f7f5;
-  --surface: #ffffff;
-  --border: #e5e2dc;
-  --border-subtle: #f0ede7;
-  --ink: #1a1917;
-  --muted: #6b6763;
-  --disabled: #a19e9a;
-  --primary: #4338ca;
-  --primary-hover: #3730a3;
-  --primary-subtle: #eef2ff;
-  --info-subtle: #dbeafe;
-  --info-on-subtle: #1e40af;
-  --warning-subtle: #fef9c3;
-  --warning-on-subtle: #713f12;
-  --success-subtle: #dcfce7;
-  --success-on-subtle: #166534;
-  --error-subtle: #fee2e2;
-  --error-on-subtle: #991b1b;
+  /* Washi paper canvas, shoji screen surface */
+  --canvas: #f5f0e8;
+  --surface: #fdfaf5;
+  --border: #d8cfc3;
+  --border-subtle: #ede6db;
+  /* Sumi ink text */
+  --ink: #1c1917;
+  --muted: #7a736d;
+  --disabled: #b5aea8;
+  /* Torii vermillion as primary */
+  --primary: #c1412a;
+  --primary-hover: #a33422;
+  --primary-subtle: #fdf0ee;
+  /* Indigo blue (koiai) for info */
+  --info-subtle: #dde9f5;
+  --info-on-subtle: #1a4a7a;
+  /* Amber lantern glow for warning */
+  --warning-subtle: #fdf0d0;
+  --warning-on-subtle: #7a4a0a;
+  /* Forest pine green for success */
+  --success-subtle: #d8edd9;
+  --success-on-subtle: #1f5c24;
+  /* Deep red for error */
+  --error-subtle: #fde8e5;
+  --error-on-subtle: #8c1f15;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #111110;
-    --surface: #1c1b1a;
-    --border: #2e2c2a;
-    --border-subtle: #252422;
-    --ink: #f0ede8;
-    --muted: #a19e9a;
-    --disabled: #6b6763;
-    --primary: #818cf8;
-    --primary-hover: #a5b4fc;
-    --primary-subtle: #1e1b4b;
-    --info-subtle: #1e3a5f;
-    --info-on-subtle: #93c5fd;
-    --warning-subtle: #451a03;
-    --warning-on-subtle: #fcd34d;
-    --success-subtle: #052e16;
-    --success-on-subtle: #86efac;
-    --error-subtle: #450a0a;
-    --error-on-subtle: #fca5a5;
+    /* Dark lacquerware and charcoal roof tones */
+    --canvas: #161412;
+    --surface: #1f1c19;
+    --border: #322d29;
+    --border-subtle: #272320;
+    --ink: #f0ebe3;
+    --muted: #a89f98;
+    --disabled: #6b6460;
+    /* Brighter vermillion for dark backgrounds */
+    --primary: #e8644a;
+    --primary-hover: #f07a62;
+    --primary-subtle: #2e1a16;
+    --info-subtle: #162438;
+    --info-on-subtle: #8ab8e0;
+    --warning-subtle: #2e1e08;
+    --warning-on-subtle: #e8b84a;
+    --success-subtle: #0e2610;
+    --success-on-subtle: #7ec882;
+    --error-subtle: #2e0e0a;
+    --error-on-subtle: #f09088;
   }
 }
 
@@ -74,6 +83,13 @@
 body {
   background: var(--canvas);
   color: var(--ink);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Cpath d='M0,20 A20,20 0 0,1 40,20' fill='none' stroke='%23c1412a' stroke-width='0.8' stroke-opacity='0.13'/%3E%3Cpath d='M-20,40 A20,20 0 0,1 20,40' fill='none' stroke='%23c1412a' stroke-width='0.8' stroke-opacity='0.13'/%3E%3Cpath d='M20,40 A20,20 0 0,1 60,40' fill='none' stroke='%23c1412a' stroke-width='0.8' stroke-opacity='0.13'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='20'%3E%3Cpath d='M0,20 A20,20 0 0,1 40,20' fill='none' stroke='%23e8644a' stroke-width='0.8' stroke-opacity='0.09'/%3E%3Cpath d='M-20,40 A20,20 0 0,1 20,40' fill='none' stroke='%23e8644a' stroke-width='0.8' stroke-opacity='0.09'/%3E%3Cpath d='M20,40 A20,20 0 0,1 60,40' fill='none' stroke='%23e8644a' stroke-width='0.8' stroke-opacity='0.09'/%3E%3C/svg%3E");
+  }
 }
 
 ruby rt {

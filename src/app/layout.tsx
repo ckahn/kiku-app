@@ -34,9 +34,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col font-sans antialiased">
         <header className="sticky top-0 z-10 border-b border-border bg-surface/90 backdrop-blur-sm">
+          <div className="h-1 bg-primary" />
           <div className="max-w-2xl mx-auto px-4 sm:px-6 h-12 flex items-center justify-between">
-            <Link href="/" className="text-sm font-semibold tracking-wide text-ink hover:text-primary transition-colors">
-              聴く <span className="text-muted font-normal">KIKU</span>
+            <Link href="/" className="text-sm font-semibold tracking-wide hover:opacity-80 transition-opacity">
+              <span className="text-primary font-jp">聴く</span>{" "}
+              <span className="text-muted font-normal">KIKU</span>
             </Link>
           </div>
         </header>
