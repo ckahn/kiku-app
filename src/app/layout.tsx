@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "聴く",
+  title: "KIKU",
   description: "Japanese podcast study app",
 };
 
