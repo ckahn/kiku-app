@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button, Input } from '@/components/ui';
 
 export default function PodcastCreateForm() {
   const router = useRouter();
@@ -31,28 +32,22 @@ export default function PodcastCreateForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mb-8 space-y-2">
-      <input
+    <form onSubmit={handleSubmit} className="mb-8 space-y-3">
+      <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Podcast name"
         required
-        className="border rounded px-3 py-2 w-full"
       />
-      <input
+      <Input
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Description (optional)"
-        className="border rounded px-3 py-2 w-full"
       />
-      {error && <p className="text-red-600 text-sm">{error}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-      >
+      {error && <p className="text-xs text-error-on-subtle">{error}</p>}
+      <Button type="submit" loading={loading}>
         {loading ? 'Creating…' : 'Add Podcast'}
-      </button>
+      </Button>
     </form>
   );
 }

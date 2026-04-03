@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getErrorMessage } from '@/lib/utils';
+import { Button, Input } from '@/components/ui';
 
 interface EpisodeUploadFormProps {
   podcastId: string;
@@ -43,41 +44,35 @@ export default function EpisodeUploadForm({ podcastId }: EpisodeUploadFormProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2 mb-4">
-      <input
+    <form onSubmit={handleSubmit} className="space-y-3 mb-4">
+      <Input
         type="number"
         value={episodeNumber}
         onChange={(e) => setEpisodeNumber(e.target.value)}
         placeholder="Episode number"
         required
-        className="border rounded px-3 py-2 w-full"
       />
-      <input
+      <Input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Title (optional)"
-        className="border rounded px-3 py-2 w-full"
       />
       <input
         type="file"
         accept="audio/*"
         onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         required
-        className="block"
+        className="block text-sm text-muted file:mr-3 file:rounded file:border-0 file:bg-canvas file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink file:cursor-pointer"
       />
-      <button
-        type="submit"
-        disabled={loading || !file}
-        className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-      >
-        {loading ? 'Uploading…' : 'Upload'}
-      </button>
       {loading && (
-        <p className="text-sm text-gray-500">Uploading… this may take a moment.</p>
+        <p className="text-sm text-muted">Uploading… this may take a moment.</p>
       )}
       {error && (
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-xs text-error-on-subtle">{error}</p>
       )}
+      <Button type="submit" disabled={loading || !file} loading={loading}>
+        {loading ? 'Uploading…' : 'Upload'}
+      </Button>
     </form>
   );
 }

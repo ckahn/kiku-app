@@ -350,6 +350,7 @@ when you need to test against real APIs.
 - [ ] Store chunks in `chunks` table
 - [ ] Update pipeline: transcribe → chunk → annotate → status "ready"
 - [ ] Render chunks on episode page as a vertical list of text blocks
+- [ ] Remove static Japanese typography sample added in M1.5 Step 7 (`src/app/podcasts/[slug]/episodes/[number]/page.tsx`)
 
 **Deliverable:** Episode page shows chunked Japanese text with furigana.
 
