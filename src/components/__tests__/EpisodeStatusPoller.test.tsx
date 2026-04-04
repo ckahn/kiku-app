@@ -5,6 +5,11 @@ import EpisodeStatusPoller from '../EpisodeStatusPoller';
 
 const FAST_POLL = 20; // ms — fast enough for tests, avoids fake-timer complexity
 
+const mockRefresh = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: mockRefresh }),
+}));
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
@@ -25,22 +30,11 @@ function makeProcessResponse() {
 describe('EpisodeStatusPoller', () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    mockRefresh.mockReset();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  it('renders transcript immediately when initialStatus is ready', () => {
-    render(
-      <EpisodeStatusPoller
-        episodeId={1}
-        initialStatus="ready"
-        transcriptText="テスト文章"
-      />
-    );
-    expect(screen.getByText('テスト文章')).toBeInTheDocument();
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('shows error message immediately when initialStatus is error', () => {
@@ -70,10 +64,26 @@ describe('EpisodeStatusPoller', () => {
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
+  it('shows "Transcribing…" while status is transcribing', () => {
+    mockFetch.mockReturnValue(new Promise(() => {}));
+    render(
+      <EpisodeStatusPoller episodeId={1} initialStatus="transcribing" pollIntervalMs={FAST_POLL} />
+    );
+    expect(screen.getByText('Transcribing…')).toBeInTheDocument();
+  });
+
+  it('shows "Chunking…" while status is chunking', () => {
+    mockFetch.mockReturnValue(new Promise(() => {}));
+    render(
+      <EpisodeStatusPoller episodeId={1} initialStatus="chunking" pollIntervalMs={FAST_POLL} />
+    );
+    expect(screen.getByText('Chunking…')).toBeInTheDocument();
+  });
+
   it('fires POST to /process on mount when status is uploaded', async () => {
     mockFetch
       .mockResolvedValueOnce(makeProcessResponse())
-      .mockResolvedValue(makeEpisodeResponse('ready', { transcriptText: '完了' }));
+      .mockResolvedValue(makeEpisodeResponse('ready'));
 
     render(
       <EpisodeStatusPoller episodeId={1} initialStatus="uploaded" pollIntervalMs={FAST_POLL} />
@@ -88,7 +98,7 @@ describe('EpisodeStatusPoller', () => {
   });
 
   it('does NOT fire POST to /process when status is transcribing', async () => {
-    mockFetch.mockResolvedValue(makeEpisodeResponse('ready', { transcriptText: '完了' }));
+    mockFetch.mockResolvedValue(makeEpisodeResponse('ready'));
 
     render(
       <EpisodeStatusPoller episodeId={1} initialStatus="transcribing" pollIntervalMs={FAST_POLL} />
@@ -102,17 +112,17 @@ describe('EpisodeStatusPoller', () => {
     }
   });
 
-  it('displays transcript text when polling detects ready', async () => {
+  it('calls router.refresh() when polling detects ready', async () => {
     mockFetch
       .mockResolvedValueOnce(makeProcessResponse())
-      .mockResolvedValue(makeEpisodeResponse('ready', { transcriptText: 'テスト完了' }));
+      .mockResolvedValue(makeEpisodeResponse('ready'));
 
     render(
       <EpisodeStatusPoller episodeId={1} initialStatus="uploaded" pollIntervalMs={FAST_POLL} />
     );
 
     await waitFor(() => {
-      expect(screen.getByText('テスト完了')).toBeInTheDocument();
+      expect(mockRefresh).toHaveBeenCalled();
     }, { timeout: 2000 });
   });
 
@@ -135,14 +145,14 @@ describe('EpisodeStatusPoller', () => {
     mockFetch
       .mockResolvedValueOnce(makeProcessResponse())
       .mockResolvedValueOnce(makeEpisodeResponse('transcribing'))
-      .mockResolvedValue(makeEpisodeResponse('ready', { transcriptText: '完了' }));
+      .mockResolvedValue(makeEpisodeResponse('ready'));
 
     render(
       <EpisodeStatusPoller episodeId={1} initialStatus="uploaded" pollIntervalMs={FAST_POLL} />
     );
 
     await waitFor(() => {
-      expect(screen.getByText('完了')).toBeInTheDocument();
+      expect(mockRefresh).toHaveBeenCalled();
     }, { timeout: 2000 });
 
     const callCountAtReady = mockFetch.mock.calls.length;
@@ -153,8 +163,6 @@ describe('EpisodeStatusPoller', () => {
   });
 
   it('does not start polling if unmounted before process fetch resolves', async () => {
-    // Simulate Strict Mode: cleanup fires before the async process fetch completes.
-    // The cleanedUp flag should prevent the interval from being created.
     let resolveProcess!: (r: Response) => void;
     mockFetch.mockReturnValueOnce(
       new Promise<Response>((resolve) => {

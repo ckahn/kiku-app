@@ -1,10 +1,12 @@
 import { notFound } from 'next/navigation';
 import { db } from '@/db';
-import { episodes, podcasts, rawTranscripts } from '@/db/schema';
+import { episodes, podcasts } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { Badge } from '@/components/ui';
 import { PageShell } from '@/components/layout';
 import EpisodeStatusPoller from '@/components/EpisodeStatusPoller';
+import ChunkList from '@/components/ChunkList';
+import { getChunksByEpisodeId } from '@/db/chunks';
 
 type BadgeVariant = 'info' | 'warning' | 'success' | 'error' | 'neutral';
 
@@ -38,16 +40,9 @@ export default async function EpisodePage({
     .where(and(eq(episodes.podcastId, podcast.id), eq(episodes.episodeNumber, Number(number))));
   if (!episode) notFound();
 
-  // Fetch transcript text server-side when ready so the initial render
-  // shows it without a client round-trip.
-  let transcriptText: string | null = null;
-  if (episode.status === 'ready') {
-    const [raw] = await db
-      .select({ payload: rawTranscripts.payload })
-      .from(rawTranscripts)
-      .where(eq(rawTranscripts.episodeId, episode.id));
-    transcriptText = (raw?.payload as { text?: string } | null)?.text ?? null;
-  }
+  const chunks = episode.status === 'ready'
+    ? await getChunksByEpisodeId(episode.id)
+    : [];
 
   return (
     <PageShell backHref={`/podcasts/${slug}`} backLabel={podcast.name}>
@@ -91,14 +86,17 @@ export default async function EpisodePage({
 
       <section aria-label="Transcript">
         <h2 className="text-base font-semibold text-ink mb-3">Transcript</h2>
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <EpisodeStatusPoller
-            episodeId={episode.id}
-            initialStatus={episode.status}
-            transcriptText={transcriptText ?? undefined}
-            errorMessage={episode.errorMessage}
-          />
-        </div>
+        {episode.status === 'ready' ? (
+          <ChunkList chunks={chunks} />
+        ) : (
+          <div className="rounded-lg border border-border bg-surface p-4">
+            <EpisodeStatusPoller
+              episodeId={episode.id}
+              initialStatus={episode.status}
+              errorMessage={episode.errorMessage}
+            />
+          </div>
+        )}
       </section>
     </PageShell>
   );
