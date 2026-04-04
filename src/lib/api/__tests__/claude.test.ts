@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { TranscriptChunk, ElevenLabsWord } from '../types';
 
+// Top-level mocks — hoisted so they apply to all dynamic imports below.
+vi.mock('ai', () => ({
+  generateText: vi.fn(),
+}));
+vi.mock('@ai-sdk/anthropic', () => ({
+  createAnthropic: vi.fn().mockReturnValue(vi.fn().mockReturnValue('mocked-anthropic-model')),
+}));
+
 const DUMMY_WORDS: ElevenLabsWord[] = [
   { text: 'テスト', startSecond: 0, endSecond: 0.5 },
 ];
@@ -108,7 +116,121 @@ describe('generateDrilldown() — mock mode', () => {
   });
 });
 
-describe('API wrappers — non-mock mode stubs', () => {
+describe('chunkTranscript() — real API', () => {
+  beforeEach(() => {
+    vi.stubEnv('USE_MOCKS', 'false');
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  it('throws when ANTHROPIC_API_KEY is not configured', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    const { chunkTranscript } = await import('../claude');
+    await expect(chunkTranscript('テスト', DUMMY_WORDS)).rejects.toThrow(
+      'ANTHROPIC_API_KEY is not configured'
+    );
+  });
+
+  it('calls generateText and parses JSON response into chunks', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateText } = await import('ai');
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: JSON.stringify([{ text: 'テスト', first_word_index: 0, last_word_index: 0 }]),
+    } as Awaited<ReturnType<typeof generateText>>);
+
+    const { chunkTranscript } = await import('../claude');
+    const result = await chunkTranscript('テスト', DUMMY_WORDS);
+
+    expect(generateText).toHaveBeenCalled();
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ text: 'テスト', first_word_index: 0, last_word_index: 0 });
+  });
+
+  it('throws a descriptive error when Claude returns malformed JSON', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateText } = await import('ai');
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: 'not valid json at all',
+    } as Awaited<ReturnType<typeof generateText>>);
+
+    const { chunkTranscript } = await import('../claude');
+    await expect(chunkTranscript('テスト', DUMMY_WORDS)).rejects.toThrow(
+      'Claude returned invalid JSON for chunking'
+    );
+  });
+
+  it('throws when Claude response is not an array', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateText } = await import('ai');
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: '{"text": "テスト"}',
+    } as Awaited<ReturnType<typeof generateText>>);
+
+    const { chunkTranscript } = await import('../claude');
+    await expect(chunkTranscript('テスト', DUMMY_WORDS)).rejects.toThrow(
+      'Claude chunking response is not an array'
+    );
+  });
+});
+
+describe('addFurigana() — real API', () => {
+  beforeEach(() => {
+    vi.stubEnv('USE_MOCKS', 'false');
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  it('throws when ANTHROPIC_API_KEY is not configured', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    const { addFurigana } = await import('../claude');
+    await expect(addFurigana(DUMMY_CHUNKS)).rejects.toThrow(
+      'ANTHROPIC_API_KEY is not configured'
+    );
+  });
+
+  it('calls generateText once per chunk', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateText } = await import('ai');
+    vi.mocked(generateText)
+      .mockResolvedValueOnce({ text: 'テスト' } as Awaited<ReturnType<typeof generateText>>)
+      .mockResolvedValueOnce({ text: 'もう一つ' } as Awaited<ReturnType<typeof generateText>>);
+
+    const twoChunks: TranscriptChunk[] = [
+      { text: 'テスト', first_word_index: 0, last_word_index: 0 },
+      { text: 'もう一つ', first_word_index: 1, last_word_index: 1 },
+    ];
+    const { addFurigana } = await import('../claude');
+    await addFurigana(twoChunks);
+
+    expect(generateText).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves text, first_word_index, and last_word_index from input', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateText } = await import('ai');
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: '<ruby>テスト<rt>てすと</rt></ruby>',
+    } as Awaited<ReturnType<typeof generateText>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana(DUMMY_CHUNKS);
+
+    expect(result[0].text).toBe('テスト');
+    expect(result[0].first_word_index).toBe(0);
+    expect(result[0].last_word_index).toBe(0);
+    expect(result[0].text_furigana).toBe('<ruby>テスト<rt>てすと</rt></ruby>');
+  });
+});
+
+describe('generateDrilldown() — non-mock mode stub', () => {
   beforeEach(() => {
     vi.stubEnv('USE_MOCKS', 'false');
     vi.resetModules();
@@ -118,21 +240,7 @@ describe('API wrappers — non-mock mode stubs', () => {
     vi.unstubAllEnvs();
   });
 
-  it('chunkTranscript throws with clear message', async () => {
-    const { chunkTranscript } = await import('../claude');
-    await expect(chunkTranscript('', [])).rejects.toThrow(
-      'Real Claude API not yet implemented'
-    );
-  });
-
-  it('addFurigana throws with clear message', async () => {
-    const { addFurigana } = await import('../claude');
-    await expect(addFurigana([])).rejects.toThrow(
-      'Real Claude API not yet implemented'
-    );
-  });
-
-  it('generateDrilldown throws with clear message', async () => {
+  it('throws with clear message', async () => {
     const { generateDrilldown } = await import('../claude');
     await expect(generateDrilldown('')).rejects.toThrow(
       'Real Claude API not yet implemented'
