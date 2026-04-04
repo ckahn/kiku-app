@@ -4,12 +4,15 @@ import { episodes } from '@/db/schema';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { transcribe } from '@/lib/api/elevenlabs';
+import { chunkTranscript, addFurigana } from '@/lib/api/claude';
 import {
   setEpisodeTranscribing,
+  setEpisodeChunking,
   setEpisodeReady,
   setEpisodeError,
   insertRawTranscript,
 } from '@/db/episodes';
+import { insertChunks } from '@/db/chunks';
 
 // Vercel Hobby plan: 60s max. Sufficient for episodes up to ~20 min.
 // For longer files, upgrade to Pro (300s) or switch to async processing.
@@ -53,6 +56,12 @@ export async function POST(
     const transcript = await transcribe(audioBuffer);
 
     await insertRawTranscript(episodeId, transcript);
+    await setEpisodeChunking(episodeId);
+
+    const transcriptChunks = await chunkTranscript(transcript.text, transcript.segments);
+    const chunksWithFurigana = await addFurigana(transcriptChunks);
+    await insertChunks(episodeId, chunksWithFurigana, transcript.segments);
+
     await setEpisodeReady(episodeId);
 
     return apiOk({ status: 'ready' });
