@@ -211,6 +211,24 @@ describe('addFurigana() — real API', () => {
     expect(result[0].last_word_index).toBe(0);
     expect(result[0].text_furigana).toBe('<ruby>テスト<rt>てすと</rt></ruby>');
   });
+
+  it('strips disallowed tags from furigana output', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, text_furigana: '<script>alert(1)</script><ruby>漢字<rt>かんじ</rt></ruby>' },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana(DUMMY_CHUNKS);
+
+    expect(result[0].text_furigana).not.toContain('<script>');
+    expect(result[0].text_furigana).toContain('<ruby>');
+  });
 });
 
 describe('generateDrilldown() — non-mock mode stub', () => {

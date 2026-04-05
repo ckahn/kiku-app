@@ -1,4 +1,5 @@
 import { generateObject } from 'ai';
+import sanitizeHtml from 'sanitize-html';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import type {
@@ -125,7 +126,10 @@ ${chunkList}`;
 
   return chunks.map((chunk, i) => ({
     text: chunk.text,
-    text_furigana: object.annotated_chunks[i].text_furigana,
+    text_furigana: sanitizeHtml(object.annotated_chunks[i].text_furigana, {
+      allowedTags: ['ruby', 'rt', 'rp'],
+      allowedAttributes: {},
+    }),
     first_word_index: chunk.first_word_index,
     last_word_index: chunk.last_word_index,
   }));
