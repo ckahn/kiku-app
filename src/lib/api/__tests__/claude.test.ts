@@ -3,7 +3,6 @@ import type { TranscriptChunk, ElevenLabsWord } from '../types';
 
 // Top-level mocks — hoisted so they apply to all dynamic imports below.
 vi.mock('ai', () => ({
-  generateText: vi.fn(),
   generateObject: vi.fn(),
 }));
 vi.mock('@ai-sdk/anthropic', () => ({
@@ -140,7 +139,7 @@ describe('chunkTranscript() — real API', () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
-      object: [{ text: 'テスト', first_word_index: 0, last_word_index: 0 }],
+      object: { chunks: [{ text: 'テスト', first_word_index: 0, last_word_index: 0 }] },
     } as Awaited<ReturnType<typeof generateObject>>);
 
     const { chunkTranscript } = await import('../claude');
@@ -171,12 +170,17 @@ describe('addFurigana() — real API', () => {
     );
   });
 
-  it('calls generateText once per chunk', async () => {
+  it('calls generateObject once for all chunks', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
-    const { generateText } = await import('ai');
-    vi.mocked(generateText)
-      .mockResolvedValueOnce({ text: 'テスト' } as Awaited<ReturnType<typeof generateText>>)
-      .mockResolvedValueOnce({ text: 'もう一つ' } as Awaited<ReturnType<typeof generateText>>);
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, text_furigana: 'テスト' },
+          { index: 1, text_furigana: 'もう一つ' },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const twoChunks: TranscriptChunk[] = [
       { text: 'テスト', first_word_index: 0, last_word_index: 0 },
@@ -185,15 +189,19 @@ describe('addFurigana() — real API', () => {
     const { addFurigana } = await import('../claude');
     await addFurigana(twoChunks);
 
-    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(generateObject).toHaveBeenCalledTimes(1);
   });
 
   it('preserves text, first_word_index, and last_word_index from input', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
-    const { generateText } = await import('ai');
-    vi.mocked(generateText).mockResolvedValueOnce({
-      text: '<ruby>テスト<rt>てすと</rt></ruby>',
-    } as Awaited<ReturnType<typeof generateText>>);
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, text_furigana: '<ruby>テスト<rt>てすと</rt></ruby>' },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana(DUMMY_CHUNKS);

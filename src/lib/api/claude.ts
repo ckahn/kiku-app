@@ -1,4 +1,4 @@
-import { generateText, generateObject } from 'ai';
+import { generateObject } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import type {
@@ -11,12 +11,24 @@ import chunksFixture from '../../../fixtures/chunks.json';
 import furiganaFixture from '../../../fixtures/furigana.json';
 import drilldownFixture from '../../../fixtures/drilldown.json';
 
-const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+const CHUNK_MODEL = 'claude-sonnet-4-20250514';
+const FURIGANA_MODEL = 'claude-haiku-4-5-20251001';
 
 const transcriptChunkSchema = z.object({
   text: z.string(),
   first_word_index: z.number(),
   last_word_index: z.number(),
+});
+
+const chunkedTranscriptSchema = z.object({
+  chunks: z.array(transcriptChunkSchema),
+});
+
+const furiganaResultSchema = z.object({
+  annotated_chunks: z.array(z.object({
+    index: z.number(),
+    text_furigana: z.string(),
+  })),
 });
 
 /**
@@ -41,35 +53,33 @@ export async function chunkTranscript(
 
   const prompt = `You are a Japanese language teacher preparing podcast transcripts for study.
 
-Split the following Japanese transcript into study chunks. Each chunk should be:
-- 1–3 sentences long (roughly 20–60 characters)
-- A natural pause point (end of sentence, topic shift, breath group)
-- Self-contained enough to be studied alone
+Split the following Japanese transcript into study chunks. Each chunk should be a coherent paragraph — a complete thought or exchange that can be studied on its own.
 
-Return a JSON array where each object has:
-- "text": the exact concatenated text of those words
+Guidelines:
+- A single long sentence is fine as its own chunk
+- Short filler utterances (はい、ええ、うん、そうですね) must be merged with the surrounding sentence, not left alone
+- Aim for roughly 30–80 characters per chunk, but prioritize meaning and coherence over length
+- Split at natural topic shifts, sentence boundaries, or breath groups
+
+Each chunk object must have:
+- "text": the exact concatenated text of those words (spaces between words if present)
 - "first_word_index": integer index of the first word in this chunk
 - "last_word_index": integer index of the last word in this chunk
 
 Rules:
 - Every word must appear in exactly one chunk (no gaps, no overlaps)
 - Indices are 0-based and refer to the word list below
-- Return ONLY the JSON array, no markdown fences, no explanation
-
-Full transcript:
-${fullText}
 
 Word list (index: "text"):
 ${wordList}`;
 
   const { object } = await generateObject({
-    model: anthropic(CLAUDE_MODEL),
-    output: 'array',
-    schema: transcriptChunkSchema,
+    model: anthropic(CHUNK_MODEL),
+    schema: chunkedTranscriptSchema,
     prompt,
   });
 
-  return object;
+  return object.chunks;
 }
 
 /**
@@ -89,28 +99,30 @@ export async function addFurigana(
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
 
   const anthropic = createAnthropic({ apiKey });
-  const results: ChunkWithFurigana[] = [];
+  const chunkList = chunks.map((c, i) => `[${i}] ${c.text}`).join('\n');
 
-  for (const chunk of chunks) {
-    const prompt = `Annotate the following Japanese text with <ruby> HTML tags for furigana.
+  const prompt = `Annotate each Japanese text chunk with <ruby> HTML tags for furigana.
 Rules:
-- Wrap each kanji compound in: <ruby>KANJI<rt>READING</rt></ruby>
+- Wrap each kanji or kanji compound in: <ruby>KANJI<rt>READING</rt></ruby>
 - Hiragana, katakana, punctuation pass through unchanged
 - Do not add spaces not present in the original
-- Return ONLY the annotated HTML string, nothing else
 
-Text: ${chunk.text}`;
+Chunks:
+${chunkList}`;
 
-    const { text } = await generateText({ model: anthropic(CLAUDE_MODEL), prompt, temperature: 0 });
-    results.push({
-      text: chunk.text,
-      text_furigana: text.trim(),
-      first_word_index: chunk.first_word_index,
-      last_word_index: chunk.last_word_index,
-    });
-  }
+  const { object } = await generateObject({
+    model: anthropic(FURIGANA_MODEL),
+    schema: furiganaResultSchema,
+    prompt,
+    temperature: 0,
+  });
 
-  return results;
+  return chunks.map((chunk, i) => ({
+    text: chunk.text,
+    text_furigana: object.annotated_chunks[i].text_furigana,
+    first_word_index: chunk.first_word_index,
+    last_word_index: chunk.last_word_index,
+  }));
 }
 
 /**
