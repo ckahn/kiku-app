@@ -4,6 +4,7 @@ import type { TranscriptChunk, ElevenLabsWord } from '../types';
 // Top-level mocks — hoisted so they apply to all dynamic imports below.
 vi.mock('ai', () => ({
   generateText: vi.fn(),
+  generateObject: vi.fn(),
 }));
 vi.mock('@ai-sdk/anthropic', () => ({
   createAnthropic: vi.fn().mockReturnValue(vi.fn().mockReturnValue('mocked-anthropic-model')),
@@ -135,58 +136,19 @@ describe('chunkTranscript() — real API', () => {
     );
   });
 
-  it('calls generateText and parses JSON response into chunks', async () => {
+  it('calls generateObject and returns parsed chunks', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
-    const { generateText } = await import('ai');
-    vi.mocked(generateText).mockResolvedValueOnce({
-      text: JSON.stringify([{ text: 'テスト', first_word_index: 0, last_word_index: 0 }]),
-    } as Awaited<ReturnType<typeof generateText>>);
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: [{ text: 'テスト', first_word_index: 0, last_word_index: 0 }],
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { chunkTranscript } = await import('../claude');
     const result = await chunkTranscript('テスト', DUMMY_WORDS);
 
-    expect(generateText).toHaveBeenCalled();
+    expect(generateObject).toHaveBeenCalled();
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ text: 'テスト', first_word_index: 0, last_word_index: 0 });
-  });
-
-  it('strips markdown code fences before parsing', async () => {
-    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
-    const { generateText } = await import('ai');
-    vi.mocked(generateText).mockResolvedValueOnce({
-      text: '```json\n[{"text":"テスト","first_word_index":0,"last_word_index":0}]\n```',
-    } as Awaited<ReturnType<typeof generateText>>);
-
-    const { chunkTranscript } = await import('../claude');
-    const result = await chunkTranscript('テスト', DUMMY_WORDS);
-    expect(result).toHaveLength(1);
-    expect(result[0].text).toBe('テスト');
-  });
-
-  it('throws a descriptive error when Claude returns malformed JSON', async () => {
-    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
-    const { generateText } = await import('ai');
-    vi.mocked(generateText).mockResolvedValueOnce({
-      text: 'not valid json at all',
-    } as Awaited<ReturnType<typeof generateText>>);
-
-    const { chunkTranscript } = await import('../claude');
-    await expect(chunkTranscript('テスト', DUMMY_WORDS)).rejects.toThrow(
-      'Claude returned invalid JSON for chunking'
-    );
-  });
-
-  it('throws when Claude response is not an array', async () => {
-    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
-    const { generateText } = await import('ai');
-    vi.mocked(generateText).mockResolvedValueOnce({
-      text: '{"text": "テスト"}',
-    } as Awaited<ReturnType<typeof generateText>>);
-
-    const { chunkTranscript } = await import('../claude');
-    await expect(chunkTranscript('テスト', DUMMY_WORDS)).rejects.toThrow(
-      'Claude chunking response is not an array'
-    );
   });
 });
 

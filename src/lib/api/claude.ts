@@ -1,4 +1,4 @@
-import { generateText } from 'ai';
+import { generateText, generateObject } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import type {
@@ -15,8 +15,8 @@ const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 
 const transcriptChunkSchema = z.object({
   text: z.string(),
-  first_word_index: z.number().int().nonnegative(),
-  last_word_index: z.number().int().nonnegative(),
+  first_word_index: z.number(),
+  last_word_index: z.number(),
 });
 
 /**
@@ -62,22 +62,14 @@ ${fullText}
 Word list (index: "text"):
 ${wordList}`;
 
-  const { text } = await generateText({ model: anthropic(CLAUDE_MODEL), prompt, temperature: 0 });
+  const { object } = await generateObject({
+    model: anthropic(CLAUDE_MODEL),
+    output: 'array',
+    schema: transcriptChunkSchema,
+    prompt,
+  });
 
-  const stripped = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch {
-    throw new Error(`Claude returned invalid JSON for chunking: ${text.slice(0, 200)}`);
-  }
-
-  if (!Array.isArray(parsed)) {
-    throw new Error('Claude chunking response is not an array');
-  }
-
-  return z.array(transcriptChunkSchema).parse(parsed);
+  return object;
 }
 
 /**
