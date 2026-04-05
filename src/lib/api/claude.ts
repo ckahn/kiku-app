@@ -64,9 +64,11 @@ ${wordList}`;
 
   const { text } = await generateText({ model: anthropic(CLAUDE_MODEL), prompt, temperature: 0 });
 
+  const stripped = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text.trim());
+    parsed = JSON.parse(stripped);
   } catch {
     throw new Error(`Claude returned invalid JSON for chunking: ${text.slice(0, 200)}`);
   }

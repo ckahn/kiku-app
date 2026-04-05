@@ -150,6 +150,19 @@ describe('chunkTranscript() — real API', () => {
     expect(result[0]).toMatchObject({ text: 'テスト', first_word_index: 0, last_word_index: 0 });
   });
 
+  it('strips markdown code fences before parsing', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateText } = await import('ai');
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: '```json\n[{"text":"テスト","first_word_index":0,"last_word_index":0}]\n```',
+    } as Awaited<ReturnType<typeof generateText>>);
+
+    const { chunkTranscript } = await import('../claude');
+    const result = await chunkTranscript('テスト', DUMMY_WORDS);
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe('テスト');
+  });
+
   it('throws a descriptive error when Claude returns malformed JSON', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateText } = await import('ai');
