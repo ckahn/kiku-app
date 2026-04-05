@@ -103,6 +103,32 @@ describe('insertChunks()', () => {
     expect(rows[0][0].episodeId).toBe(42);
     expect(rows[0][1].episodeId).toBe(42);
   });
+
+  it('throws a clear error when first_word_index is out of bounds', async () => {
+    const { insertChunks } = await import('../chunks');
+    const badChunk: ChunkWithFurigana[] = [{
+      text: 'テスト',
+      text_furigana: 'テスト',
+      first_word_index: 99, // out of bounds
+      last_word_index: 99,
+    }];
+    await expect(insertChunks(42, badChunk, SAMPLE_WORDS)).rejects.toThrow(
+      'out-of-bounds word indices'
+    );
+  });
+
+  it('throws a clear error when last_word_index is out of bounds', async () => {
+    const { insertChunks } = await import('../chunks');
+    const badChunk: ChunkWithFurigana[] = [{
+      text: 'テスト',
+      text_furigana: 'テスト',
+      first_word_index: 0,
+      last_word_index: 99, // out of bounds
+    }];
+    await expect(insertChunks(42, badChunk, SAMPLE_WORDS)).rejects.toThrow(
+      'out-of-bounds word indices'
+    );
+  });
 });
 
 describe('getChunksByEpisodeId()', () => {

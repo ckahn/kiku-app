@@ -14,8 +14,17 @@ export async function insertChunks(
   words: readonly ElevenLabsWord[]
 ): Promise<void> {
   const values = chunksWithFurigana.map((chunk, index) => {
-    const startMs = Math.round(words[chunk.first_word_index].startSecond * 1000);
-    const endMs = Math.round(words[chunk.last_word_index].endSecond * 1000);
+    const startWord = words[chunk.first_word_index];
+    const endWord = words[chunk.last_word_index];
+    if (!startWord || !endWord) {
+      throw new Error(
+        `Chunk ${index} has out-of-bounds word indices: ` +
+        `first=${chunk.first_word_index}, last=${chunk.last_word_index}, ` +
+        `words.length=${words.length}`
+      );
+    }
+    const startMs = Math.round(startWord.startSecond * 1000);
+    const endMs = Math.round(endWord.endSecond * 1000);
     return {
       episodeId,
       chunkIndex: index,
