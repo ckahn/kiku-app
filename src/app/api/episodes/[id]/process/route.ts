@@ -66,7 +66,9 @@ export async function POST(
 
     return apiOk({ status: 'ready' });
   } catch (error: unknown) {
-    await setEpisodeError(episodeId, getErrorMessage(error));
-    return apiErr(getErrorMessage(error), 500);
+    const message = getErrorMessage(error);
+    console.error(`[process] episode ${episodeId} failed:`, error);
+    await setEpisodeError(episodeId, message);
+    return apiErr(message, 500);
   }
 }
