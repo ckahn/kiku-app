@@ -56,10 +56,16 @@ export async function chunkTranscript(
 Split the following Japanese transcript into study chunks. Each chunk should be a coherent paragraph — a complete thought or exchange that can be studied on its own.
 
 Guidelines:
-- A single long sentence is fine as its own chunk
-- Short filler utterances (はい、ええ、うん、そうですね) must be merged with the surrounding sentence, not left alone
-- Aim for roughly 30–80 characters per chunk, but prioritize meaning and coherence over length
-- Split at natural topic shifts, sentence boundaries, or breath groups
+- GROUP related sentences together — a chunk is a thematic unit, not a single sentence
+- SPLIT only when the topic or speaker's intent clearly shifts
+- Typically 2–4 sentences per chunk; a single sentence is fine only if it is long (40+ chars) or stands alone topically
+- Short filler utterances (はい、ええ、うん、そうですね) must merge with the adjacent sentence
+
+Example — given: こんにちは！ポッドキャストを聞いてくれてありがとうございます。今日は元気ですか？これは日本語を勉強している初心者のためのポッドキャストです。役に立てばうれしいです！
+Correct chunks:
+  chunk 1: こんにちは！ポッドキャストを聞いてくれてありがとうございます。今日は元気ですか？
+  chunk 2: これは日本語を勉強している初心者のためのポッドキャストです。役に立てばうれしいです！
+Wrong: splitting each sentence into its own chunk.
 
 Each chunk object must have:
 - "text": the exact concatenated text of those words (spaces between words if present)
