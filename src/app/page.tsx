@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { db } from '@/db';
 import { podcasts } from '@/db/schema';
 import { desc } from 'drizzle-orm';

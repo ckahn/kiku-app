@@ -4,7 +4,6 @@ import { podcasts } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { getErrorMessage } from '@/lib/utils';
 import { apiOk, apiErr } from '@/lib/api-response';
-import { revalidatePath } from 'next/cache';
 
 function toSlug(str: string): string {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -40,7 +39,6 @@ export async function POST(request: Request) {
         409
       );
     }
-    revalidatePath('/');
     const [podcast] = await db.insert(podcasts).values({ name, slug, description }).returning();
     return apiOk(podcast, 201);
   } catch (error: unknown) {
