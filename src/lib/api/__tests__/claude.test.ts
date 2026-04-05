@@ -212,6 +212,53 @@ describe('addFurigana() — real API', () => {
     expect(result[0].text_furigana).toBe('<ruby>テスト<rt>てすと</rt></ruby>');
   });
 
+  it('uses the index field to match furigana to chunks, not array position', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    // Claude returns chunks in reverse order (index 1 before index 0)
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 1, text_furigana: 'もう一つ' },
+          { index: 0, text_furigana: '<ruby>テスト<rt>てすと</rt></ruby>' },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const twoChunks: TranscriptChunk[] = [
+      { text: 'テスト', first_word_index: 0, last_word_index: 0 },
+      { text: 'もう一つ', first_word_index: 1, last_word_index: 1 },
+    ];
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana(twoChunks);
+
+    expect(result[0].text_furigana).toBe('<ruby>テスト<rt>てすと</rt></ruby>');
+    expect(result[1].text_furigana).toBe('もう一つ');
+  });
+
+  it('falls back to raw text when Claude omits a chunk from annotated_chunks', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    // Claude only returns index 0, omits index 1
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, text_furigana: '<ruby>テスト<rt>てすと</rt></ruby>' },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const twoChunks: TranscriptChunk[] = [
+      { text: 'テスト', first_word_index: 0, last_word_index: 0 },
+      { text: 'もう一つ', first_word_index: 1, last_word_index: 1 },
+    ];
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana(twoChunks);
+
+    expect(result[0].text_furigana).toBe('<ruby>テスト<rt>てすと</rt></ruby>');
+    expect(result[1].text_furigana).toBe('もう一つ'); // raw text fallback, no crash
+  });
+
   it('strips disallowed tags from furigana output', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');

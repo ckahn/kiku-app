@@ -124,15 +124,27 @@ ${chunkList}`;
     temperature: 0,
   });
 
-  return chunks.map((chunk, i) => ({
-    text: chunk.text,
-    text_furigana: sanitizeHtml(object.annotated_chunks[i].text_furigana, {
-      allowedTags: ['ruby', 'rt', 'rp'],
-      allowedAttributes: {},
-    }),
-    first_word_index: chunk.first_word_index,
-    last_word_index: chunk.last_word_index,
-  }));
+  // Map by .index field, not array position — Claude may return results out of order
+  // or return fewer items than requested. Fall back to raw text (no ruby) if missing.
+  const furiganaByIndex = new Map(
+    object.annotated_chunks.map((ac) => [ac.index, ac.text_furigana])
+  );
+
+  return chunks.map((chunk, i) => {
+    const furigana = furiganaByIndex.get(i);
+    if (furigana === undefined) {
+      console.error(`[addFurigana] no annotation returned for chunk index ${i} — falling back to raw text`);
+    }
+    return {
+      text: chunk.text,
+      text_furigana: sanitizeHtml(furigana ?? chunk.text, {
+        allowedTags: ['ruby', 'rt', 'rp'],
+        allowedAttributes: {},
+      }),
+      first_word_index: chunk.first_word_index,
+      last_word_index: chunk.last_word_index,
+    };
+  });
 }
 
 /**
