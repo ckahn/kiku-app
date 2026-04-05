@@ -88,12 +88,18 @@ export default async function EpisodePage({
         <h2 className="text-base font-semibold text-ink mb-3">Transcript</h2>
         {episode.status === 'ready' ? (
           <ChunkList chunks={chunks} />
+        ) : episode.status === 'error' ? (
+          <div
+            role="alert"
+            className="rounded-lg border border-error-subtle bg-error-subtle px-4 py-3 text-sm text-error-on-subtle"
+          >
+            Processing failed. Please delete this episode and try again.
+          </div>
         ) : (
           <div className="rounded-lg border border-border bg-surface p-4">
             <EpisodeStatusPoller
               episodeId={episode.id}
               initialStatus={episode.status}
-              errorMessage={episode.errorMessage}
             />
           </div>
         )}

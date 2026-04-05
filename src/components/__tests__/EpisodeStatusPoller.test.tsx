@@ -37,25 +37,6 @@ describe('EpisodeStatusPoller', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows error message immediately when initialStatus is error', () => {
-    render(
-      <EpisodeStatusPoller
-        episodeId={1}
-        initialStatus="error"
-        errorMessage="Transcription failed"
-      />
-    );
-    expect(screen.getByRole('alert')).toBeInTheDocument();
-    expect(screen.getByText('Transcription failed')).toBeInTheDocument();
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('shows fallback error when errorMessage is absent', () => {
-    render(<EpisodeStatusPoller episodeId={1} initialStatus="error" />);
-    expect(screen.getByRole('alert')).toBeInTheDocument();
-    expect(screen.getByText('Processing failed.')).toBeInTheDocument();
-  });
-
   it('shows a processing indicator while status is uploaded', () => {
     mockFetch.mockReturnValue(new Promise(() => {})); // never resolves
     render(
@@ -126,7 +107,7 @@ describe('EpisodeStatusPoller', () => {
     }, { timeout: 2000 });
   });
 
-  it('shows error when polling detects error status', async () => {
+  it('calls router.refresh() when polling detects error status', async () => {
     mockFetch
       .mockResolvedValueOnce(makeProcessResponse())
       .mockResolvedValue(makeEpisodeResponse('error', { errorMessage: 'Timeout exceeded' }));
@@ -136,8 +117,7 @@ describe('EpisodeStatusPoller', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument();
-      expect(screen.getByText('Timeout exceeded')).toBeInTheDocument();
+      expect(mockRefresh).toHaveBeenCalled();
     }, { timeout: 2000 });
   });
 

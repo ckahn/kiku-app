@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 interface Props {
   readonly episodeId: number;
   readonly initialStatus: string;
-  readonly errorMessage?: string | null;
   /** Override poll interval — use a small value in tests. Defaults to 2000ms. */
   readonly pollIntervalMs?: number;
 }
@@ -16,12 +15,10 @@ const TERMINAL_STATUSES = new Set(['ready', 'error']);
 export default function EpisodeStatusPoller({
   episodeId,
   initialStatus,
-  errorMessage: initialErrorMessage,
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
 }: Props) {
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
-  const [errorMessage, setErrorMessage] = useState(initialErrorMessage ?? null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -47,15 +44,10 @@ export default function EpisodeStatusPoller({
 
         setStatus(episode.status);
 
-        if (episode.status === 'ready') {
+        if (TERMINAL_STATUSES.has(episode.status)) {
           clearInterval(intervalRef.current!);
           intervalRef.current = null;
           router.refresh();
-        }
-        if (episode.status === 'error') {
-          setErrorMessage(episode.errorMessage ?? null);
-          clearInterval(intervalRef.current!);
-          intervalRef.current = null;
         }
       }, pollIntervalMs);
     }
@@ -71,17 +63,6 @@ export default function EpisodeStatusPoller({
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — runs once on mount
-
-  if (status === 'error') {
-    return (
-      <div
-        role="alert"
-        className="rounded-lg border border-error-subtle bg-error-subtle px-4 py-3 text-sm text-error-on-subtle"
-      >
-        {errorMessage ?? 'Processing failed.'}
-      </div>
-    );
-  }
 
   const label =
     status === 'transcribing' ? 'Transcribing…' :
