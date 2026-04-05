@@ -2,6 +2,7 @@ import { generateObject } from 'ai';
 import sanitizeHtml from 'sanitize-html';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
+import { CLAUDE_CHUNK_MODEL, CLAUDE_FURIGANA_MODEL } from '@/lib/constants';
 import type {
   ElevenLabsWord,
   TranscriptChunk,
@@ -11,9 +12,6 @@ import type {
 import chunksFixture from '../../../fixtures/chunks.json';
 import furiganaFixture from '../../../fixtures/furigana.json';
 import drilldownFixture from '../../../fixtures/drilldown.json';
-
-const CHUNK_MODEL = 'claude-sonnet-4-20250514';
-const FURIGANA_MODEL = 'claude-haiku-4-5-20251001';
 
 const transcriptChunkSchema = z.object({
   text: z.string(),
@@ -81,7 +79,7 @@ Word list (index: "text"):
 ${wordList}`;
 
   const { object } = await generateObject({
-    model: anthropic(CHUNK_MODEL),
+    model: anthropic(CLAUDE_CHUNK_MODEL),
     schema: chunkedTranscriptSchema,
     prompt,
   });
@@ -118,7 +116,7 @@ Chunks:
 ${chunkList}`;
 
   const { object } = await generateObject({
-    model: anthropic(FURIGANA_MODEL),
+    model: anthropic(CLAUDE_FURIGANA_MODEL),
     schema: furiganaResultSchema,
     prompt,
     temperature: 0,
