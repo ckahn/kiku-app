@@ -23,9 +23,7 @@ export async function POST(request: Request) {
       ],
       allowOverwrite: true,
     }),
-    onUploadCompleted: async () => {
-      // Episode record is created by the client after upload completes
-    },
+
   });
 
   return Response.json(json);
