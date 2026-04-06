@@ -88,6 +88,29 @@ ${wordList}`;
 }
 
 /**
+ * Returns kanji characters in `annotated` that are not wrapped in a <ruby> tag.
+ * Used to detect when Claude missed annotating a character.
+ */
+export function findUnannotatedKanji(annotated: string): string[] {
+  const stripped = annotated.replace(/<ruby>[\s\S]*?<\/ruby>/g, '');
+  return [...stripped.matchAll(/[\u4e00-\u9fff]/g)].map((m) => m[0]);
+}
+
+const FURIGANA_PROMPT = `Annotate each Japanese text chunk with <ruby> HTML tags for furigana.
+
+Rules:
+- Every kanji character MUST be wrapped — do not skip any.
+- For compound words read as a unit, wrap all kanji together:
+  <ruby>日本語<rt>にほんご</rt></ruby>  <ruby>勉強<rt>べんきょう</rt></ruby>
+- For a single kanji (especially with okurigana), wrap only the kanji:
+  <ruby>聞<rt>き</rt></ruby>いて  <ruby>食<rt>た</rt></ruby>べる
+- Hiragana, katakana, punctuation, and okurigana pass through unchanged.
+- Do not add spaces not present in the original.
+
+Chunks:
+`;
+
+/**
  * Annotate each chunk's text with <ruby> furigana tags using Claude.
  * Kanji receive readings; hiragana, katakana, and punctuation pass through unchanged.
  *
@@ -106,19 +129,10 @@ export async function addFurigana(
   const anthropic = createAnthropic({ apiKey });
   const chunkList = chunks.map((c, i) => `[${i}] ${c.text}`).join('\n');
 
-  const prompt = `Annotate each Japanese text chunk with <ruby> HTML tags for furigana.
-Rules:
-- Wrap each kanji or kanji compound in: <ruby>KANJI<rt>READING</rt></ruby>
-- Hiragana, katakana, punctuation pass through unchanged
-- Do not add spaces not present in the original
-
-Chunks:
-${chunkList}`;
-
   const { object } = await generateObject({
     model: anthropic(CLAUDE_FURIGANA_MODEL),
     schema: furiganaResultSchema,
-    prompt,
+    prompt: FURIGANA_PROMPT + chunkList,
     temperature: 0,
   });
 
@@ -130,12 +144,25 @@ ${chunkList}`;
 
   return chunks.map((chunk, i) => {
     const furigana = furiganaByIndex.get(i);
+
     if (furigana === undefined) {
       console.error(`[addFurigana] no annotation returned for chunk index ${i} — falling back to raw text`);
+      return {
+        text: chunk.text,
+        text_furigana: sanitizeHtml(chunk.text, { allowedTags: [], allowedAttributes: {} }),
+        first_word_index: chunk.first_word_index,
+        last_word_index: chunk.last_word_index,
+      };
     }
+
+    const missed = findUnannotatedKanji(furigana);
+    if (missed.length > 0) {
+      console.error(`[addFurigana] chunk ${i} missing furigana for: ${missed.join('')}`);
+    }
+
     return {
       text: chunk.text,
-      text_furigana: sanitizeHtml(furigana ?? chunk.text, {
+      text_furigana: sanitizeHtml(furigana, {
         allowedTags: ['ruby', 'rt', 'rp'],
         allowedAttributes: {},
       }),
