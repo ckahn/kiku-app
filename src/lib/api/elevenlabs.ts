@@ -2,6 +2,7 @@ import { experimental_transcribe as sdkTranscribe } from 'ai';
 import { createElevenLabs } from '@ai-sdk/elevenlabs';
 import type { ElevenLabsTranscript } from './types';
 import fixtureData from '../../../fixtures/elevenlabs-transcript.json';
+import { getPrivateBlob } from '@/lib/blob';
 
 /**
  * Transcribe audio using ElevenLabs via the Vercel AI SDK.
@@ -13,7 +14,7 @@ import fixtureData from '../../../fixtures/elevenlabs-transcript.json';
  * to stable, drop the alias import.
  */
 export async function transcribe(
-  audioBuffer: Buffer,
+  audio: Buffer | URL,
   _mimeType: string = 'audio/mpeg'
 ): Promise<ElevenLabsTranscript> {
   if (process.env.USE_MOCKS === 'true') {
@@ -31,7 +32,19 @@ export async function transcribe(
 
   const result = await sdkTranscribe({
     model: provider.transcription('scribe_v1'),
-    audio: audioBuffer,
+    audio,
+    download: async ({ url }) => {
+      const blob = await getPrivateBlob(url.toString());
+      if (!blob) {
+        throw new Error('Audio blob not found');
+      }
+
+      const arrayBuffer = await new Response(blob.stream).arrayBuffer();
+      return {
+        data: new Uint8Array(arrayBuffer),
+        mediaType: blob.headers.get('content-type') ?? undefined,
+      };
+    },
     providerOptions: {
       elevenlabs: {
         timestampsGranularity: 'word',

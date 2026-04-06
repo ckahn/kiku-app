@@ -15,11 +15,3 @@ export async function getPrivateBlob(url: string): Promise<GetBlobResult | null>
     useCache: false,
   });
 }
-
-export async function getPrivateBlobBuffer(url: string): Promise<Buffer | null> {
-  const blob = await getPrivateBlob(url);
-  if (!blob) return null;
-
-  const arrayBuffer = await new Response(blob.stream).arrayBuffer();
-  return Buffer.from(arrayBuffer);
-}

@@ -50,43 +50,11 @@ describe('blob helpers', () => {
     });
   });
 
-  it('converts a private blob stream into a Buffer', async () => {
-    const bytes = Uint8Array.from([1, 2, 3, 4]);
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(bytes);
-        controller.close();
-      },
-    });
-
-    mockGet.mockResolvedValueOnce({
-      statusCode: 200,
-      stream,
-      headers: new Headers(),
-      blob: {
-        url: 'https://blob.example.com/audio.mp3',
-        downloadUrl: 'https://blob.example.com/audio.mp3?download=1',
-        pathname: 'audio.mp3',
-        contentDisposition: 'inline',
-        cacheControl: 'private',
-        uploadedAt: new Date('2026-04-05T12:00:00.000Z'),
-        etag: 'etag-1',
-        contentType: 'audio/mpeg',
-        size: 4,
-      },
-    } satisfies GetBlobResult);
-
-    const { getPrivateBlobBuffer } = await import('../blob');
-    const result = await getPrivateBlobBuffer('https://blob.example.com/audio.mp3');
-
-    expect(result).toEqual(Buffer.from(bytes));
-  });
-
   it('returns null when the blob does not exist', async () => {
     mockGet.mockResolvedValueOnce(null);
 
-    const { getPrivateBlobBuffer } = await import('../blob');
-    const result = await getPrivateBlobBuffer('https://blob.example.com/missing.mp3');
+    const { getPrivateBlob } = await import('../blob');
+    const result = await getPrivateBlob('https://blob.example.com/missing.mp3');
 
     expect(result).toBeNull();
   });

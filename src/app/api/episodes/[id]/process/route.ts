@@ -2,7 +2,6 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
 import { apiOk, apiErr } from '@/lib/api-response';
-import { getPrivateBlobBuffer } from '@/lib/blob';
 import { getErrorMessage } from '@/lib/utils';
 import { transcribe } from '@/lib/api/elevenlabs';
 import { chunkTranscript, addFurigana } from '@/lib/api/claude';
@@ -46,12 +45,7 @@ export async function POST(
   const { audioUrl } = claimed[0];
 
   try {
-    const audioBuffer = await getPrivateBlobBuffer(audioUrl);
-    if (!audioBuffer) {
-      throw new Error('Audio blob not found');
-    }
-
-    const transcript = await transcribe(audioBuffer);
+    const transcript = await transcribe(new URL(audioUrl));
 
     await insertRawTranscript(episodeId, transcript);
     await setEpisodeChunking(episodeId);
