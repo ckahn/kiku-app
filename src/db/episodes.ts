@@ -46,6 +46,19 @@ export async function setEpisodeChunking(episodeId: number): Promise<void> {
 }
 
 /**
+ * Fetch the stored raw transcript for an episode.
+ * Throws if none exists (episode hasn't been transcribed yet).
+ */
+export async function getRawTranscript(episodeId: number): Promise<ElevenLabsTranscript> {
+  const [row] = await db
+    .select({ payload: rawTranscripts.payload })
+    .from(rawTranscripts)
+    .where(eq(rawTranscripts.episodeId, episodeId));
+  if (!row) throw new Error(`No raw transcript found for episode ${episodeId}`);
+  return row.payload as unknown as ElevenLabsTranscript;
+}
+
+/**
  * Store the raw ElevenLabs transcript for an episode.
  * A simple INSERT — re-processing strategies are handled at a higher level.
  */

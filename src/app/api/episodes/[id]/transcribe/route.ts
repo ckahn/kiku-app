@@ -4,18 +4,21 @@ import { episodes } from '@/db/schema';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { transcribe } from '@/lib/api/elevenlabs';
-import { chunkTranscript, addFurigana } from '@/lib/api/claude';
-import {
-  setEpisodeChunking,
-  setEpisodeReady,
-  setEpisodeError,
-  insertRawTranscript,
-} from '@/db/episodes';
-import { insertChunks } from '@/db/chunks';
+import { setEpisodeChunking, setEpisodeError, insertRawTranscript } from '@/db/episodes';
 
-// Vercel Hobby plan: 60s max. Sufficient for episodes up to ~20 min.
-// For longer files, upgrade to Pro (300s) or switch to async processing.
 export const maxDuration = 60;
+
+async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  try {
+    const result = await fn();
+    console.log(`[transcribe] ${label} completed in ${Date.now() - start}ms`);
+    return result;
+  } catch (err) {
+    console.error(`[transcribe] ${label} failed after ${Date.now() - start}ms`);
+    throw err;
+  }
+}
 
 export async function POST(
   _request: Request,
@@ -26,7 +29,7 @@ export async function POST(
 
   // Atomically claim the episode for processing: only succeeds if status is
   // still 'uploaded'. Concurrent invocations (Strict Mode, retries) get 0
-  // rows back and are rejected, preventing duplicate chunk inserts.
+  // rows back and are rejected, preventing duplicate work.
   const claimed = await db
     .update(episodes)
     .set({ status: 'transcribing', updatedAt: new Date() })
@@ -45,21 +48,15 @@ export async function POST(
   const { audioUrl } = claimed[0];
 
   try {
-    const transcript = await transcribe(new URL(audioUrl));
-
+    const transcript = await timed('elevenlabs transcribe', () =>
+      transcribe(new URL(audioUrl))
+    );
     await insertRawTranscript(episodeId, transcript);
     await setEpisodeChunking(episodeId);
-
-    const transcriptChunks = await chunkTranscript(transcript.text, transcript.segments);
-    const chunksWithFurigana = await addFurigana(transcriptChunks);
-    await insertChunks(episodeId, chunksWithFurigana, transcript.segments);
-
-    await setEpisodeReady(episodeId);
-
-    return apiOk({ status: 'ready' });
+    return apiOk({ status: 'chunking' });
   } catch (error: unknown) {
     const message = getErrorMessage(error);
-    console.error(`[process] episode ${episodeId} failed:`, error);
+    console.error(`[transcribe] episode ${episodeId} failed:`, error);
     await setEpisodeError(episodeId, message);
     return apiErr(message, 500);
   }
