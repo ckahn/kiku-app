@@ -29,6 +29,11 @@ Audio file (MP3) ──upload──▶ Vercel Blob (storage)
             Transcript UI (interactive player + reader)
 ```
 
+**Likely next pipeline enhancement:**
+- Add a transcript normalization step between STT and chunking.
+- Purpose: remove non-speech metadata like parenthetical sound-effect notes, normalize obvious transcript formatting issues, and optionally rewrite orthography into more natural study text (for example, using kanji where appropriate such as `色々` instead of `いろいろ`).
+- Important constraint: keep the raw ElevenLabs transcript immutable and store any normalized transcript separately so the app can reprocess from the source transcript at any time.
+
 ---
 
 ## Data Model
@@ -196,6 +201,21 @@ Options, in order of simplicity:
 Each step updates `episodes.status`. The frontend polls `/api/episodes/[id]` and
 renders a progress indicator.
 
+**Possible future pipeline shape:**
+
+```
+1. Upload audio → save episode (status: "uploaded")
+2. Transcribe audio with ElevenLabs → save raw transcript (status: "transcribing")
+3. Normalize transcript → remove parenthetical metadata / clean orthography (status: "normalizing")
+4. Chunk transcript with Claude (status: "chunking")
+5. Add furigana to chunks with Claude → save chunks (status: "ready")
+```
+
+This should be treated as a separate feature, not a quick prompt tweak, because it likely requires:
+- A schema change to store normalized transcript data separately from raw STT output
+- A new processing status and UI state
+- Retry/reprocess controls that can restart from the normalized or raw transcript as appropriate
+
 ### Page Structure
 
 ```
@@ -282,7 +302,9 @@ type PlayerState = {
 - [x] Build podcast list page (`/`) — create podcast form + list of existing podcasts
 - [x] Build podcast detail page (`/podcasts/[id]`) — metadata, episode list, upload form
 - [x] `POST /api/podcasts` — create a podcast
+- [x] `DELETE /api/podcasts/[id]` — delete podcast + cascade
 - [x] `POST /api/podcasts/[id]/episodes` — upload audio to Blob, insert episode row
+- [x] `DELETE /api/episodes/[id]` — delete episode + cascade
 - [x] Episode detail page (`/podcasts/[id]/episodes/[id]`) — just metadata for now
 - [x] Deploy to Vercel, confirm end-to-end flow works
 
@@ -390,7 +412,12 @@ when you need to test against real APIs.
 **Goal:** Make it feel like a real study tool, not a prototype.
 
 - [ ] Podcast management: edit metadata, delete podcasts, optional cover art upload
-- [ ] Episode management: delete episodes, re-process failed ones
+  - Add `PATCH /api/podcasts/[id]` for podcast metadata updates
+- [ ] Episode management: edit metadata, delete episodes
+  - Add `PATCH /api/episodes/[id]` for editable episode fields
+- [ ] Manual processing controls: retry failed jobs, re-run chunking/furigana, show last error clearly
+  - Retry from the raw transcript if STT already succeeded
+  - Retry the full pipeline only when needed
 - [ ] Error handling throughout (API failures, timeouts, malformed responses)
 - [ ] Responsive design (usable on phone for listening practice)
 - [ ] Persist user preferences (furigana default on/off, playback speed)
@@ -421,6 +448,23 @@ confirm retention or re-study. Focused on listening comprehension over rote memo
 ---
 
 ### Future: Nice-to-Haves (Unscheduled)
+
+**Transcript normalization layer:**
+Add a dedicated step between transcription and chunking that produces a study-friendly transcript while preserving the raw STT output as the source of truth.
+
+Scope:
+- Strip parenthetical non-speech metadata such as sound-effect labels
+- Normalize obvious formatting noise and transcript artifacts
+- Optionally convert certain high-confidence kana spellings into more natural kanji forms for reading study
+- Keep this narrowly bounded to normalization, not freeform rewriting
+
+Likely implementation notes:
+- Add a `normalizing` episode status
+- Store normalized transcript data separately from `raw_transcripts.payload`
+- Prefer a hybrid approach: deterministic cleanup first, then an LLM pass for bounded orthography normalization if needed
+- Add UI visibility so users can see whether an episode is transcribing, normalizing, or chunking
+
+This is intentionally separated from the current furigana/chunking work because it touches the data model, processing flow, retry semantics, and UI states.
 
 **Structure drilling (integrate existing japanese-drills app):**
 Each grammar structure in a drilldown gets a "Drill this" button. Clicking it calls Claude
