@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
 import { apiOk, apiErr } from '@/lib/api-response';
+import { getPrivateBlobBuffer } from '@/lib/blob';
 import { getErrorMessage } from '@/lib/utils';
 import { transcribe } from '@/lib/api/elevenlabs';
 import { chunkTranscript, addFurigana } from '@/lib/api/claude';
@@ -45,18 +46,10 @@ export async function POST(
   const { audioUrl } = claimed[0];
 
   try {
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-    if (!blobToken) throw new Error('BLOB_READ_WRITE_TOKEN is not configured');
-
-    const audioRes = await fetch(audioUrl, {
-      headers: { Authorization: `Bearer ${blobToken}` },
-    });
-    if (!audioRes.ok) {
-      throw new Error(`Failed to fetch audio blob: HTTP ${audioRes.status}`);
+    const audioBuffer = await getPrivateBlobBuffer(audioUrl);
+    if (!audioBuffer) {
+      throw new Error('Audio blob not found');
     }
-
-    const arrayBuffer = await audioRes.arrayBuffer();
-    const audioBuffer = Buffer.from(arrayBuffer);
 
     const transcript = await transcribe(audioBuffer);
 

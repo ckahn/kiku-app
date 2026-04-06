@@ -4,30 +4,24 @@ import { episodes } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getErrorMessage } from '@/lib/utils';
 import { apiErr } from '@/lib/api-response';
+import { getPrivateBlob } from '@/lib/blob';
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-    if (!blobToken) {
-      return apiErr('BLOB_READ_WRITE_TOKEN is not configured', 500);
-    }
-
     const { id } = await params;
     const [episode] = await db.select({ audioUrl: episodes.audioUrl }).from(episodes).where(eq(episodes.id, Number(id)));
     if (!episode) return apiErr('Not found', 404);
 
-    const blobRes = await fetch(episode.audioUrl, {
-      headers: { Authorization: `Bearer ${blobToken}` },
-    });
-    if (!blobRes.ok) return apiErr('Failed to fetch audio', blobRes.status);
+    const blob = await getPrivateBlob(episode.audioUrl);
+    if (!blob) return apiErr('Audio blob not found', 404);
 
-    return new NextResponse(blobRes.body, {
+    return new NextResponse(blob.stream, {
       headers: {
-        'Content-Type': blobRes.headers.get('Content-Type') ?? 'audio/mpeg',
-        'Content-Length': blobRes.headers.get('Content-Length') ?? '',
+        'Content-Type': blob.headers.get('content-type') ?? 'audio/mpeg',
+        'Content-Length': blob.headers.get('content-length') ?? '',
         'Cache-Control': 'private, max-age=3600',
       },
     });
