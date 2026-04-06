@@ -96,6 +96,28 @@ export function findUnannotatedKanji(annotated: string): string[] {
   return [...stripped.matchAll(/[\u4e00-\u9fff]/g)].map((m) => m[0]);
 }
 
+function containsKana(text: string): boolean {
+  return /[\u3040-\u309f\u30a0-\u30ff]/.test(text);
+}
+
+/**
+ * Unwraps ruby tags when the ruby base text contains kana.
+ * Contract: stored furigana may use <ruby> only when the ruby base text is kanji-only.
+ * Outputs like <ruby>テスト<rt>てすと</rt></ruby> or
+ * <ruby>聞いて<rt>きいて</rt></ruby> are invalid and normalized back to plain text.
+ */
+export function unwrapRubyContainingKana(annotated: string): string {
+  return annotated.replace(/<ruby>([\s\S]*?)<\/ruby>/g, (fullMatch, inner) => {
+    const baseText = inner
+      .replace(/<rt>[\s\S]*?<\/rt>/g, '')
+      .replace(/<rp>[\s\S]*?<\/rp>/g, '')
+      .replace(/<[^>]+>/g, '')
+      .trim();
+
+    return containsKana(baseText) ? baseText : fullMatch;
+  });
+}
+
 const FURIGANA_PROMPT = `Annotate each Japanese text chunk with <ruby> HTML tags for furigana.
 
 Rules:
@@ -104,7 +126,12 @@ Rules:
   <ruby>日本語<rt>にほんご</rt></ruby>  <ruby>勉強<rt>べんきょう</rt></ruby>
 - For a single kanji (especially with okurigana), wrap only the kanji:
   <ruby>聞<rt>き</rt></ruby>いて  <ruby>食<rt>た</rt></ruby>べる
+- A <ruby> tag is valid only when its base text is kanji-only.
 - Hiragana, katakana, punctuation, and okurigana pass through unchanged.
+- Wrong: <ruby>テスト<rt>てすと</rt></ruby>
+- Wrong: <ruby>ありがとう<rt>ありがとう</rt></ruby>
+- Wrong: <ruby>聞いて<rt>きいて</rt></ruby>
+- Correct: <ruby>聞<rt>き</rt></ruby>いて
 - Do not add spaces not present in the original.
 
 Chunks:
@@ -112,7 +139,10 @@ Chunks:
 
 /**
  * Annotate each chunk's text with <ruby> furigana tags using Claude.
- * Kanji receive readings; hiragana, katakana, and punctuation pass through unchanged.
+ * Stored contract:
+ * - <ruby> may wrap kanji-only base text
+ * - hiragana, katakana, punctuation, and okurigana must remain plain text
+ * Invalid ruby around kana is normalized away before persistence.
  *
  * Set USE_MOCKS=true to return fixture data.
  */
@@ -155,14 +185,15 @@ export async function addFurigana(
       };
     }
 
-    const missed = findUnannotatedKanji(furigana);
+    const normalizedFurigana = unwrapRubyContainingKana(furigana);
+    const missed = findUnannotatedKanji(normalizedFurigana);
     if (missed.length > 0) {
       console.error(`[addFurigana] chunk ${i} missing furigana for: ${missed.join('')}`);
     }
 
     return {
       text: chunk.text,
-      text_furigana: sanitizeHtml(furigana, {
+      text_furigana: sanitizeHtml(normalizedFurigana, {
         allowedTags: ['ruby', 'rt', 'rp'],
         allowedAttributes: {},
       }),
