@@ -35,6 +35,17 @@ export async function setEpisodeError(episodeId: number, message: string): Promi
 }
 
 /**
+ * Mark an episode as actively being chunked by Claude.
+ * Always sets updatedAt explicitly — Drizzle does not auto-update it.
+ */
+export async function setEpisodeChunking(episodeId: number): Promise<void> {
+  await db
+    .update(episodes)
+    .set({ status: 'chunking', updatedAt: new Date() })
+    .where(eq(episodes.id, episodeId));
+}
+
+/**
  * Store the raw ElevenLabs transcript for an episode.
  * A simple INSERT — re-processing strategies are handled at a higher level.
  */

@@ -1,15 +1,17 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { transcribe } from '@/lib/api/elevenlabs';
+import { chunkTranscript, addFurigana } from '@/lib/api/claude';
 import {
-  setEpisodeTranscribing,
+  setEpisodeChunking,
   setEpisodeReady,
   setEpisodeError,
   insertRawTranscript,
 } from '@/db/episodes';
+import { insertChunks } from '@/db/chunks';
 
 // Vercel Hobby plan: 60s max. Sufficient for episodes up to ~20 min.
 // For longer files, upgrade to Pro (300s) or switch to async processing.
@@ -22,25 +24,31 @@ export async function POST(
   const { id } = await params;
   const episodeId = Number(id);
 
-  const [episode] = await db
-    .select({ audioUrl: episodes.audioUrl, status: episodes.status })
-    .from(episodes)
-    .where(eq(episodes.id, episodeId));
+  // Atomically claim the episode for processing: only succeeds if status is
+  // still 'uploaded'. Concurrent invocations (Strict Mode, retries) get 0
+  // rows back and are rejected, preventing duplicate chunk inserts.
+  const claimed = await db
+    .update(episodes)
+    .set({ status: 'transcribing', updatedAt: new Date() })
+    .where(and(eq(episodes.id, episodeId), eq(episodes.status, 'uploaded')))
+    .returning({ audioUrl: episodes.audioUrl });
 
-  if (!episode) return apiErr('not found', 404);
-
-  // Guard: only process episodes in 'uploaded' state to prevent duplicate runs.
-  if (episode.status !== 'uploaded') {
-    return apiErr(`episode is already ${episode.status}`, 409);
+  if (claimed.length === 0) {
+    const [ep] = await db
+      .select({ status: episodes.status })
+      .from(episodes)
+      .where(eq(episodes.id, episodeId));
+    if (!ep) return apiErr('not found', 404);
+    return apiErr(`episode is already ${ep.status}`, 409);
   }
 
-  await setEpisodeTranscribing(episodeId);
+  const { audioUrl } = claimed[0];
 
   try {
     const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
     if (!blobToken) throw new Error('BLOB_READ_WRITE_TOKEN is not configured');
 
-    const audioRes = await fetch(episode.audioUrl, {
+    const audioRes = await fetch(audioUrl, {
       headers: { Authorization: `Bearer ${blobToken}` },
     });
     if (!audioRes.ok) {
@@ -53,11 +61,19 @@ export async function POST(
     const transcript = await transcribe(audioBuffer);
 
     await insertRawTranscript(episodeId, transcript);
+    await setEpisodeChunking(episodeId);
+
+    const transcriptChunks = await chunkTranscript(transcript.text, transcript.segments);
+    const chunksWithFurigana = await addFurigana(transcriptChunks);
+    await insertChunks(episodeId, chunksWithFurigana, transcript.segments);
+
     await setEpisodeReady(episodeId);
 
     return apiOk({ status: 'ready' });
   } catch (error: unknown) {
-    await setEpisodeError(episodeId, getErrorMessage(error));
-    return apiErr(getErrorMessage(error), 500);
+    const message = getErrorMessage(error);
+    console.error(`[process] episode ${episodeId} failed:`, error);
+    await setEpisodeError(episodeId, message);
+    return apiErr(message, 500);
   }
 }

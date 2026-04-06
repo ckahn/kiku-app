@@ -95,6 +95,10 @@ body {
   }
 }
 
+ruby {
+  display: inline-ruby;
+}
+
 ruby rt {
   font-size: 0.5em;
   color: var(--muted);
