@@ -8,10 +8,14 @@ function getBlobToken(): string {
   return token;
 }
 
-export async function getPrivateBlob(url: string): Promise<GetBlobResult | null> {
+export async function getPrivateBlob(
+  url: string,
+  extraHeaders?: HeadersInit,
+): Promise<GetBlobResult | null> {
   return get(url, {
     access: 'private',
     token: getBlobToken(),
     useCache: false,
+    ...(extraHeaders ? { headers: extraHeaders } : {}),
   });
 }
