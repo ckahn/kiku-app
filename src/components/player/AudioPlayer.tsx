@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { UsePlayerReturn } from './usePlayer';
 import PlayerControls from './PlayerControls';
 import ProgressBar from './ProgressBar';
@@ -12,7 +13,7 @@ interface AudioPlayerProps {
 
 export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlayerProps) {
   const { state, controls, audioRef } = player;
-  const durationSec = durationMs / 1000;
+  const [audioDurationSec, setAudioDurationSec] = useState(durationMs > 0 ? durationMs / 1000 : 0);
 
   return (
     <div className="sticky bottom-0 z-10 bg-surface border-t border-border px-4 py-3 shadow-sm">
@@ -21,6 +22,7 @@ export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlaye
         ref={audioRef}
         src={audioUrl}
         preload="metadata"
+        onLoadedMetadata={(e) => setAudioDurationSec((e.target as HTMLAudioElement).duration)}
         aria-hidden="true"
         className="hidden"
       />
@@ -37,7 +39,7 @@ export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlaye
         />
         <ProgressBar
           currentTime={state.currentTime}
-          durationSec={durationSec}
+          durationSec={audioDurationSec}
           onSeek={controls.seek}
         />
       </div>

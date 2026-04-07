@@ -54,7 +54,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
       const audio = audioRef.current;
       if (!audio) return;
       const min = bounds?.startSec ?? 0;
-      const max = bounds?.endSec ?? durationMs / 1000;
+      const max = bounds?.endSec ?? (audio.duration || durationMs / 1000);
       audio.currentTime = Math.max(min, Math.min(max, timeSec));
     },
     [durationMs],
@@ -88,21 +88,6 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     audio.addEventListener('timeupdate', handleTimeUpdate);
     return () => audio.removeEventListener('timeupdate', handleTimeUpdate);
   }, [chunks]);
-
-  // When entering chunk mode, seek to chunk start
-  const lastFocusedRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (state.mode === 'chunk' && state.focusedChunkId !== lastFocusedRef.current) {
-      lastFocusedRef.current = state.focusedChunkId;
-      const bounds = getChunkBounds(chunks, state.focusedChunkId);
-      if (bounds && audioRef.current) {
-        audioRef.current.currentTime = bounds.startSec;
-      }
-    }
-    if (state.mode === 'global') {
-      lastFocusedRef.current = null;
-    }
-  }, [state.mode, state.focusedChunkId, chunks]);
 
   const controls: PlayerControls = {
     play: useCallback(() => {
@@ -171,8 +156,12 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     }, [chunks]),
 
     focusChunk: useCallback((chunkId: number) => {
+      const bounds = getChunkBounds(chunks, chunkId);
+      if (bounds && audioRef.current) {
+        audioRef.current.currentTime = bounds.startSec;
+      }
       dispatch({ type: 'FOCUS_CHUNK', payload: chunkId });
-    }, []),
+    }, [chunks]),
 
     unfocusChunk: useCallback(() => {
       audioRef.current?.pause();

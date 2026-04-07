@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import AudioPlayer from '../player/AudioPlayer';
 import type { UsePlayerReturn } from '../player/usePlayer';
 import { initialPlayerState } from '../player/playerReducer';
@@ -105,5 +105,27 @@ describe('AudioPlayer', () => {
     const slider = screen.getByRole('slider', { name: 'Playback position' });
     fireEvent.change(slider, { target: { value: '45' } });
     expect(player.controls.seek).toHaveBeenCalledWith(45);
+  });
+
+  it('uses durationMs prop for initial slider max', () => {
+    const player = makePlayer();
+    render(<AudioPlayer audioUrl={AUDIO_URL} durationMs={DURATION_MS} player={player} />);
+    const slider = screen.getByRole('slider', { name: 'Playback position' });
+    expect(slider).toHaveAttribute('max', '120'); // 120000ms / 1000
+  });
+
+  it('updates slider max from audio loadedmetadata when durationMs is 0', () => {
+    const player = makePlayer();
+    render(<AudioPlayer audioUrl={AUDIO_URL} durationMs={0} player={player} />);
+    const slider = screen.getByRole('slider', { name: 'Playback position' });
+    expect(slider).toHaveAttribute('max', '0');
+
+    const audio = document.querySelector('audio')!;
+    Object.defineProperty(audio, 'duration', { value: 300, configurable: true });
+    act(() => {
+      fireEvent(audio, new Event('loadedmetadata'));
+    });
+
+    expect(slider).toHaveAttribute('max', '300');
   });
 });
