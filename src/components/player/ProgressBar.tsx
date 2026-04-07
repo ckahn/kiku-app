@@ -14,8 +14,6 @@ function formatTime(sec: number): string {
 }
 
 export default function ProgressBar({ currentTime, durationSec, onSeek }: ProgressBarProps) {
-  const pct = durationSec > 0 ? (currentTime / durationSec) * 100 : 0;
-
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     onSeek(Number(e.target.value));
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useRef, useCallback, useEffect } from 'react';
+import { useReducer, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import type { Chunk } from '@/db/schema';
 import { playerReducer, initialPlayerState } from './playerReducer';
 import type { PlayerState, PlayerAction } from './types';
@@ -42,9 +42,12 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
   const [state, dispatch] = useReducer(playerReducer, initialPlayerState);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Keep a ref to state to avoid stale closures in event listeners
+  // Keep a ref to state to avoid stale closures in event listeners.
+  // useLayoutEffect keeps it in sync without mutating during render.
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useLayoutEffect(() => {
+    stateRef.current = state;
+  });
 
   const clampedSeek = useCallback(
     (timeSec: number, bounds: { startSec: number; endSec: number } | null) => {
