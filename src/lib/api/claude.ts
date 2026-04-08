@@ -4,10 +4,12 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { CLAUDE_CHUNK_MODEL, CLAUDE_FURIGANA_MODEL } from '@/lib/constants';
 import type {
-  ElevenLabsWord,
-  TranscriptChunk,
+  AnnotatedChunkSpans,
   ChunkWithFurigana,
   DrilldownContent,
+  ElevenLabsWord,
+  FuriganaSpan,
+  TranscriptChunk,
 } from './types';
 import chunksFixture from '../../../fixtures/chunks.json';
 import furiganaFixture from '../../../fixtures/furigana.json';
@@ -23,12 +25,20 @@ const chunkedTranscriptSchema = z.object({
   chunks: z.array(transcriptChunkSchema),
 });
 
+const furiganaSpanSchema = z.object({
+  surface: z.string(),
+  reading: z.union([z.string(), z.null()]),
+});
+
 const furiganaResultSchema = z.object({
   annotated_chunks: z.array(z.object({
     index: z.number(),
-    text_furigana: z.string(),
+    spans: z.array(furiganaSpanSchema),
   })),
 });
+
+const KANJI_RE = /[\u4e00-\u9fff]/;
+const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
 
 /**
  * Split a raw transcript into study chunks using Claude.
@@ -89,30 +99,193 @@ ${wordList}`;
 
 /**
  * Returns kanji characters in `annotated` that are not wrapped in a <ruby> tag.
- * Used to detect when Claude missed annotating a character.
+ * Used to detect when annotation HTML missed a character.
  */
 export function findUnannotatedKanji(annotated: string): string[] {
   const stripped = annotated.replace(/<ruby>[\s\S]*?<\/ruby>/g, '');
   return [...stripped.matchAll(/[\u4e00-\u9fff]/g)].map((m) => m[0]);
 }
 
-const FURIGANA_PROMPT = `Annotate each Japanese text chunk with <ruby> HTML tags for furigana.
+function hasKanji(value: string): boolean {
+  return KANJI_RE.test(value);
+}
+
+function isKanaOrPunctuationOnly(value: string): boolean {
+  return value.length > 0 && ONLY_KANA_OR_PUNCT_RE.test(value) && !hasKanji(value);
+}
+
+function renderSpanToHtml(span: FuriganaSpan): string {
+  const surface = sanitizeHtml(span.surface, { allowedTags: [], allowedAttributes: {} });
+  if (span.reading === null || !hasKanji(span.surface)) {
+    return surface;
+  }
+
+  const reading = sanitizeHtml(span.reading, { allowedTags: [], allowedAttributes: {} });
+  return `<ruby>${surface}<rt>${reading}</rt></ruby>`;
+}
+
+function renderFuriganaHtml(spans: readonly FuriganaSpan[]): string {
+  return sanitizeHtml(spans.map(renderSpanToHtml).join(''), {
+    allowedTags: ['ruby', 'rt', 'rp'],
+    allowedAttributes: {},
+  });
+}
+
+function describeSuspiciousAdjacentReadings(spans: readonly FuriganaSpan[]): string | null {
+  for (let i = 0; i < spans.length - 1; i++) {
+    const current = spans[i];
+    const next = spans[i + 1];
+    if (current.reading === null || next.reading === null) continue;
+    if (!hasKanji(current.surface) || !hasKanji(next.surface)) continue;
+    if (!/[\u4e00-\u9fff]$/.test(current.surface)) continue;
+    if (!/^[\u4e00-\u9fff]/.test(next.surface)) continue;
+
+    const currentReading = current.reading.trim();
+    const nextReading = next.reading.trim();
+    if (currentReading.length <= nextReading.length) continue;
+
+    if (currentReading.endsWith(nextReading)) {
+      return `adjacent kanji spans have overlapping readings near "${current.surface}${next.surface}"`;
+    }
+  }
+
+  return null;
+}
+
+function validateFuriganaSpans(
+  chunkText: string,
+  spans: readonly FuriganaSpan[]
+): string | null {
+  if (spans.length === 0) {
+    return 'model returned no spans';
+  }
+
+  for (const span of spans) {
+    if (span.surface.length === 0) {
+      return 'model returned an empty surface span';
+    }
+
+    if (hasKanji(span.surface) && span.reading === null) {
+      return `kanji span "${span.surface}" is missing a reading`;
+    }
+
+    if (!hasKanji(span.surface) && span.reading !== null) {
+      return `non-kanji span "${span.surface}" should not have a reading`;
+    }
+
+    if (isKanaOrPunctuationOnly(span.surface) && span.reading !== null) {
+      return `kana-only span "${span.surface}" should have reading=null`;
+    }
+
+    if (hasKanji(span.surface) && span.reading !== null && span.reading.trim().length === 0) {
+      return `kanji span "${span.surface}" has an empty reading`;
+    }
+  }
+
+  const reconstructed = spans.map((span) => span.surface).join('');
+  if (reconstructed !== chunkText) {
+    return `span surfaces reconstruct "${reconstructed}" instead of the original chunk`;
+  }
+
+  const html = renderFuriganaHtml(spans);
+  const missed = findUnannotatedKanji(html);
+  if (missed.length > 0) {
+    return `rendered HTML is missing furigana for: ${missed.join('')}`;
+  }
+
+  return describeSuspiciousAdjacentReadings(spans);
+}
+
+function buildRetryPrompt(
+  chunkText: string,
+  firstPassSpans: readonly FuriganaSpan[],
+  reason: string
+): string {
+  return `The previous furigana span annotation was suspicious.
+
+Original chunk:
+${chunkText}
+
+Previous spans:
+${JSON.stringify(firstPassSpans, null, 2)}
+
+Problem detected:
+${reason}
+
+Try again and fix the span boundaries. Preserve the original chunk text exactly.
+Be especially careful to keep normal lexical compounds together, such as:
+- 日本 -> one span with reading にほん
+- 日本語 -> one span with reading にほんご
+- 留学生 -> one span with reading りゅうがくせい
+
+Wrong:
+- 日 + 本 when the intended compound is 日本
+- 日本 + 語 when the intended compound is 日本語
+
+Return spans only. Do not add or remove text. Use reading=null for kana-only spans and punctuation.`;
+}
+
+const FURIGANA_PROMPT = `Annotate each Japanese text chunk as structured spans for furigana.
+
+For each chunk, return an ordered "spans" array.
+Each span object must contain:
+- "surface": exact text from the original chunk
+- "reading": hiragana reading for kanji-bearing spans, or null for kana-only / katakana / punctuation / symbols
 
 Rules:
-- Every kanji character MUST be wrapped — do not skip any.
-- For compound words read as a unit, wrap all kanji together:
-  <ruby>日本語<rt>にほんご</rt></ruby>  <ruby>勉強<rt>べんきょう</rt></ruby>
-- For a single kanji (especially with okurigana), wrap only the kanji:
-  <ruby>聞<rt>き</rt></ruby>いて  <ruby>食<rt>た</rt></ruby>べる
-- Hiragana, katakana, punctuation, and okurigana pass through unchanged.
-- Do not add spaces not present in the original.
+- Concatenating every "surface" in order MUST reproduce the original chunk exactly.
+- Group normal lexical compounds into a single span:
+  - 日本 -> reading にほん
+  - 日本語 -> reading にほんご
+  - 留学生 -> reading りゅうがくせい
+- Use smaller spans only when the reading genuinely belongs to separate parts:
+  - 聞いて -> [{"surface":"聞","reading":"き"},{"surface":"いて","reading":null}]
+  - 食べる -> [{"surface":"食","reading":"た"},{"surface":"べる","reading":null}]
+- Kana-only, katakana-only, punctuation, and symbols must use reading=null.
+- Do not add spaces, remove text, or rewrite text.
+
+Wrong examples:
+- [{"surface":"日","reading":"にほん"},{"surface":"本","reading":"ほん"}]
+- [{"surface":"日本","reading":"にほん"},{"surface":"語","reading":"ご"}]
 
 Chunks:
 `;
 
+async function annotateChunksWithSpans(
+  chunks: readonly TranscriptChunk[],
+  anthropic: ReturnType<typeof createAnthropic>,
+  promptSuffix?: string
+): Promise<Map<number, readonly FuriganaSpan[]>> {
+  const chunkList = chunks.map((c, i) => `[${i}] ${c.text}`).join('\n');
+  const prompt = promptSuffix
+    ? `${FURIGANA_PROMPT}${chunkList}\n\n${promptSuffix}`
+    : FURIGANA_PROMPT + chunkList;
+
+  const { object } = await generateObject({
+    model: anthropic(CLAUDE_FURIGANA_MODEL),
+    schema: furiganaResultSchema,
+    prompt,
+    temperature: 0,
+  });
+
+  return new Map(
+    object.annotated_chunks.map((ac: AnnotatedChunkSpans) => [ac.index, ac.spans])
+  );
+}
+
+function mockChunkWithDefaults(
+  chunk: Omit<ChunkWithFurigana, 'furigana_status' | 'furigana_warning'>
+): ChunkWithFurigana {
+  return {
+    ...chunk,
+    furigana_status: 'ok',
+    furigana_warning: null,
+  };
+}
+
 /**
- * Annotate each chunk's text with <ruby> furigana tags using Claude.
- * Kanji receive readings; hiragana, katakana, and punctuation pass through unchanged.
+ * Annotate each chunk's text with furigana using Claude-generated structured spans.
+ * The spans are validated and rendered into ruby HTML server-side.
  *
  * Set USE_MOCKS=true to return fixture data.
  */
@@ -120,56 +293,59 @@ export async function addFurigana(
   chunks: readonly TranscriptChunk[]
 ): Promise<readonly ChunkWithFurigana[]> {
   if (process.env.USE_MOCKS === 'true') {
-    return furiganaFixture as ChunkWithFurigana[];
+    return (furiganaFixture as Omit<ChunkWithFurigana, 'furigana_status' | 'furigana_warning'>[])
+      .map(mockChunkWithDefaults);
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
 
   const anthropic = createAnthropic({ apiKey });
-  const chunkList = chunks.map((c, i) => `[${i}] ${c.text}`).join('\n');
+  const firstPassByIndex = await annotateChunksWithSpans(chunks, anthropic);
 
-  const { object } = await generateObject({
-    model: anthropic(CLAUDE_FURIGANA_MODEL),
-    schema: furiganaResultSchema,
-    prompt: FURIGANA_PROMPT + chunkList,
-    temperature: 0,
-  });
+  return Promise.all(chunks.map(async (chunk, i) => {
+    const firstPassSpans = firstPassByIndex.get(i);
+    const fallbackText = sanitizeHtml(chunk.text, { allowedTags: [], allowedAttributes: {} });
 
-  // Map by .index field, not array position — Claude may return results out of order
-  // or return fewer items than requested. Fall back to raw text (no ruby) if missing.
-  const furiganaByIndex = new Map(
-    object.annotated_chunks.map((ac) => [ac.index, ac.text_furigana])
-  );
+    const firstReason = firstPassSpans === undefined
+      ? 'No furigana annotation was returned for this chunk.'
+      : validateFuriganaSpans(chunk.text, firstPassSpans);
+    let finalSpans = firstPassSpans ?? [];
+    let finalReason = firstReason;
 
-  return chunks.map((chunk, i) => {
-    const furigana = furiganaByIndex.get(i);
-
-    if (furigana === undefined) {
-      console.error(`[addFurigana] no annotation returned for chunk index ${i} — falling back to raw text`);
-      return {
-        text: chunk.text,
-        text_furigana: sanitizeHtml(chunk.text, { allowedTags: [], allowedAttributes: {} }),
-        first_word_index: chunk.first_word_index,
-        last_word_index: chunk.last_word_index,
-      };
+    if (firstReason !== null) {
+      console.error(`[addFurigana] chunk ${i} suspicious on first pass: ${firstReason}`);
+      const retryMap = await annotateChunksWithSpans(
+        [chunk],
+        anthropic,
+        buildRetryPrompt(chunk.text, finalSpans, firstReason)
+      );
+      const retrySpans = retryMap.get(0);
+      if (retrySpans !== undefined) {
+        finalSpans = retrySpans;
+        finalReason = validateFuriganaSpans(chunk.text, retrySpans);
+        if (finalReason !== null) {
+          console.error(`[addFurigana] chunk ${i} still suspicious after retry: ${finalReason}`);
+        }
+      } else {
+        finalReason = 'Retry did not return any furigana spans.';
+        console.error(`[addFurigana] chunk ${i} retry returned no spans`);
+      }
     }
 
-    const missed = findUnannotatedKanji(furigana);
-    if (missed.length > 0) {
-      console.error(`[addFurigana] chunk ${i} missing furigana for: ${missed.join('')}`);
-    }
+    const renderedHtml = finalReason === null
+      ? renderFuriganaHtml(finalSpans)
+      : (finalSpans.length > 0 ? renderFuriganaHtml(finalSpans) : fallbackText);
 
     return {
       text: chunk.text,
-      text_furigana: sanitizeHtml(furigana, {
-        allowedTags: ['ruby', 'rt', 'rp'],
-        allowedAttributes: {},
-      }),
+      text_furigana: renderedHtml,
       first_word_index: chunk.first_word_index,
       last_word_index: chunk.last_word_index,
+      furigana_status: finalReason === null ? 'ok' : 'suspect',
+      furigana_warning: finalReason === null ? null : `This furigana may contain mistakes. ${finalReason}`,
     };
-  });
+  }));
 }
 
 /**

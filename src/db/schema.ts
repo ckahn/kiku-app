@@ -15,6 +15,7 @@ export const episodeStatusEnum = pgEnum('episode_status', [
 ]);
 export const studyStatusEnum = pgEnum('study_status', ['new', 'studying', 'learned']);
 export const reviewOutcomeEnum = pgEnum('review_outcome', ['comfortable', 'needs_work']);
+export const furiganaStatusEnum = pgEnum('furigana_status', ['ok', 'suspect']);
 
 export const podcasts = pgTable('podcasts', {
   id: serial('id').primaryKey(),
@@ -60,6 +61,8 @@ export const chunks = pgTable('chunks', {
   chunkIndex: integer('chunk_index').notNull(),
   textRaw: text('text_raw').notNull(),
   textFurigana: text('text_furigana').notNull(),
+  furiganaStatus: furiganaStatusEnum('furigana_status').notNull().default('ok'),
+  furiganaWarning: text('furigana_warning'),
   startMs: integer('start_ms').notNull(),
   endMs: integer('end_ms').notNull(),
   sentences: jsonb('sentences').notNull(),

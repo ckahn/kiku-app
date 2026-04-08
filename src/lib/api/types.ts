@@ -21,11 +21,25 @@ export interface TranscriptChunk {
   readonly last_word_index: number;
 }
 
+export interface FuriganaSpan {
+  readonly surface: string;
+  readonly reading: string | null;
+}
+
+export interface AnnotatedChunkSpans {
+  readonly index: number;
+  readonly spans: readonly FuriganaSpan[];
+}
+
+export type FuriganaStatus = 'ok' | 'suspect';
+
 export interface ChunkWithFurigana {
   readonly text: string;
   readonly text_furigana: string; // HTML with <ruby> annotations (kanji only)
   readonly first_word_index: number;
   readonly last_word_index: number;
+  readonly furigana_status: FuriganaStatus;
+  readonly furigana_warning: string | null;
 }
 
 // Claude drill-down API types

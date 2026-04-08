@@ -14,6 +14,8 @@ function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
     chunkIndex: 0,
     textRaw: 'テスト',
     textFurigana: 'テスト',
+    furiganaStatus: 'ok',
+    furiganaWarning: null,
     startMs: 0,
     endMs: 500,
     sentences: [{ text: 'テスト', start_ms: 0, end_ms: 500 }] as unknown as Chunk['sentences'],
@@ -146,6 +148,24 @@ describe('ChunkList', () => {
     );
     expect(screen.getByRole('button', { name: /play chunk|pause chunk/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exit chunk focus' })).toBeInTheDocument();
+  });
+
+  it('shows a warning when focused furigana is marked suspect', () => {
+    const chunks = [
+      makeChunk({
+        id: 1,
+        furiganaStatus: 'suspect',
+        furiganaWarning: 'This furigana may contain mistakes.',
+      }),
+    ];
+    render(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ mode: 'chunk', focusedChunkId: 1 })}
+        controls={makeControls()}
+      />,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(/furigana may contain mistakes/i);
   });
 
   it('exit button calls controls.unfocusChunk', () => {

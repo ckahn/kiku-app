@@ -30,12 +30,16 @@ const SAMPLE_CHUNKS: ChunkWithFurigana[] = [
     text_furigana: 'おはようございます',
     first_word_index: 0,
     last_word_index: 1,
+    furigana_status: 'ok',
+    furigana_warning: null,
   },
   {
     text: '今日も',
     text_furigana: '<ruby>今日<rt>きょう</rt></ruby>も',
     first_word_index: 2,
     last_word_index: 2,
+    furigana_status: 'ok',
+    furigana_warning: null,
   },
 ];
 
@@ -104,6 +108,27 @@ describe('insertChunks()', () => {
     expect(rows[0][1].episodeId).toBe(42);
   });
 
+  it('persists furigana status and warning fields', async () => {
+    const valuesCapture = vi.fn().mockResolvedValue(undefined);
+    mockInsert.mockReturnValue({ values: valuesCapture });
+
+    const { insertChunks } = await import('../chunks');
+    await insertChunks(42, [
+      {
+        text: '日本',
+        text_furigana: '<ruby>日<rt>にほん</rt></ruby><ruby>本<rt>ほん</rt></ruby>',
+        first_word_index: 0,
+        last_word_index: 0,
+        furigana_status: 'suspect',
+        furigana_warning: 'This furigana may contain mistakes.',
+      },
+    ], SAMPLE_WORDS);
+
+    const [rows] = valuesCapture.mock.calls;
+    expect(rows[0][0].furiganaStatus).toBe('suspect');
+    expect(rows[0][0].furiganaWarning).toBe('This furigana may contain mistakes.');
+  });
+
   it('throws a clear error when first_word_index is out of bounds', async () => {
     const { insertChunks } = await import('../chunks');
     const badChunk: ChunkWithFurigana[] = [{
@@ -111,6 +136,8 @@ describe('insertChunks()', () => {
       text_furigana: 'テスト',
       first_word_index: 99, // out of bounds
       last_word_index: 99,
+      furigana_status: 'ok',
+      furigana_warning: null,
     }];
     await expect(insertChunks(42, badChunk, SAMPLE_WORDS)).rejects.toThrow(
       'out-of-bounds word indices'
@@ -124,6 +151,8 @@ describe('insertChunks()', () => {
       text_furigana: 'テスト',
       first_word_index: 0,
       last_word_index: 99, // out of bounds
+      furigana_status: 'ok',
+      furigana_warning: null,
     }];
     await expect(insertChunks(42, badChunk, SAMPLE_WORDS)).rejects.toThrow(
       'out-of-bounds word indices'
@@ -154,7 +183,10 @@ describe('getChunksByEpisodeId()', () => {
   });
 
   it('returns the result from db', async () => {
-    const fakeChunks = [{ id: 1, chunkIndex: 0 }, { id: 2, chunkIndex: 1 }];
+    const fakeChunks = [
+      { id: 1, chunkIndex: 0, furiganaStatus: 'ok', furiganaWarning: null },
+      { id: 2, chunkIndex: 1, furiganaStatus: 'suspect', furiganaWarning: 'warn' },
+    ];
     mockOrderBy.mockResolvedValueOnce(fakeChunks);
 
     const { getChunksByEpisodeId } = await import('../chunks');

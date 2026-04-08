@@ -30,6 +30,8 @@ export async function insertChunks(
       chunkIndex: index,
       textRaw: chunk.text,
       textFurigana: chunk.text_furigana,
+      furiganaStatus: chunk.furigana_status,
+      furiganaWarning: chunk.furigana_warning,
       startMs,
       endMs,
       sentences: [{ text: chunk.text, start_ms: startMs, end_ms: endMs }] as unknown as Record<string, unknown>[],
