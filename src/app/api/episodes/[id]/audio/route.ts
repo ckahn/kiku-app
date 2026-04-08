@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { head } from '@vercel/blob';
+import { BlobNotFoundError, head } from '@vercel/blob';
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -30,7 +30,14 @@ export async function GET(
     let blobMeta;
     try {
       blobMeta = await head(episode.audioUrl, { token: getBlobToken() });
-    } catch {
+    } catch (error) {
+      if (error instanceof BlobNotFoundError) {
+        return apiErr('Audio blob not found', 404);
+      }
+
+      throw error;
+    }
+    if (!blobMeta.downloadUrl) {
       return apiErr('Audio blob not found', 404);
     }
 

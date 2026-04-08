@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { BlobNotFoundError } from '@vercel/blob';
 
 // Mock Drizzle db chain
 const mockWhere = vi.fn();
@@ -7,8 +8,13 @@ const mockSelect = vi.fn(() => ({ from: mockFrom }));
 vi.mock('@/db', () => ({ db: { select: mockSelect } }));
 vi.mock('@/db/schema', () => ({ episodes: 'episodes_table' }));
 
-const mockHead = vi.fn();
-vi.mock('@vercel/blob', () => ({ head: mockHead }));
+const { mockHead } = vi.hoisted(() => ({
+  mockHead: vi.fn(),
+}));
+vi.mock('@vercel/blob', async () => {
+  const actual = await vi.importActual<typeof import('@vercel/blob')>('@vercel/blob');
+  return { ...actual, head: mockHead };
+});
 
 function makeUpstreamResponse(
   status: number,
@@ -37,13 +43,22 @@ describe('GET /api/episodes/[id]/audio', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 when blob head throws', async () => {
+  it('returns 404 when blob head reports a missing blob', async () => {
     mockWhere.mockResolvedValueOnce([{ audioUrl: 'https://blob.example.com/ep1.mp3' }]);
-    mockHead.mockRejectedValueOnce(new Error('blob not found'));
+    mockHead.mockRejectedValueOnce(new BlobNotFoundError());
     const { GET } = await import('../route');
     const req = new Request('http://localhost/api/episodes/1/audio');
     const res = await GET(req, { params: Promise.resolve({ id: '1' }) });
     expect(res.status).toBe(404);
+  });
+
+  it('returns 500 when blob head fails for a non-404 reason', async () => {
+    mockWhere.mockResolvedValueOnce([{ audioUrl: 'https://blob.example.com/ep1.mp3' }]);
+    mockHead.mockRejectedValueOnce(new Error('blob service unavailable'));
+    const { GET } = await import('../route');
+    const req = new Request('http://localhost/api/episodes/1/audio');
+    const res = await GET(req, { params: Promise.resolve({ id: '1' }) });
+    expect(res.status).toBe(500);
   });
 
   it('returns 200 with Accept-Ranges for a normal request', async () => {
