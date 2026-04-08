@@ -57,9 +57,9 @@ function setup() {
   const audioMock = createAudioMock();
   const { result } = renderHook(() => usePlayer(CHUNKS, DURATION_MS));
 
-  // Inject the mock into the audioRef
+  // Inject the mock via the callback ref so audioMounted state updates too
   act(() => {
-    (result.current.audioRef as React.MutableRefObject<AudioMock>).current = audioMock;
+    result.current.setAudioEl(audioMock as unknown as HTMLAudioElement);
   });
 
   return { result, audioMock };

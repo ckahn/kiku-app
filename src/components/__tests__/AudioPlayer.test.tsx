@@ -22,7 +22,7 @@ function makePlayer(overrides: Partial<UsePlayerReturn['state']> = {}): UsePlaye
   return {
     state: { ...initialPlayerState, ...overrides },
     dispatch: vi.fn(),
-    audioRef: { current: null },
+    setAudioEl: vi.fn(),
     controls,
   };
 }

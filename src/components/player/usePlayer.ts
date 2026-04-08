@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import { useReducer, useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import type { Chunk } from '@/db/schema';
 import { playerReducer, initialPlayerState } from './playerReducer';
 import type { PlayerState, PlayerAction } from './types';
@@ -24,7 +24,7 @@ export type PlayerControls = {
 export type UsePlayerReturn = {
   state: PlayerState;
   dispatch: React.Dispatch<PlayerAction>;
-  audioRef: React.RefObject<HTMLAudioElement | null>;
+  setAudioEl: (el: HTMLAudioElement | null) => void;
   controls: PlayerControls;
 };
 
@@ -41,6 +41,16 @@ function getChunkBounds(
 export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlayerReturn {
   const [state, dispatch] = useReducer(playerReducer, initialPlayerState);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioMounted, setAudioMounted] = useState(false);
+
+  // Callback ref exposed to the <audio> element. Storing the element in both
+  // the ref (for synchronous imperative access) and as state (to re-trigger
+  // the timeupdate useEffect) guarantees the listener is attached regardless
+  // of component render order.
+  const setAudioEl = useCallback((el: HTMLAudioElement | null) => {
+    audioRef.current = el;
+    setAudioMounted(el !== null);
+  }, []);
 
   // Keep a ref to state to avoid stale closures in event listeners.
   // useLayoutEffect keeps it in sync without mutating during render.
@@ -87,7 +97,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     return () => audio.removeEventListener('timeupdate', handleTimeUpdate);
-  }, [chunks]);
+  }, [chunks, audioMounted]);
 
   const controls: PlayerControls = {
     play: useCallback(() => {
@@ -176,5 +186,5 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     }, []),
   };
 
-  return { state, dispatch, audioRef, controls };
+  return { state, dispatch, setAudioEl, controls };
 }

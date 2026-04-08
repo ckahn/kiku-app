@@ -12,14 +12,14 @@ interface AudioPlayerProps {
 }
 
 export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlayerProps) {
-  const { state, controls, audioRef } = player;
+  const { state, controls, setAudioEl } = player;
   const [audioDurationSec, setAudioDurationSec] = useState(durationMs > 0 ? durationMs / 1000 : 0);
 
   return (
     <div className="sticky bottom-0 z-10 bg-surface border-t border-border px-4 py-3 shadow-sm">
       {/* Hidden audio element — the single source of truth for playback */}
       <audio
-        ref={audioRef}
+        ref={setAudioEl}
         src={audioUrl}
         preload="metadata"
         onLoadedMetadata={(e) => setAudioDurationSec((e.target as HTMLAudioElement).duration)}
