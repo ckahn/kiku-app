@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
+import { head } from '@vercel/blob';
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getErrorMessage } from '@/lib/utils';
 import { apiErr } from '@/lib/api-response';
-import { getPrivateBlob } from '@/lib/blob';
+
+function getBlobToken(): string {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) throw new Error('BLOB_READ_WRITE_TOKEN is not configured');
+  return token;
+}
 
 export async function GET(
   request: Request,
@@ -12,40 +18,45 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const [episode] = await db.select({ audioUrl: episodes.audioUrl }).from(episodes).where(eq(episodes.id, Number(id)));
+    const [episode] = await db
+      .select({ audioUrl: episodes.audioUrl })
+      .from(episodes)
+      .where(eq(episodes.id, Number(id)));
     if (!episode) return apiErr('Not found', 404);
 
-    // Forward the Range header so the blob storage can return a 206 Partial Content
-    // response for seeking. Without this the browser always receives the full stream
-    // from byte 0, causing audio seeks to restart from the beginning.
-    const rangeHeader = request.headers.get('Range');
-    const blob = await getPrivateBlob(
-      episode.audioUrl,
-      rangeHeader ? { Range: rangeHeader } : undefined,
-    );
-    if (!blob) return apiErr('Audio blob not found', 404);
-
-    // Handle 304 Not Modified (conditional GET with matching ETag)
-    if (blob.statusCode === 304) {
-      return new NextResponse(null, { status: 304 });
+    // Use head() to get the signed download URL without downloading content.
+    // Then fetch directly so we get the real HTTP status (200 or 206) rather
+    // than the SDK's normalised statusCode which is always 200.
+    let blobMeta;
+    try {
+      blobMeta = await head(episode.audioUrl, { token: getBlobToken() });
+    } catch {
+      return apiErr('Audio blob not found', 404);
     }
 
+    // Forward Range header so blob storage returns 206 Partial Content for seeks
+    const rangeHeader = request.headers.get('Range');
+    const fetchHeaders: HeadersInit = {};
+    if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
+
+    const upstream = await fetch(blobMeta.downloadUrl, { headers: fetchHeaders });
+
     const responseHeaders: Record<string, string> = {
-      'Content-Type': blob.headers.get('content-type') ?? 'audio/mpeg',
+      'Content-Type': upstream.headers.get('content-type') ?? 'audio/mpeg',
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'private, max-age=3600',
     };
 
-    const contentLength = blob.headers.get('content-length');
+    const contentLength = upstream.headers.get('content-length');
     if (contentLength) responseHeaders['Content-Length'] = contentLength;
 
-    // Forward Content-Range header for 206 Partial Content responses
-    const contentRange = blob.headers.get('content-range');
+    // Forward Content-Range on partial responses so the browser knows which
+    // segment of the file these bytes correspond to
+    const contentRange = upstream.headers.get('content-range');
     if (contentRange) responseHeaders['Content-Range'] = contentRange;
 
-    // blob.statusCode is typed as 200 but will be 206 at runtime for range requests
-    return new NextResponse(blob.stream, {
-      status: blob.statusCode,
+    return new NextResponse(upstream.body, {
+      status: upstream.status, // real status: 200 full or 206 partial
       headers: responseHeaders,
     });
   } catch (error: unknown) {

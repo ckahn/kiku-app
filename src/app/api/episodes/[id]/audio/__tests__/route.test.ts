@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { GetBlobResult } from '@vercel/blob';
 
 // Mock Drizzle db chain
 const mockWhere = vi.fn();
@@ -8,33 +7,15 @@ const mockSelect = vi.fn(() => ({ from: mockFrom }));
 vi.mock('@/db', () => ({ db: { select: mockSelect } }));
 vi.mock('@/db/schema', () => ({ episodes: 'episodes_table' }));
 
-const mockGetPrivateBlob = vi.fn();
-vi.mock('@/lib/blob', () => ({ getPrivateBlob: mockGetPrivateBlob }));
+const mockHead = vi.fn();
+vi.mock('@vercel/blob', () => ({ head: mockHead }));
 
-function makeBlob(overrides: Partial<GetBlobResult & { statusCode: number }> = {}): GetBlobResult {
-  const stream = new ReadableStream<Uint8Array>({
-    start(c) { c.enqueue(new TextEncoder().encode('audio')); c.close(); },
-  });
-  return {
-    statusCode: 200,
-    stream,
-    headers: new Headers({
-      'content-type': 'audio/mpeg',
-      'content-length': '5',
-    }),
-    blob: {
-      url: 'https://blob.example.com/ep1.mp3',
-      downloadUrl: 'https://blob.example.com/ep1.mp3?dl=1',
-      pathname: 'ep1.mp3',
-      contentDisposition: 'inline',
-      cacheControl: 'private',
-      uploadedAt: new Date(),
-      etag: 'abc',
-      contentType: 'audio/mpeg',
-      size: 5,
-    },
-    ...overrides,
-  } as GetBlobResult;
+function makeUpstreamResponse(
+  status: number,
+  headers: Record<string, string> = {},
+  body = 'audio',
+): Response {
+  return new Response(body, { status, headers });
 }
 
 describe('GET /api/episodes/[id]/audio', () => {
@@ -43,7 +24,8 @@ describe('GET /api/episodes/[id]/audio', () => {
     mockWhere.mockReset();
     mockFrom.mockReset().mockReturnValue({ where: mockWhere });
     mockSelect.mockReset().mockReturnValue({ from: mockFrom });
-    mockGetPrivateBlob.mockReset();
+    mockHead.mockReset();
+    vi.stubGlobal('fetch', vi.fn());
     process.env.BLOB_READ_WRITE_TOKEN = 'token';
   });
 
@@ -55,78 +37,74 @@ describe('GET /api/episodes/[id]/audio', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 when blob is not found', async () => {
+  it('returns 404 when blob head throws', async () => {
     mockWhere.mockResolvedValueOnce([{ audioUrl: 'https://blob.example.com/ep1.mp3' }]);
-    mockGetPrivateBlob.mockResolvedValueOnce(null);
+    mockHead.mockRejectedValueOnce(new Error('blob not found'));
     const { GET } = await import('../route');
     const req = new Request('http://localhost/api/episodes/1/audio');
     const res = await GET(req, { params: Promise.resolve({ id: '1' }) });
     expect(res.status).toBe(404);
   });
 
-  it('returns 200 with Accept-Ranges header for a normal request', async () => {
+  it('returns 200 with Accept-Ranges for a normal request', async () => {
     mockWhere.mockResolvedValueOnce([{ audioUrl: 'https://blob.example.com/ep1.mp3' }]);
-    mockGetPrivateBlob.mockResolvedValueOnce(makeBlob());
+    mockHead.mockResolvedValueOnce({
+      downloadUrl: 'https://cdn.example.com/ep1.mp3?token=x',
+      contentType: 'audio/mpeg',
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeUpstreamResponse(200, { 'content-type': 'audio/mpeg', 'content-length': '5000000' }),
+    );
     const { GET } = await import('../route');
     const req = new Request('http://localhost/api/episodes/1/audio');
     const res = await GET(req, { params: Promise.resolve({ id: '1' }) });
     expect(res.status).toBe(200);
     expect(res.headers.get('Accept-Ranges')).toBe('bytes');
     expect(res.headers.get('Content-Type')).toBe('audio/mpeg');
+    expect(res.headers.get('Content-Length')).toBe('5000000');
   });
 
-  it('forwards the Range header to getPrivateBlob', async () => {
+  it('forwards the Range header to the upstream fetch', async () => {
     mockWhere.mockResolvedValueOnce([{ audioUrl: 'https://blob.example.com/ep1.mp3' }]);
-    mockGetPrivateBlob.mockResolvedValueOnce(makeBlob());
-    const { GET } = await import('../route');
-    const req = new Request('http://localhost/api/episodes/1/audio', {
-      headers: { Range: 'bytes=0-1023' },
+    mockHead.mockResolvedValueOnce({
+      downloadUrl: 'https://cdn.example.com/ep1.mp3?token=x',
+      contentType: 'audio/mpeg',
     });
-    await GET(req, { params: Promise.resolve({ id: '1' }) });
-    expect(mockGetPrivateBlob).toHaveBeenCalledWith(
-      'https://blob.example.com/ep1.mp3',
-      { Range: 'bytes=0-1023' },
-    );
-  });
-
-  it('does not pass extra headers when no Range is present', async () => {
-    mockWhere.mockResolvedValueOnce([{ audioUrl: 'https://blob.example.com/ep1.mp3' }]);
-    mockGetPrivateBlob.mockResolvedValueOnce(makeBlob());
-    const { GET } = await import('../route');
-    const req = new Request('http://localhost/api/episodes/1/audio');
-    await GET(req, { params: Promise.resolve({ id: '1' }) });
-    expect(mockGetPrivateBlob).toHaveBeenCalledWith(
-      'https://blob.example.com/ep1.mp3',
-      undefined,
-    );
-  });
-
-  it('forwards Content-Range header for partial content responses', async () => {
-    const blob = makeBlob({
-      statusCode: 206,
-      headers: new Headers({
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeUpstreamResponse(206, {
         'content-type': 'audio/mpeg',
-        'content-length': '1024',
-        'content-range': 'bytes 0-1023/50000',
+        'content-length': '4000000',
+        'content-range': 'bytes 1000000-5000000/5000000',
       }),
-    } as Partial<GetBlobResult>);
-    mockWhere.mockResolvedValueOnce([{ audioUrl: 'https://blob.example.com/ep1.mp3' }]);
-    mockGetPrivateBlob.mockResolvedValueOnce(blob);
+    );
     const { GET } = await import('../route');
     const req = new Request('http://localhost/api/episodes/1/audio', {
-      headers: { Range: 'bytes=0-1023' },
+      headers: { Range: 'bytes=1000000-' },
     });
     const res = await GET(req, { params: Promise.resolve({ id: '1' }) });
-    expect(res.headers.get('Content-Range')).toBe('bytes 0-1023/50000');
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      'https://cdn.example.com/ep1.mp3?token=x',
+      { headers: { Range: 'bytes=1000000-' } },
+    );
+    expect(res.status).toBe(206);
+    expect(res.headers.get('Content-Range')).toBe('bytes 1000000-5000000/5000000');
     expect(res.headers.get('Accept-Ranges')).toBe('bytes');
   });
 
-  it('returns 304 for a not-modified response', async () => {
+  it('does not set Range header when no Range in request', async () => {
     mockWhere.mockResolvedValueOnce([{ audioUrl: 'https://blob.example.com/ep1.mp3' }]);
-    mockGetPrivateBlob.mockResolvedValueOnce({ statusCode: 304, stream: null, headers: new Headers(), blob: null });
+    mockHead.mockResolvedValueOnce({
+      downloadUrl: 'https://cdn.example.com/ep1.mp3?token=x',
+      contentType: 'audio/mpeg',
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(makeUpstreamResponse(200));
     const { GET } = await import('../route');
     const req = new Request('http://localhost/api/episodes/1/audio');
-    const res = await GET(req, { params: Promise.resolve({ id: '1' }) });
-    expect(res.status).toBe(304);
+    await GET(req, { params: Promise.resolve({ id: '1' }) });
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      'https://cdn.example.com/ep1.mp3?token=x',
+      { headers: {} },
+    );
   });
 });
