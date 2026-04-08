@@ -169,11 +169,13 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     }, [chunks]),
 
     focusChunk: useCallback((chunkId: number) => {
+      // Dispatch first so stateRef is queued to update before any subsequent
+      // timeupdate event can fire against the stale focusedChunkId.
+      dispatch({ type: 'FOCUS_CHUNK', payload: chunkId });
       const bounds = getChunkBounds(chunks, chunkId);
       if (bounds && audioRef.current) {
         audioRef.current.currentTime = bounds.startSec;
       }
-      dispatch({ type: 'FOCUS_CHUNK', payload: chunkId });
     }, [chunks]),
 
     unfocusChunk: useCallback(() => {
