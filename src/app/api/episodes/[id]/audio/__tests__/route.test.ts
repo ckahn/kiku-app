@@ -77,6 +77,7 @@ describe('GET /api/episodes/[id]/audio', () => {
     expect(res.headers.get('Accept-Ranges')).toBe('bytes');
     expect(res.headers.get('Content-Type')).toBe('audio/mpeg');
     expect(res.headers.get('Content-Length')).toBe('5000000');
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=3600');
   });
 
   it('forwards the Range header to the upstream fetch', async () => {
@@ -121,5 +122,21 @@ describe('GET /api/episodes/[id]/audio', () => {
       'https://cdn.example.com/ep1.mp3?token=x',
       { headers: { authorization: 'Bearer token' } },
     );
+  });
+
+  it('does not cache upstream error responses', async () => {
+    mockWhere.mockResolvedValueOnce([{ audioUrl: 'https://blob.example.com/ep1.mp3' }]);
+    mockHead.mockResolvedValueOnce({
+      downloadUrl: 'https://cdn.example.com/ep1.mp3?token=x',
+      contentType: 'audio/mpeg',
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(makeUpstreamResponse(403, {}, 'Forbidden'));
+
+    const { GET } = await import('../route');
+    const req = new Request('http://localhost/api/episodes/1/audio');
+    const res = await GET(req, { params: Promise.resolve({ id: '1' }) });
+
+    expect(res.status).toBe(403);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
   });
 });

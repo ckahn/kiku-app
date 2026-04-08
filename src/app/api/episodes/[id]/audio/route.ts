@@ -53,7 +53,7 @@ export async function GET(
     const responseHeaders: Record<string, string> = {
       'Content-Type': upstream.headers.get('content-type') ?? 'audio/mpeg',
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'private, max-age=3600',
+      'Cache-Control': upstream.ok ? 'private, max-age=3600' : 'no-store',
     };
 
     const contentLength = upstream.headers.get('content-length');
