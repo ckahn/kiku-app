@@ -50,6 +50,20 @@ describe('blob helpers', () => {
     });
   });
 
+  it('forwards extra headers (e.g. Range) to the underlying get call', async () => {
+    mockGet.mockResolvedValueOnce(null);
+
+    const { getPrivateBlob } = await import('../blob');
+    await getPrivateBlob('https://blob.example.com/audio.mp3', { Range: 'bytes=0-1023' });
+
+    expect(mockGet).toHaveBeenCalledWith('https://blob.example.com/audio.mp3', {
+      access: 'private',
+      token: 'blob-token',
+      useCache: false,
+      headers: { Range: 'bytes=0-1023' },
+    });
+  });
+
   it('returns null when the blob does not exist', async () => {
     mockGet.mockResolvedValueOnce(null);
 

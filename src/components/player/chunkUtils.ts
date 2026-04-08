@@ -1,0 +1,33 @@
+import type { Chunk } from '@/db/schema';
+
+/**
+ * Find which chunk is active based on the current playback time.
+ * Sorts by startMs defensively — the DB query orders by chunkIndex but
+ * this guard makes the function safe against out-of-order input.
+ * Uses a linear scan since chunk counts are small (typically <100 per episode).
+ */
+export function findActiveChunkId(
+  chunks: readonly Chunk[],
+  currentTimeSec: number,
+): number | null {
+  const sorted = [...chunks].sort((a, b) => a.startMs - b.startMs);
+  for (const chunk of sorted) {
+    if (
+      currentTimeSec >= chunk.startMs / 1000 &&
+      currentTimeSec < chunk.endMs / 1000
+    ) {
+      return chunk.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Strip <ruby> and <rt> tags from furigana HTML, returning plain text.
+ * Used when furigana display is toggled off.
+ */
+export function stripFurigana(html: string): string {
+  return html
+    .replace(/<rt[^>]*>.*?<\/rt>/gi, '')
+    .replace(/<\/?ruby[^>]*>/gi, '');
+}

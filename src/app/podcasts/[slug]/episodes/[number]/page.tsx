@@ -5,7 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { Badge } from '@/components/ui';
 import { PageShell } from '@/components/layout';
 import EpisodeStatusPoller from '@/components/EpisodeStatusPoller';
-import ChunkList from '@/components/ChunkList';
+import EpisodePlayer from '@/components/player/EpisodePlayer';
 import { getChunksByEpisodeId } from '@/db/chunks';
 
 type BadgeVariant = 'info' | 'warning' | 'success' | 'error' | 'neutral';
@@ -66,19 +66,6 @@ export default async function EpisodePage({
           </div>
         )}
         <div className="flex gap-6">
-          <dt className="text-muted w-20 shrink-0">Audio</dt>
-          <dd>
-            <a
-              href={`/api/episodes/${episode.id}/audio`}
-              className="text-primary hover:text-primary-hover underline underline-offset-2"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open audio
-            </a>
-          </dd>
-        </div>
-        <div className="flex gap-6">
           <dt className="text-muted w-20 shrink-0">Created</dt>
           <dd className="text-ink">{episode.createdAt?.toLocaleString()}</dd>
         </div>
@@ -87,7 +74,11 @@ export default async function EpisodePage({
       <section aria-label="Transcript">
         <h2 className="text-base font-semibold text-ink mb-3">Transcript</h2>
         {episode.status === 'ready' ? (
-          <ChunkList chunks={chunks} />
+          <EpisodePlayer
+            chunks={chunks}
+            audioUrl={`/api/episodes/${episode.id}/audio`}
+            durationMs={episode.durationMs ?? 0}
+          />
         ) : episode.status === 'error' ? (
           <div
             role="alert"
