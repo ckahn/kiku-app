@@ -18,4 +18,4 @@ export type PlayerAction =
   | { type: 'UNFOCUS_CHUNK' }
   | { type: 'TOGGLE_LOOP' }
   | { type: 'TOGGLE_FURIGANA'; payload: number }
-  | { type: 'RESTART' };
+  | { type: 'RESTART'; payload: number };

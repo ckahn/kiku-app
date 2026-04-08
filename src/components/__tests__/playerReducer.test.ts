@@ -136,16 +136,16 @@ describe('playerReducer', () => {
   });
 
   describe('RESTART', () => {
-    it('resets currentTime to 0 and stops playback', () => {
+    it('sets currentTime to payload and stops playback', () => {
       const s = state({ currentTime: 120, isPlaying: true });
-      const result = playerReducer(s, { type: 'RESTART' });
-      expect(result.currentTime).toBe(0);
+      const result = playerReducer(s, { type: 'RESTART', payload: 5 });
+      expect(result.currentTime).toBe(5);
       expect(result.isPlaying).toBe(false);
     });
 
     it('preserves mode and focusedChunkId', () => {
       const s = state({ mode: 'chunk', focusedChunkId: 4 });
-      const result = playerReducer(s, { type: 'RESTART' });
+      const result = playerReducer(s, { type: 'RESTART', payload: 0 });
       expect(result.mode).toBe('chunk');
       expect(result.focusedChunkId).toBe(4);
     });

@@ -152,9 +152,10 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
       const s = stateRef.current;
       const bounds =
         s.mode === 'chunk' ? getChunkBounds(chunks, s.focusedChunkId) : null;
-      audio.currentTime = bounds?.startSec ?? 0;
+      const targetSec = bounds?.startSec ?? 0;
+      audio.currentTime = targetSec;
       audio.pause();
-      dispatch({ type: 'RESTART' });
+      dispatch({ type: 'RESTART', payload: targetSec });
     }, [chunks]),
 
     focusChunk: useCallback((chunkId: number) => {

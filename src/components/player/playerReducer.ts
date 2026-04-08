@@ -51,7 +51,7 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
       };
 
     case 'RESTART':
-      return { ...state, currentTime: 0, isPlaying: false };
+      return { ...state, currentTime: action.payload, isPlaying: false };
 
     default:
       return state;
