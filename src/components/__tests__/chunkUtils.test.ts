@@ -41,6 +41,12 @@ describe('findActiveChunkId', () => {
     expect(findActiveChunkId([], 5)).toBeNull();
   });
 
+  it('returns correct chunk id even when chunks are passed out of order', () => {
+    const reversed = [...CHUNKS].reverse();
+    expect(findActiveChunkId(reversed, 6)).toBe(2);
+    expect(findActiveChunkId(reversed, 13)).toBe(3);
+  });
+
   it('end_ms boundary is exclusive (next chunk at start boundary)', () => {
     // At exactly 5s, chunk 1 ends (endMs=5000) and chunk 2 begins (startMs=5000)
     // chunk 1: [0, 5) → NOT active at 5
