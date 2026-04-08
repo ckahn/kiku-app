@@ -43,7 +43,9 @@ export async function GET(
 
     // Forward Range header so blob storage returns 206 Partial Content for seeks
     const rangeHeader = request.headers.get('Range');
-    const fetchHeaders: HeadersInit = {};
+    const fetchHeaders: HeadersInit = {
+      authorization: `Bearer ${getBlobToken()}`,
+    };
     if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
 
     const upstream = await fetch(blobMeta.downloadUrl, { headers: fetchHeaders });

@@ -100,7 +100,7 @@ describe('GET /api/episodes/[id]/audio', () => {
 
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(
       'https://cdn.example.com/ep1.mp3?token=x',
-      { headers: { Range: 'bytes=1000000-' } },
+      { headers: { authorization: 'Bearer token', Range: 'bytes=1000000-' } },
     );
     expect(res.status).toBe(206);
     expect(res.headers.get('Content-Range')).toBe('bytes 1000000-5000000/5000000');
@@ -119,7 +119,7 @@ describe('GET /api/episodes/[id]/audio', () => {
     await GET(req, { params: Promise.resolve({ id: '1' }) });
     expect(vi.mocked(fetch)).toHaveBeenCalledWith(
       'https://cdn.example.com/ep1.mp3?token=x',
-      { headers: {} },
+      { headers: { authorization: 'Bearer token' } },
     );
   });
 });
