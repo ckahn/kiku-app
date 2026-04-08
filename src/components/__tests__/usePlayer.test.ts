@@ -32,6 +32,7 @@ function createAudioMock() {
   const listeners: Record<string, Array<() => void>> = {};
 
   const audio = {
+    error: null as { code: number } | null,
     get currentTime() { return currentTime; },
     set currentTime(v: number) { currentTime = v; },
     play: vi.fn().mockResolvedValue(undefined),
@@ -129,6 +130,37 @@ describe('usePlayer', () => {
         result.current.controls.play();
       });
       expect(result.current.state.isPlaying).toBe(false);
+      expect(result.current.playbackError).toMatch(/could not play this episode audio/i);
+    });
+
+    it('successful play clears a previous playback error', async () => {
+      const { result, audioMock } = setup();
+      audioMock.play.mockRejectedValueOnce(new Error('forbidden'));
+      await act(async () => {
+        result.current.controls.play();
+      });
+      expect(result.current.playbackError).not.toBeNull();
+
+      audioMock.play.mockResolvedValueOnce(undefined);
+      await act(async () => {
+        result.current.controls.play();
+      });
+      expect(result.current.state.isPlaying).toBe(true);
+      expect(result.current.playbackError).toBeNull();
+    });
+  });
+
+  describe('audio element errors', () => {
+    it('sets a playback error when the audio element emits an error event', () => {
+      const { result, audioMock } = setup();
+      audioMock.error = { code: 2 };
+
+      act(() => {
+        audioMock._emit('error');
+      });
+
+      expect(result.current.state.isPlaying).toBe(false);
+      expect(result.current.playbackError).toMatch(/could not play this episode audio/i);
     });
   });
 

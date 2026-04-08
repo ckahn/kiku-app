@@ -24,6 +24,8 @@ function makePlayer(overrides: Partial<UsePlayerReturn['state']> = {}): UsePlaye
     dispatch: vi.fn(),
     setAudioEl: vi.fn(),
     controls,
+    playbackError: null,
+    clearPlaybackError: vi.fn(),
   };
 }
 
@@ -127,5 +129,12 @@ describe('AudioPlayer', () => {
     });
 
     expect(slider).toHaveAttribute('max', '300');
+  });
+
+  it('renders a playback error message when audio fails', () => {
+    const player = makePlayer();
+    player.playbackError = 'Could not play this episode audio.';
+    render(<AudioPlayer audioUrl={AUDIO_URL} durationMs={DURATION_MS} player={player} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not play this episode audio.');
   });
 });

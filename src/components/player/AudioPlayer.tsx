@@ -12,7 +12,7 @@ interface AudioPlayerProps {
 }
 
 export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlayerProps) {
-  const { state, controls, setAudioEl } = player;
+  const { state, controls, setAudioEl, playbackError, clearPlaybackError } = player;
   const [audioDurationSec, setAudioDurationSec] = useState(durationMs > 0 ? durationMs / 1000 : 0);
 
   return (
@@ -22,11 +22,22 @@ export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlaye
         ref={setAudioEl}
         src={audioUrl}
         preload="metadata"
-        onLoadedMetadata={(e) => setAudioDurationSec((e.target as HTMLAudioElement).duration)}
+        onLoadedMetadata={(e) => {
+          setAudioDurationSec((e.target as HTMLAudioElement).duration);
+          clearPlaybackError();
+        }}
         aria-hidden="true"
         className="hidden"
       />
       <div className="max-w-2xl mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        {playbackError && (
+          <p
+            role="alert"
+            className="rounded-md border border-error-subtle bg-error-subtle px-3 py-2 text-sm text-error-on-subtle sm:basis-full"
+          >
+            {playbackError}
+          </p>
+        )}
         <PlayerControls
           isPlaying={state.isPlaying}
           isLooping={state.isLooping}

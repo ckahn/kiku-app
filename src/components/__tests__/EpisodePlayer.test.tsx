@@ -118,4 +118,21 @@ describe('EpisodePlayer (integration)', () => {
     });
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
   });
+
+  it('shows a helpful error when playback fails', async () => {
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      configurable: true,
+      value: vi.fn().mockRejectedValue(new Error('Forbidden')),
+    });
+
+    render(
+      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not play this episode audio/i);
+  });
 });
