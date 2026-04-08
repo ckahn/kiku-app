@@ -64,7 +64,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
       const audio = audioRef.current;
       if (!audio) return;
       const min = bounds?.startSec ?? 0;
-      const max = bounds?.endSec ?? (audio.duration || durationMs / 1000);
+      const max = bounds?.endSec ?? (isFinite(audio.duration) ? audio.duration : durationMs / 1000);
       audio.currentTime = Math.max(min, Math.min(max, timeSec));
     },
     [durationMs],
