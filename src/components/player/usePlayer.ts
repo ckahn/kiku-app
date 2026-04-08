@@ -93,8 +93,9 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     play: useCallback(() => {
       const audio = audioRef.current;
       if (!audio) return;
-      audio.play().catch(() => dispatch({ type: 'PAUSE' }));
-      dispatch({ type: 'PLAY' });
+      audio.play()
+        .then(() => dispatch({ type: 'PLAY' }))
+        .catch(() => dispatch({ type: 'PAUSE' }));
     }, []),
 
     pause: useCallback(() => {
@@ -109,8 +110,9 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
         audio.pause();
         dispatch({ type: 'PAUSE' });
       } else {
-        audio.play().catch(() => dispatch({ type: 'PAUSE' }));
-        dispatch({ type: 'PLAY' });
+        audio.play()
+          .then(() => dispatch({ type: 'PLAY' }))
+          .catch(() => dispatch({ type: 'PAUSE' }));
       }
     }, []),
 
