@@ -40,10 +40,11 @@ const KANJI_RE = /[\u4e00-\u9fff]/;
 const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
 // Ruby base must contain only kanji — no kana, Latin, digits, or other scripts.
 const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf]+$/;
-// 1–2 digit prefix followed immediately by kanji — calendar date/counter compounds like 4月, 1日, 20日.
-// Capped at 2 digits to avoid generating absurd furigana for large numbers (e.g. 355432円).
+// 1–2 digit prefix (ASCII or full-width) followed immediately by kanji — calendar date/counter
+// compounds like 4月, １日, 20日, ２０日. Capped at 2 digits to avoid generating absurd furigana
+// for large numbers (e.g. 355432円). Full-width digits (１–９, ０) are U+FF11–FF19, U+FF10.
 // These have compound readings (e.g., 4月=しがつ, 1日=ついたち) that belong to the whole surface.
-const DIGIT_KANJI_RE = /^[1-9]\d?[\u4e00-\u9fff\u3400-\u4dbf]+$/;
+const DIGIT_KANJI_RE = /^[1-9\uFF11-\uFF19][0-9\uFF10-\uFF19]?[\u4e00-\u9fff\u3400-\u4dbf]+$/;
 
 /**
  * Split a raw transcript into study chunks using Claude.
@@ -221,8 +222,9 @@ Also follow this contract strictly:
 - Correct: [{"surface":"聞","reading":"き"},{"surface":"いて","reading":null}]
 - Wrong: [{"surface":"聞いて","reading":"きいて"}]
 - Date/counter compounds: keep the number and kanji together with the correct compound reading:
-  - Correct: {"surface":"4月","reading":"しがつ"} or {"surface":"1日","reading":"ついたち"}
+  - Correct: [{"surface":"4月","reading":"しがつ"},{"surface":"1日","reading":"ついたち"}]
   - Wrong: {"surface":"4","reading":null} + {"surface":"月","reading":"がつ"}
+  - Wrong: {"surface":"4月1日","reading":"しがつついたち"}  <- month and day must be separate spans
   - Month readings: 1月=いちがつ, 2月=にがつ, 3月=さんがつ, 4月=しがつ, 5月=ごがつ, 6月=ろくがつ, 7月=しちがつ, 8月=はちがつ, 9月=くがつ, 10月=じゅうがつ, 11月=じゅういちがつ, 12月=じゅうにがつ
   - Irregular day readings: 1日=ついたち, 2日=ふつか, 3日=みっか, 4日=よっか, 5日=いつか, 6日=むいか, 7日=なのか, 8日=ようか, 9日=ここのか, 10日=とおか, 14日=じゅうよっか, 20日=はつか, 24日=にじゅうよっか
 
@@ -264,6 +266,7 @@ Wrong examples:
 - [{"surface":"聞いて","reading":"きいて"}]
 - [{"surface":"4","reading":null},{"surface":"月","reading":"がつ"}]  <- wrong, loses month-name context; correct: {"surface":"4月","reading":"しがつ"}
 - [{"surface":"1","reading":null},{"surface":"日","reading":"にち"}]  <- wrong; correct: {"surface":"1日","reading":"ついたち"}
+- [{"surface":"4月1日","reading":"しがつついたち"}]  <- wrong, month and day must be separate spans; correct: [{"surface":"4月","reading":"しがつ"},{"surface":"1日","reading":"ついたち"}]
 
 Chunks:
 `;

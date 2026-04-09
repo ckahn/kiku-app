@@ -428,6 +428,58 @@ describe('addFurigana() — real API', () => {
     expect(result[0].furigana_status).toBe('ok');
   });
 
+  it('accepts full-width digit+kanji date compounds', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          {
+            index: 0,
+            spans: [
+              { surface: '４月', reading: 'しがつ' },
+              { surface: '１日', reading: 'ついたち' },
+            ],
+          },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: '４月１日', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).toBe(
+      '<ruby>４月<rt>しがつ</rt></ruby><ruby>１日<rt>ついたち</rt></ruby>'
+    );
+    expect(result[0].furigana_status).toBe('ok');
+  });
+
+  it('rejects a collapsed month+day span like 4月1日 as a single surface', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: '4月1日', reading: 'しがつついたち' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: '4月1日', reading: 'しがつついたち' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: '4月1日', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].furigana_status).toBe('suspect');
+    expect(result[0].furigana_warning).toMatch(/must be kanji-only/i);
+  });
+
   it('rejects digit+kanji compounds with 3+ digit prefixes', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
