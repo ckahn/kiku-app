@@ -38,8 +38,9 @@ const furiganaResultSchema = z.object({
 });
 
 const KANJI_RE = /[\u4e00-\u9fff]/;
-const KANA_RE = /[\u3040-\u309f\u30a0-\u30ff]/;
 const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
+// Ruby base must contain only kanji — no kana, Latin, digits, or other scripts.
+const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf]+$/;
 
 /**
  * Split a raw transcript into study chunks using Claude.
@@ -111,10 +112,6 @@ function hasKanji(value: string): boolean {
   return KANJI_RE.test(value);
 }
 
-function containsKana(value: string): boolean {
-  return KANA_RE.test(value);
-}
-
 function isKanaOrPunctuationOnly(value: string): boolean {
   return value.length > 0 && ONLY_KANA_OR_PUNCT_RE.test(value) && !hasKanji(value);
 }
@@ -162,10 +159,10 @@ function validateFuriganaSpans(
       return `kana-only span "${span.surface}" should have reading=null`;
     }
 
-    // Ruby is valid only when the ruby base is kanji-only. If kana/okurigana are
-    // still attached to a kanji-bearing span, the model failed to split the span.
-    if (hasKanji(span.surface) && containsKana(span.surface) && span.reading !== null) {
-      return `kanji span "${span.surface}" must split okurigana/kana into a separate span`;
+    // Ruby is valid only when the ruby base is kanji-only. Reject any surface
+    // that mixes kanji with kana, Latin, digits, or other scripts.
+    if (hasKanji(span.surface) && span.reading !== null && !KANJI_ONLY_RE.test(span.surface)) {
+      return `kanji span "${span.surface}" must be kanji-only — split out any kana, Latin, or other characters`;
     }
 
     if (hasKanji(span.surface) && span.reading !== null && span.reading.trim().length === 0) {

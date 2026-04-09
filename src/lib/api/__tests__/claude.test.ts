@@ -379,7 +379,33 @@ describe('addFurigana() — real API', () => {
 
     expect(result[0].text_furigana).toBe('<ruby>聞いて<rt>きいて</rt></ruby>');
     expect(result[0].furigana_status).toBe('suspect');
-    expect(result[0].furigana_warning).toMatch(/must split okurigana\/kana/i);
+    expect(result[0].furigana_warning).toMatch(/must be kanji-only/i);
+  });
+
+  it('marks Latin+kanji mixed surfaces as suspicious', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: 'abc漢字', reading: 'えーびーしーかんじ' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: 'abc漢字', reading: 'えーびーしーかんじ' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: 'abc漢字', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].furigana_status).toBe('suspect');
+    expect(result[0].furigana_warning).toMatch(/must be kanji-only/i);
   });
 
   it('keeps suspicious output with a warning when retry still fails validation', async () => {
