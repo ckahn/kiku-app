@@ -40,9 +40,10 @@ const KANJI_RE = /[\u4e00-\u9fff]/;
 const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
 // Ruby base must contain only kanji — no kana, Latin, digits, or other scripts.
 const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf]+$/;
-// Digit(s) followed immediately by kanji — date/counter compounds like 4月, 1日, 20日.
+// 1–2 digit prefix followed immediately by kanji — calendar date/counter compounds like 4月, 1日, 20日.
+// Capped at 2 digits to avoid generating absurd furigana for large numbers (e.g. 355432円).
 // These have compound readings (e.g., 4月=しがつ, 1日=ついたち) that belong to the whole surface.
-const DIGIT_KANJI_RE = /^\d+[\u4e00-\u9fff\u3400-\u4dbf]+$/;
+const DIGIT_KANJI_RE = /^[1-9]\d?[\u4e00-\u9fff\u3400-\u4dbf]+$/;
 
 /**
  * Split a raw transcript into study chunks using Claude.

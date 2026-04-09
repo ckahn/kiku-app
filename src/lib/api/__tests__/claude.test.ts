@@ -428,6 +428,32 @@ describe('addFurigana() — real API', () => {
     expect(result[0].furigana_status).toBe('ok');
   });
 
+  it('rejects digit+kanji compounds with 3+ digit prefixes', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: '355432円', reading: 'さんびゃくごじゅうごまんよんせんさんびゃくさんじゅうにえん' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: '355432円', reading: 'さんびゃくごじゅうごまんよんせんさんびゃくさんじゅうにえん' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: '355432円', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].furigana_status).toBe('suspect');
+    expect(result[0].furigana_warning).toMatch(/must be kanji-only/i);
+  });
+
   it('marks Latin+kanji mixed surfaces as suspicious', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
