@@ -4,7 +4,6 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { CLAUDE_CHUNK_MODEL, CLAUDE_FURIGANA_MODEL } from '@/lib/constants';
 import type {
-  AnnotatedChunkSpans,
   ChunkWithFurigana,
   DrilldownContent,
   ElevenLabsWord,
@@ -151,12 +150,12 @@ function validateFuriganaSpans(
       return `kanji span "${span.surface}" is missing a reading`;
     }
 
-    if (!hasKanji(span.surface) && span.reading !== null) {
-      return `non-kanji span "${span.surface}" should not have a reading`;
-    }
-
     if (isKanaOrPunctuationOnly(span.surface) && span.reading !== null) {
       return `kana-only span "${span.surface}" should have reading=null`;
+    }
+
+    if (!hasKanji(span.surface) && span.reading !== null) {
+      return `non-kanji span "${span.surface}" should not have a reading`;
     }
 
     // Ruby is valid only when the ruby base is kanji-only. Reject any surface
@@ -251,24 +250,31 @@ Chunks:
 
 async function annotateChunksWithSpans(
   chunks: readonly TranscriptChunk[],
-  anthropic: ReturnType<typeof createAnthropic>,
-  promptSuffix?: string
+  anthropic: ReturnType<typeof createAnthropic>
 ): Promise<Map<number, readonly FuriganaSpan[]>> {
   const chunkList = chunks.map((c, i) => `[${i}] ${c.text}`).join('\n');
-  const prompt = promptSuffix
-    ? `${FURIGANA_PROMPT}${chunkList}\n\n${promptSuffix}`
-    : FURIGANA_PROMPT + chunkList;
-
   const { object } = await generateObject({
     model: anthropic(CLAUDE_FURIGANA_MODEL),
     schema: furiganaResultSchema,
-    prompt,
+    prompt: FURIGANA_PROMPT + chunkList,
     temperature: 0,
   });
+  return new Map(object.annotated_chunks.map((ac) => [ac.index, ac.spans]));
+}
 
-  return new Map(
-    object.annotated_chunks.map((ac: AnnotatedChunkSpans) => [ac.index, ac.spans])
-  );
+async function retryAnnotateChunk(
+  chunk: TranscriptChunk,
+  firstPassSpans: readonly FuriganaSpan[],
+  reason: string,
+  anthropic: ReturnType<typeof createAnthropic>
+): Promise<readonly FuriganaSpan[] | undefined> {
+  const { object } = await generateObject({
+    model: anthropic(CLAUDE_FURIGANA_MODEL),
+    schema: furiganaResultSchema,
+    prompt: buildRetryPrompt(chunk.text, firstPassSpans, reason),
+    temperature: 0,
+  });
+  return object.annotated_chunks[0]?.spans;
 }
 
 function mockChunkWithDefaults(
@@ -319,12 +325,7 @@ export async function addFurigana(
 
     if (firstReason !== null) {
       console.error(`[addFurigana] chunk ${i} suspicious on first pass: ${firstReason}`);
-      const retryMap = await annotateChunksWithSpans(
-        [chunk],
-        anthropic,
-        buildRetryPrompt(chunk.text, finalSpans, firstReason)
-      );
-      const retrySpans = retryMap.get(0);
+      const retrySpans = await retryAnnotateChunk(chunk, finalSpans, firstReason, anthropic);
       if (retrySpans !== undefined) {
         finalSpans = retrySpans;
         finalReason = validateFuriganaSpans(chunk.text, retrySpans);

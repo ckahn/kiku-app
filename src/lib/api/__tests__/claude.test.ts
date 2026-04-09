@@ -352,7 +352,7 @@ describe('addFurigana() — real API', () => {
 
     expect(result[0].text_furigana).toBe('テスト');
     expect(result[0].furigana_status).toBe('suspect');
-    expect(result[0].furigana_warning).toMatch(/non-kanji span "テスト" should not have a reading/i);
+    expect(result[0].furigana_warning).toMatch(/kana-only span "テスト" should have reading=null/i);
   });
 
   it('marks unsplit okurigana spans as suspicious', async () => {
@@ -406,6 +406,24 @@ describe('addFurigana() — real API', () => {
 
     expect(result[0].furigana_status).toBe('suspect');
     expect(result[0].furigana_warning).toMatch(/must be kanji-only/i);
+  });
+
+  it('sanitizes script tags in rendered furigana output', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '漢字', reading: '<script>alert(1)</script>' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: '漢字', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).not.toContain('<script>');
+    expect(result[0].text_furigana).toContain('<ruby>漢字');
   });
 
   it('keeps suspicious output with a warning when retry still fails validation', async () => {

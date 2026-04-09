@@ -26,11 +26,6 @@ export interface FuriganaSpan {
   readonly reading: string | null;
 }
 
-export interface AnnotatedChunkSpans {
-  readonly index: number;
-  readonly spans: readonly FuriganaSpan[];
-}
-
 export type FuriganaStatus = 'ok' | 'suspect';
 
 export interface ChunkWithFurigana {
