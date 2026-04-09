@@ -40,6 +40,9 @@ const KANJI_RE = /[\u4e00-\u9fff]/;
 const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
 // Ruby base must contain only kanji — no kana, Latin, digits, or other scripts.
 const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf]+$/;
+// Digit(s) followed immediately by kanji — date/counter compounds like 4月, 1日, 20日.
+// These have compound readings (e.g., 4月=しがつ, 1日=ついたち) that belong to the whole surface.
+const DIGIT_KANJI_RE = /^\d+[\u4e00-\u9fff\u3400-\u4dbf]+$/;
 
 /**
  * Split a raw transcript into study chunks using Claude.
@@ -158,10 +161,12 @@ function validateFuriganaSpans(
       return `non-kanji span "${span.surface}" should not have a reading`;
     }
 
-    // Ruby is valid only when the ruby base is kanji-only. Reject any surface
-    // that mixes kanji with kana, Latin, digits, or other scripts.
-    if (hasKanji(span.surface) && span.reading !== null && !KANJI_ONLY_RE.test(span.surface)) {
-      return `kanji span "${span.surface}" must be kanji-only — split out any kana, Latin, or other characters`;
+    // Ruby is valid only when the ruby base is kanji-only, or a digit+kanji date/counter
+    // compound (e.g. 4月, 1日, 20日) whose reading belongs to the whole surface.
+    // Reject anything else that mixes kanji with kana, Latin, or other scripts.
+    const isValidRubyBase = KANJI_ONLY_RE.test(span.surface) || DIGIT_KANJI_RE.test(span.surface);
+    if (hasKanji(span.surface) && span.reading !== null && !isValidRubyBase) {
+      return `kanji span "${span.surface}" must be kanji-only or a digit+kanji date/counter compound — split out any kana, Latin, or other characters`;
     }
 
     if (hasKanji(span.surface) && span.reading !== null && span.reading.trim().length === 0) {
@@ -209,11 +214,16 @@ Be especially careful to keep normal lexical compounds together, such as:
 - 留学生 -> one span with reading りゅうがくせい
 
 Also follow this contract strictly:
-- A span with a reading must have a kanji-only surface.
+- A span with a reading must have a kanji-only surface OR a digit+kanji date/counter compound.
 - Kana-only spans must use reading=null.
 - If a word has okurigana, split it into a kanji span plus a plain kana span.
 - Correct: [{"surface":"聞","reading":"き"},{"surface":"いて","reading":null}]
 - Wrong: [{"surface":"聞いて","reading":"きいて"}]
+- Date/counter compounds: keep the number and kanji together with the correct compound reading:
+  - Correct: {"surface":"4月","reading":"しがつ"} or {"surface":"1日","reading":"ついたち"}
+  - Wrong: {"surface":"4","reading":null} + {"surface":"月","reading":"がつ"}
+  - Month readings: 1月=いちがつ, 2月=にがつ, 3月=さんがつ, 4月=しがつ, 5月=ごがつ, 6月=ろくがつ, 7月=しちがつ, 8月=はちがつ, 9月=くがつ, 10月=じゅうがつ, 11月=じゅういちがつ, 12月=じゅうにがつ
+  - Irregular day readings: 1日=ついたち, 2日=ふつか, 3日=みっか, 4日=よっか, 5日=いつか, 6日=むいか, 7日=なのか, 8日=ようか, 9日=ここのか, 10日=とおか, 14日=じゅうよっか, 20日=はつか, 24日=にじゅうよっか
 
 Wrong:
 - 日 + 本 when the intended compound is 日本
@@ -238,15 +248,21 @@ Rules:
 - Use smaller spans only when the reading genuinely belongs to separate parts:
   - 聞いて -> [{"surface":"聞","reading":"き"},{"surface":"いて","reading":null}]
   - 食べる -> [{"surface":"食","reading":"た"},{"surface":"べる","reading":null}]
-- A span with a reading is valid only when its surface is kanji-only.
+- A span with a reading is valid only when its surface is kanji-only OR a digit+kanji date/counter compound.
 - Kana-only, katakana-only, punctuation, and symbols must use reading=null.
 - Do not add spaces, remove text, or rewrite text.
+- Dates and counters: keep the number and kanji together as one span and use the correct compound reading:
+  - Month names: 1月=いちがつ, 2月=にがつ, 3月=さんがつ, 4月=しがつ, 5月=ごがつ, 6月=ろくがつ, 7月=しちがつ, 8月=はちがつ, 9月=くがつ, 10月=じゅうがつ, 11月=じゅういちがつ, 12月=じゅうにがつ
+  - Irregular day readings: 1日=ついたち, 2日=ふつか, 3日=みっか, 4日=よっか, 5日=いつか, 6日=むいか, 7日=なのか, 8日=ようか, 9日=ここのか, 10日=とおか, 14日=じゅうよっか, 20日=はつか, 24日=にじゅうよっか
+  - Other days use standard readings (e.g., 15日=じゅうごにち, 25日=にじゅうごにち)
 
 Wrong examples:
 - [{"surface":"日","reading":"にほん"},{"surface":"本","reading":"ほん"}]
 - [{"surface":"日本","reading":"にほん"},{"surface":"語","reading":"ご"}]
 - [{"surface":"テスト","reading":"てすと"}]
 - [{"surface":"聞いて","reading":"きいて"}]
+- [{"surface":"4","reading":null},{"surface":"月","reading":"がつ"}]  <- wrong, loses month-name context; correct: {"surface":"4月","reading":"しがつ"}
+- [{"surface":"1","reading":null},{"surface":"日","reading":"にち"}]  <- wrong; correct: {"surface":"1日","reading":"ついたち"}
 
 Chunks:
 `;
