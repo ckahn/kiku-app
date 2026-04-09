@@ -27,6 +27,15 @@ describe('findUnannotatedKanji()', () => {
     expect(findUnannotatedKanji('ポッドキャストを聞いて')).toEqual(['聞']);
     expect(findUnannotatedKanji('勉<ruby>強<rt>きょう</rt></ruby>')).toEqual(['勉']);
   });
+
+  it('returns empty array for text with no kanji', () => {
+    expect(findUnannotatedKanji('こんにちは、ポッドキャスト！')).toEqual([]);
+    expect(findUnannotatedKanji('テスト')).toEqual([]);
+  });
+
+  it('returns multiple missed kanji', () => {
+    expect(findUnannotatedKanji('今日は元気ですか')).toEqual(['今', '日', '元', '気']);
+  });
 });
 
 describe('chunkTranscript() — mock mode', () => {
@@ -48,6 +57,13 @@ describe('chunkTranscript() — mock mode', () => {
       expect(chunk).toHaveProperty('last_word_index');
     }
   });
+
+  it('does not mutate the input words array', async () => {
+    const { chunkTranscript } = await import('../claude');
+    const inputWords = [...DUMMY_WORDS];
+    await chunkTranscript('テスト', inputWords);
+    expect(inputWords).toStrictEqual(DUMMY_WORDS);
+  });
 });
 
 describe('addFurigana() — mock mode', () => {
@@ -66,11 +82,62 @@ describe('addFurigana() — mock mode', () => {
     expect(result.length).toBe(chunks.length);
   });
 
-  it('adds default furigana status metadata in mock mode', async () => {
+  it('each result has text, text_furigana, first_word_index, last_word_index', async () => {
     const { addFurigana } = await import('../claude');
     const result = await addFurigana(DUMMY_CHUNKS);
-    expect(result[0].furigana_status).toBe('ok');
-    expect(result[0].furigana_warning).toBeNull();
+    for (const entry of result) {
+      expect(entry).toHaveProperty('text');
+      expect(entry).toHaveProperty('text_furigana');
+      expect(entry).toHaveProperty('first_word_index');
+      expect(entry).toHaveProperty('last_word_index');
+      expect(entry).toHaveProperty('furigana_status');
+      expect(entry).toHaveProperty('furigana_warning');
+    }
+  });
+
+  it('fixture furigana still contains ruby annotations for kanji-bearing chunks', async () => {
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana(DUMMY_CHUNKS);
+    for (const entry of result) {
+      expect(entry.text_furigana).toContain('<ruby');
+      expect(entry.furigana_status).toBe('ok');
+      expect(entry.furigana_warning).toBeNull();
+    }
+  });
+
+  it('does not mutate the input chunks array', async () => {
+    const { addFurigana } = await import('../claude');
+    const inputChunks = [...DUMMY_CHUNKS];
+    await addFurigana(inputChunks);
+    expect(inputChunks).toStrictEqual(DUMMY_CHUNKS);
+  });
+});
+
+describe('generateDrilldown() — mock mode', () => {
+  beforeEach(() => {
+    vi.stubEnv('USE_MOCKS', 'true');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns an object with a non-empty sentences array', async () => {
+    const { generateDrilldown } = await import('../claude');
+    const result = await generateDrilldown('テスト');
+    expect(result).toHaveProperty('sentences');
+    expect(Array.isArray(result.sentences)).toBe(true);
+    expect(result.sentences.length).toBeGreaterThan(0);
+  });
+
+  it('each sentence has japanese, english, and structures', async () => {
+    const { generateDrilldown } = await import('../claude');
+    const result = await generateDrilldown('テスト');
+    for (const sentence of result.sentences) {
+      expect(sentence).toHaveProperty('japanese');
+      expect(sentence).toHaveProperty('english');
+      expect(sentence).toHaveProperty('structures');
+    }
   });
 });
 
@@ -104,6 +171,7 @@ describe('chunkTranscript() — real API', () => {
     const result = await chunkTranscript('テスト', DUMMY_WORDS);
 
     expect(generateObject).toHaveBeenCalled();
+    expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ text: 'テスト', first_word_index: 0, last_word_index: 0 });
   });
 });
@@ -141,9 +209,33 @@ describe('addFurigana() — real API', () => {
     const { addFurigana } = await import('../claude');
     const result = await addFurigana(DUMMY_CHUNKS);
 
+    expect(result[0].text).toBe('日本語');
+    expect(result[0].first_word_index).toBe(0);
+    expect(result[0].last_word_index).toBe(0);
     expect(result[0].text_furigana).toBe('<ruby>日本語<rt>にほんご</rt></ruby>');
     expect(result[0].furigana_status).toBe('ok');
     expect(result[0].furigana_warning).toBeNull();
+  });
+
+  it('calls generateObject once for clean output', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '日本語', reading: 'にほんご' }] },
+          { index: 1, spans: [{ surface: '会議', reading: 'かいぎ' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    await addFurigana([
+      { text: '日本語', first_word_index: 0, last_word_index: 0 },
+      { text: '会議', first_word_index: 1, last_word_index: 1 },
+    ]);
+
+    expect(generateObject).toHaveBeenCalledTimes(1);
   });
 
   it('keeps kana-only spans as plain text', async () => {
@@ -241,6 +333,60 @@ describe('addFurigana() — real API', () => {
     expect(result[0].furigana_status).toBe('ok');
   });
 
+  it('marks kana-only spans with readings as suspicious', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: 'テスト', reading: 'てすと' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: 'テスト', reading: 'てすと' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: 'テスト', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).toBe('テスト');
+    expect(result[0].furigana_status).toBe('suspect');
+    expect(result[0].furigana_warning).toMatch(/non-kanji span "テスト" should not have a reading/i);
+  });
+
+  it('marks unsplit okurigana spans as suspicious', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: '聞いて', reading: 'きいて' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>)
+      .mockResolvedValueOnce({
+        object: {
+          annotated_chunks: [
+            { index: 0, spans: [{ surface: '聞いて', reading: 'きいて' }] },
+          ],
+        },
+      } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: '聞いて', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).toBe('<ruby>聞いて<rt>きいて</rt></ruby>');
+    expect(result[0].furigana_status).toBe('suspect');
+    expect(result[0].furigana_warning).toMatch(/must split okurigana\/kana/i);
+  });
+
   it('keeps suspicious output with a warning when retry still looks wrong', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
@@ -305,5 +451,23 @@ describe('addFurigana() — real API', () => {
 
     expect(result[0].furigana_status).toBe('suspect');
     expect(result[0].furigana_warning).toMatch(/reconstruct/i);
+  });
+});
+
+describe('generateDrilldown() — non-mock mode stub', () => {
+  beforeEach(() => {
+    vi.stubEnv('USE_MOCKS', 'false');
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('throws with clear message', async () => {
+    const { generateDrilldown } = await import('../claude');
+    await expect(generateDrilldown('')).rejects.toThrow(
+      'Real Claude API not yet implemented'
+    );
   });
 });

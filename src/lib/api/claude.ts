@@ -38,6 +38,7 @@ const furiganaResultSchema = z.object({
 });
 
 const KANJI_RE = /[\u4e00-\u9fff]/;
+const KANA_RE = /[\u3040-\u309f\u30a0-\u30ff]/;
 const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
 
 /**
@@ -110,6 +111,10 @@ function hasKanji(value: string): boolean {
   return KANJI_RE.test(value);
 }
 
+function containsKana(value: string): boolean {
+  return KANA_RE.test(value);
+}
+
 function isKanaOrPunctuationOnly(value: string): boolean {
   return value.length > 0 && ONLY_KANA_OR_PUNCT_RE.test(value) && !hasKanji(value);
 }
@@ -177,6 +182,12 @@ function validateFuriganaSpans(
       return `kana-only span "${span.surface}" should have reading=null`;
     }
 
+    // Ruby is valid only when the ruby base is kanji-only. If kana/okurigana are
+    // still attached to a kanji-bearing span, the model failed to split the span.
+    if (hasKanji(span.surface) && containsKana(span.surface) && span.reading !== null) {
+      return `kanji span "${span.surface}" must split okurigana/kana into a separate span`;
+    }
+
     if (hasKanji(span.surface) && span.reading !== null && span.reading.trim().length === 0) {
       return `kanji span "${span.surface}" has an empty reading`;
     }
@@ -218,6 +229,13 @@ Be especially careful to keep normal lexical compounds together, such as:
 - 日本語 -> one span with reading にほんご
 - 留学生 -> one span with reading りゅうがくせい
 
+Also follow this contract strictly:
+- A span with a reading must have a kanji-only surface.
+- Kana-only spans must use reading=null.
+- If a word has okurigana, split it into a kanji span plus a plain kana span.
+- Correct: [{"surface":"聞","reading":"き"},{"surface":"いて","reading":null}]
+- Wrong: [{"surface":"聞いて","reading":"きいて"}]
+
 Wrong:
 - 日 + 本 when the intended compound is 日本
 - 日本 + 語 when the intended compound is 日本語
@@ -241,12 +259,15 @@ Rules:
 - Use smaller spans only when the reading genuinely belongs to separate parts:
   - 聞いて -> [{"surface":"聞","reading":"き"},{"surface":"いて","reading":null}]
   - 食べる -> [{"surface":"食","reading":"た"},{"surface":"べる","reading":null}]
+- A span with a reading is valid only when its surface is kanji-only.
 - Kana-only, katakana-only, punctuation, and symbols must use reading=null.
 - Do not add spaces, remove text, or rewrite text.
 
 Wrong examples:
 - [{"surface":"日","reading":"にほん"},{"surface":"本","reading":"ほん"}]
 - [{"surface":"日本","reading":"にほん"},{"surface":"語","reading":"ご"}]
+- [{"surface":"テスト","reading":"てすと"}]
+- [{"surface":"聞いて","reading":"きいて"}]
 
 Chunks:
 `;
@@ -285,6 +306,9 @@ function mockChunkWithDefaults(
 
 /**
  * Annotate each chunk's text with furigana using Claude-generated structured spans.
+ * Stored contract:
+ * - <ruby> may wrap kanji-only base text
+ * - hiragana, katakana, punctuation, and okurigana must remain plain text
  * The spans are validated and rendered into ruby HTML server-side.
  *
  * Set USE_MOCKS=true to return fixture data.
