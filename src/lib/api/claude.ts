@@ -183,6 +183,9 @@ function validateFuriganaSpans(
   return null;
 }
 
+// TODO: extract furigana-specific functions (buildRetryPrompt, retryAnnotateChunk,
+// annotateChunksWithSpans, validateFuriganaSpans, renderSpanToHtml, renderFuriganaHtml)
+// into src/lib/api/furigana.ts as this file grows.
 function buildRetryPrompt(
   chunkText: string,
   firstPassSpans: readonly FuriganaSpan[],
