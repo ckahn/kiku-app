@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { TranscriptChunk, ElevenLabsWord } from '../types';
-import { findUnannotatedKanji } from '../claude';
+import { findUnannotatedKanji, unwrapRubyContainingKana } from '../claude';
 
 // Top-level mocks — hoisted so they apply to all dynamic imports below.
 vi.mock('ai', () => ({
@@ -36,6 +36,26 @@ describe('findUnannotatedKanji()', () => {
 
   it('returns multiple missed kanji', () => {
     expect(findUnannotatedKanji('今日は元気ですか')).toEqual(['今', '日', '元', '気']);
+  });
+});
+
+describe('unwrapRubyContainingKana()', () => {
+  it('unwraps ruby tags around katakana-only text', () => {
+    expect(
+      unwrapRubyContainingKana('<ruby>テスト<rt>てすと</rt></ruby>')
+    ).toBe('テスト');
+  });
+
+  it('unwraps ruby tags when kana are included in the ruby base text', () => {
+    expect(
+      unwrapRubyContainingKana('<ruby>聞いて<rt>きいて</rt></ruby>')
+    ).toBe('聞いて');
+  });
+
+  it('preserves ruby tags when the base text is kanji-only', () => {
+    expect(
+      unwrapRubyContainingKana('<ruby>日本語<rt>にほんご</rt></ruby>')
+    ).toBe('<ruby>日本語<rt>にほんご</rt></ruby>');
   });
 });
 
@@ -94,7 +114,7 @@ describe('addFurigana() — mock mode', () => {
     }
   });
 
-  it('each text_furigana contains at least one <ruby> annotation', async () => {
+  it('fixture furigana still contains ruby annotations for kanji-bearing chunks', async () => {
     const { addFurigana } = await import('../claude');
     const result = await addFurigana(DUMMY_CHUNKS);
     for (const entry of result) {
@@ -220,7 +240,7 @@ describe('addFurigana() — real API', () => {
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
         annotated_chunks: [
-          { index: 0, text_furigana: '<ruby>テスト<rt>てすと</rt></ruby>' },
+          { index: 0, text_furigana: 'テスト' },
         ],
       },
     } as Awaited<ReturnType<typeof generateObject>>);
@@ -231,7 +251,7 @@ describe('addFurigana() — real API', () => {
     expect(result[0].text).toBe('テスト');
     expect(result[0].first_word_index).toBe(0);
     expect(result[0].last_word_index).toBe(0);
-    expect(result[0].text_furigana).toBe('<ruby>テスト<rt>てすと</rt></ruby>');
+    expect(result[0].text_furigana).toBe('テスト');
   });
 
   it('uses the index field to match furigana to chunks, not array position', async () => {
@@ -277,8 +297,53 @@ describe('addFurigana() — real API', () => {
     const { addFurigana } = await import('../claude');
     const result = await addFurigana(twoChunks);
 
-    expect(result[0].text_furigana).toBe('<ruby>テスト<rt>てすと</rt></ruby>');
+    expect(result[0].text_furigana).toBe('テスト');
     expect(result[1].text_furigana).toBe('もう一つ'); // raw text fallback, no crash
+  });
+
+  it('unwraps katakana ruby added by Claude', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, text_furigana: '<ruby>ポッドキャスト<rt>ぽっどきゃすと</rt></ruby>' },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const chunk: TranscriptChunk[] = [
+      { text: 'ポッドキャスト', first_word_index: 0, last_word_index: 0 },
+    ];
+    const result = await addFurigana(chunk);
+
+    expect(result[0].text_furigana).toBe('ポッドキャスト');
+  });
+
+  it('unwraps ruby when Claude wraps kanji together with okurigana', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, text_furigana: '<ruby>聞いて<rt>きいて</rt></ruby>' },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { addFurigana } = await import('../claude');
+    const chunk: TranscriptChunk[] = [
+      { text: '聞いて', first_word_index: 0, last_word_index: 0 },
+    ];
+    const result = await addFurigana(chunk);
+
+    expect(result[0].text_furigana).toBe('聞いて');
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('chunk 0 missing furigana for: 聞')
+    );
+    errorSpy.mockRestore();
   });
 
   it('logs an error and still returns the chunk when kanji are unannotated', async () => {
