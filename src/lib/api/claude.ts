@@ -136,26 +136,6 @@ function renderFuriganaHtml(spans: readonly FuriganaSpan[]): string {
   });
 }
 
-function describeSuspiciousAdjacentReadings(spans: readonly FuriganaSpan[]): string | null {
-  for (let i = 0; i < spans.length - 1; i++) {
-    const current = spans[i];
-    const next = spans[i + 1];
-    if (current.reading === null || next.reading === null) continue;
-    if (!hasKanji(current.surface) || !hasKanji(next.surface)) continue;
-    if (!/[\u4e00-\u9fff]$/.test(current.surface)) continue;
-    if (!/^[\u4e00-\u9fff]/.test(next.surface)) continue;
-
-    const currentReading = current.reading.trim();
-    const nextReading = next.reading.trim();
-    if (currentReading.length <= nextReading.length) continue;
-
-    if (currentReading.endsWith(nextReading)) {
-      return `adjacent kanji spans have overlapping readings near "${current.surface}${next.surface}"`;
-    }
-  }
-
-  return null;
-}
 
 function validateFuriganaSpans(
   chunkText: string,
@@ -204,7 +184,7 @@ function validateFuriganaSpans(
     return `rendered HTML is missing furigana for: ${missed.join('')}`;
   }
 
-  return describeSuspiciousAdjacentReadings(spans);
+  return null;
 }
 
 function buildRetryPrompt(
@@ -327,7 +307,10 @@ export async function addFurigana(
   const anthropic = createAnthropic({ apiKey });
   const firstPassByIndex = await annotateChunksWithSpans(chunks, anthropic);
 
-  return Promise.all(chunks.map(async (chunk, i) => {
+  const results: ChunkWithFurigana[] = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
     const firstPassSpans = firstPassByIndex.get(i);
     const fallbackText = sanitizeHtml(chunk.text, { allowedTags: [], allowedAttributes: {} });
 
@@ -361,15 +344,17 @@ export async function addFurigana(
       ? renderFuriganaHtml(finalSpans)
       : (finalSpans.length > 0 ? renderFuriganaHtml(finalSpans) : fallbackText);
 
-    return {
+    results.push({
       text: chunk.text,
       text_furigana: renderedHtml,
       first_word_index: chunk.first_word_index,
       last_word_index: chunk.last_word_index,
       furigana_status: finalReason === null ? 'ok' : 'suspect',
       furigana_warning: finalReason === null ? null : `This furigana may contain mistakes. ${finalReason}`,
-    };
-  }));
+    });
+  }
+
+  return results;
 }
 
 /**
