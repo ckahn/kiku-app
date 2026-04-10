@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act } from '@testing-library/react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import EpisodePlayer from '../player/EpisodePlayer';
+import { CHUNK_PLAYBACK_OFFSET_SEC } from '../player/usePlayer';
 import type { Chunk } from '@/db/schema';
 
 function makeChunk(id: number, startMs: number, endMs: number): Chunk {
@@ -31,6 +32,8 @@ const CHUNKS = [
   makeChunk(2, 5000, 12000),
   makeChunk(3, 12000, 20000),
 ];
+const chunk2StartSec = CHUNKS[1].startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC;
+const chunk2EndSec = CHUNKS[1].endMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC;
 
 
 beforeEach(() => {
@@ -57,9 +60,9 @@ describe('click chunk → clamped playback', () => {
     const items = screen.getAllByRole('listitem');
     fireEvent.click(items[1]); // focus chunk 2
     expect(items[1]).toHaveAttribute('data-focused');
-    // Audio element currentTime should be set to chunk 2 start (5s)
+    // Audio element currentTime should be set slightly before chunk 2 start.
     const audio = document.querySelector('audio') as HTMLAudioElement;
-    expect(audio.currentTime).toBe(5);
+    expect(audio.currentTime).toBe(chunk2StartSec);
   });
 
   it('timeupdate past chunk end pauses audio when loop is off', () => {
@@ -69,16 +72,16 @@ describe('click chunk → clamped playback', () => {
     const audio = document.querySelector('audio') as HTMLAudioElement;
     const items = screen.getAllByRole('listitem');
 
-    act(() => { fireEvent.click(items[1]); }); // focus chunk 2 (ends at 12s)
+    act(() => { fireEvent.click(items[1]); });
 
     // Simulate timeupdate at near-end of chunk (within CLAMP_EPSILON = 0.05s)
     act(() => {
-      audio.currentTime = 11.97;
+      audio.currentTime = chunk2EndSec + 0.07;
       fireEvent(audio, new Event('timeupdate'));
     });
 
     expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
-    expect(audio.currentTime).toBe(5); // reset to chunk start
+    expect(audio.currentTime).toBe(chunk2StartSec);
   });
 
   it('timeupdate past chunk end loops back when loop is on', () => {
@@ -94,12 +97,12 @@ describe('click chunk → clamped playback', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Toggle loop' })[0]);
 
     act(() => {
-      audio.currentTime = 11.97;
+      audio.currentTime = chunk2EndSec + 0.07;
       fireEvent(audio, new Event('timeupdate'));
     });
 
-    // Should seek back to chunk start without pausing
-    expect(audio.currentTime).toBe(5);
+    // Should seek back to adjusted chunk start without pausing
+    expect(audio.currentTime).toBe(chunk2StartSec);
     expect(HTMLMediaElement.prototype.pause).not.toHaveBeenCalled();
   });
 });

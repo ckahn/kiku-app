@@ -6,6 +6,7 @@ import { playerReducer, initialPlayerState } from './playerReducer';
 import type { PlayerState, PlayerAction } from './types';
 
 const CLAMP_EPSILON = 0.05; // seconds — prevent loop-point overshoot flicker
+export const CHUNK_PLAYBACK_OFFSET_SEC = 0.2; // seconds — trim chunk playback slightly earlier at both edges
 const GENERIC_PLAYBACK_ERROR =
   'Could not play this episode audio. Try again or refresh the page. If it keeps failing, the audio file may be unavailable.';
 
@@ -51,7 +52,11 @@ function getChunkBounds(
   if (chunkId === null) return null;
   const chunk = chunks.find((c) => c.id === chunkId);
   if (!chunk) return null;
-  return { startSec: chunk.startMs / 1000, endSec: chunk.endMs / 1000 };
+  // Apply a small player-only offset so focused chunk playback starts and
+  // loops a touch earlier than the stored DB timestamps.
+  const startSec = Math.max(0, chunk.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC);
+  const endSec = Math.max(startSec, chunk.endMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC);
+  return { startSec, endSec };
 }
 
 export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlayerReturn {
