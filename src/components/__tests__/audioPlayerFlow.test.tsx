@@ -17,6 +17,8 @@ function makeChunk(id: number, startMs: number, endMs: number): Chunk {
     chunkIndex: id - 1,
     textRaw: `テスト${id}`,
     textFurigana: `テスト${id}`,
+    furiganaStatus: 'ok',
+    furiganaWarning: null,
     startMs,
     endMs,
     sentences: [] as unknown as Chunk['sentences'],

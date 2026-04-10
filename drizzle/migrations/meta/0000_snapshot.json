@@ -1,5 +1,5 @@
 {
-  "id": "fa37e5b3-51fd-4249-9e04-6323f046864f",
+  "id": "6092fb3b-0cd5-4bb5-8a4f-b50e66c297cd",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -10,14 +10,13 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "episode_id": {
           "name": "episode_id",
-          "type": "uuid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -38,6 +37,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "furigana_status": {
+          "name": "furigana_status",
+          "type": "furigana_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ok'"
+        },
+        "furigana_warning": {
+          "name": "furigana_warning",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "start_ms": {
           "name": "start_ms",
@@ -102,14 +115,13 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "chunk_id": {
           "name": "chunk_id",
-          "type": "uuid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -170,14 +182,13 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "podcast_id": {
           "name": "podcast_id",
-          "type": "uuid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -191,7 +202,7 @@
           "name": "episode_number",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "audio_url": {
           "name": "audio_url",
@@ -271,7 +282,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "episodes_podcast_id_episode_number_unique": {
+          "name": "episodes_podcast_id_episode_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "podcast_id",
+            "episode_number"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -282,13 +302,18 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "name": {
           "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -316,7 +341,22 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "podcasts_name_unique": {
+          "name": "podcasts_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        },
+        "podcasts_slug_unique": {
+          "name": "podcasts_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -327,14 +367,13 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "episode_id": {
           "name": "episode_id",
-          "type": "uuid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -380,14 +419,13 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "serial",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "episode_id": {
           "name": "episode_id",
-          "type": "uuid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -439,6 +477,14 @@
         "chunking",
         "ready",
         "error"
+      ]
+    },
+    "public.furigana_status": {
+      "name": "furigana_status",
+      "schema": "public",
+      "values": [
+        "ok",
+        "suspect"
       ]
     },
     "public.review_outcome": {

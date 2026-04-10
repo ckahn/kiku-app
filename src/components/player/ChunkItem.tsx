@@ -52,6 +52,15 @@ export default function ChunkItem({
         dangerouslySetInnerHTML={{ __html: displayHtml }}
       />
 
+      {isFocused && chunk.furiganaStatus === 'suspect' && (
+        <p
+          role="alert"
+          className="mt-3 rounded-md bg-warning-subtle px-3 py-2 text-xs text-warning-on-subtle"
+        >
+          {chunk.furiganaWarning ?? 'This furigana may contain mistakes.'}
+        </p>
+      )}
+
       {isFocused && (
         <div className="mt-3 pt-3 border-t border-border">
           <div className="flex items-center gap-2 flex-wrap">

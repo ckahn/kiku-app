@@ -29,6 +29,8 @@ function makeChunk(id: number, startMs: number, endMs: number, index: number): C
     chunkIndex: index,
     textRaw: `テスト${id}`,
     textFurigana: `テスト${id}`,
+    furiganaStatus: 'ok',
+    furiganaWarning: null,
     startMs,
     endMs,
     sentences: [] as unknown as Chunk['sentences'],

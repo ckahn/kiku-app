@@ -1,12 +1,15 @@
 CREATE TYPE "public"."episode_status" AS ENUM('uploaded', 'transcribing', 'chunking', 'ready', 'error');--> statement-breakpoint
+CREATE TYPE "public"."furigana_status" AS ENUM('ok', 'suspect');--> statement-breakpoint
 CREATE TYPE "public"."review_outcome" AS ENUM('comfortable', 'needs_work');--> statement-breakpoint
 CREATE TYPE "public"."study_status" AS ENUM('new', 'studying', 'learned');--> statement-breakpoint
 CREATE TABLE "chunks" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"episode_id" uuid NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
+	"episode_id" integer NOT NULL,
 	"chunk_index" integer NOT NULL,
 	"text_raw" text NOT NULL,
 	"text_furigana" text NOT NULL,
+	"furigana_status" "furigana_status" DEFAULT 'ok' NOT NULL,
+	"furigana_warning" text,
 	"start_ms" integer NOT NULL,
 	"end_ms" integer NOT NULL,
 	"sentences" jsonb NOT NULL,
@@ -15,8 +18,8 @@ CREATE TABLE "chunks" (
 );
 --> statement-breakpoint
 CREATE TABLE "drilldowns" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"chunk_id" uuid NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
+	"chunk_id" integer NOT NULL,
 	"content" jsonb NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now(),
@@ -24,10 +27,10 @@ CREATE TABLE "drilldowns" (
 );
 --> statement-breakpoint
 CREATE TABLE "episodes" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"podcast_id" uuid NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
+	"podcast_id" integer NOT NULL,
 	"title" text NOT NULL,
-	"episode_number" integer,
+	"episode_number" integer NOT NULL,
 	"audio_url" text NOT NULL,
 	"duration_ms" integer,
 	"status" "episode_status" DEFAULT 'uploaded' NOT NULL,
@@ -36,27 +39,31 @@ CREATE TABLE "episodes" (
 	"next_review" timestamp with time zone,
 	"error_message" text,
 	"created_at" timestamp with time zone DEFAULT now(),
-	"updated_at" timestamp with time zone DEFAULT now()
+	"updated_at" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "episodes_podcast_id_episode_number_unique" UNIQUE("podcast_id","episode_number")
 );
 --> statement-breakpoint
 CREATE TABLE "podcasts" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
+	"slug" text NOT NULL,
 	"description" text,
 	"image_url" text,
-	"created_at" timestamp with time zone DEFAULT now()
+	"created_at" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "podcasts_name_unique" UNIQUE("name"),
+	CONSTRAINT "podcasts_slug_unique" UNIQUE("slug")
 );
 --> statement-breakpoint
 CREATE TABLE "raw_transcripts" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"episode_id" uuid NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
+	"episode_id" integer NOT NULL,
 	"payload" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE "review_log" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"episode_id" uuid NOT NULL,
+	"id" serial PRIMARY KEY NOT NULL,
+	"episode_id" integer NOT NULL,
 	"reviewed_at" timestamp with time zone DEFAULT now(),
 	"outcome" "review_outcome" NOT NULL
 );

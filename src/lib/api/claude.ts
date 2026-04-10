@@ -4,10 +4,11 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { CLAUDE_CHUNK_MODEL, CLAUDE_FURIGANA_MODEL } from '@/lib/constants';
 import type {
-  ElevenLabsWord,
-  TranscriptChunk,
   ChunkWithFurigana,
   DrilldownContent,
+  ElevenLabsWord,
+  FuriganaSpan,
+  TranscriptChunk,
 } from './types';
 import chunksFixture from '../../../fixtures/chunks.json';
 import furiganaFixture from '../../../fixtures/furigana.json';
@@ -23,12 +24,27 @@ const chunkedTranscriptSchema = z.object({
   chunks: z.array(transcriptChunkSchema),
 });
 
+const furiganaSpanSchema = z.object({
+  surface: z.string(),
+  reading: z.union([z.string(), z.null()]),
+});
+
 const furiganaResultSchema = z.object({
   annotated_chunks: z.array(z.object({
     index: z.number(),
-    text_furigana: z.string(),
+    spans: z.array(furiganaSpanSchema),
   })),
 });
+
+const KANJI_RE = /[\u4e00-\u9fff]/;
+const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
+// Ruby base must contain only kanji — no kana, Latin, digits, or other scripts.
+const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf]+$/;
+// 1–2 digit prefix (ASCII or full-width) followed immediately by kanji — calendar date/counter
+// compounds like 4月, １日, 20日, ２０日. Capped at 2 digits to avoid generating absurd furigana
+// for large numbers (e.g. 355432円). Full-width digits (１–９, ０) are U+FF11–FF19, U+FF10.
+// These have compound readings (e.g., 4月=しがつ, 1日=ついたち) that belong to the whole surface.
+const DIGIT_KANJI_RE = /^[1-9\uFF11-\uFF19][0-9\uFF10-\uFF19]?[\u4e00-\u9fff\u3400-\u4dbf]+$/;
 
 /**
  * Split a raw transcript into study chunks using Claude.
@@ -89,60 +105,217 @@ ${wordList}`;
 
 /**
  * Returns kanji characters in `annotated` that are not wrapped in a <ruby> tag.
- * Used to detect when Claude missed annotating a character.
+ * Used to detect when annotation HTML missed a character.
  */
 export function findUnannotatedKanji(annotated: string): string[] {
   const stripped = annotated.replace(/<ruby>[\s\S]*?<\/ruby>/g, '');
   return [...stripped.matchAll(/[\u4e00-\u9fff]/g)].map((m) => m[0]);
 }
 
-function containsKana(text: string): boolean {
-  return /[\u3040-\u309f\u30a0-\u30ff]/.test(text);
+function hasKanji(value: string): boolean {
+  return KANJI_RE.test(value);
 }
 
-/**
- * Unwraps ruby tags when the ruby base text contains kana.
- * Contract: stored furigana may use <ruby> only when the ruby base text is kanji-only.
- * Outputs like <ruby>テスト<rt>てすと</rt></ruby> or
- * <ruby>聞いて<rt>きいて</rt></ruby> are invalid and normalized back to plain text.
- */
-export function unwrapRubyContainingKana(annotated: string): string {
-  return annotated.replace(/<ruby>([\s\S]*?)<\/ruby>/g, (fullMatch, inner) => {
-    const baseText = inner
-      .replace(/<rt>[\s\S]*?<\/rt>/g, '')
-      .replace(/<rp>[\s\S]*?<\/rp>/g, '')
-      .replace(/<[^>]+>/g, '')
-      .trim();
+function isKanaOrPunctuationOnly(value: string): boolean {
+  return value.length > 0 && ONLY_KANA_OR_PUNCT_RE.test(value) && !hasKanji(value);
+}
 
-    return containsKana(baseText) ? baseText : fullMatch;
+function renderSpanToHtml(span: FuriganaSpan): string {
+  const surface = sanitizeHtml(span.surface, { allowedTags: [], allowedAttributes: {} });
+  if (span.reading === null || !hasKanji(span.surface)) {
+    return surface;
+  }
+
+  const reading = sanitizeHtml(span.reading, { allowedTags: [], allowedAttributes: {} });
+  return `<ruby>${surface}<rt>${reading}</rt></ruby>`;
+}
+
+function renderFuriganaHtml(spans: readonly FuriganaSpan[]): string {
+  return sanitizeHtml(spans.map(renderSpanToHtml).join(''), {
+    allowedTags: ['ruby', 'rt', 'rp'],
+    allowedAttributes: {},
   });
 }
 
-const FURIGANA_PROMPT = `Annotate each Japanese text chunk with <ruby> HTML tags for furigana.
+
+function validateFuriganaSpans(
+  chunkText: string,
+  spans: readonly FuriganaSpan[]
+): string | null {
+  if (spans.length === 0) {
+    return 'model returned no spans';
+  }
+
+  for (const span of spans) {
+    if (span.surface.length === 0) {
+      return 'model returned an empty surface span';
+    }
+
+    if (hasKanji(span.surface) && span.reading === null) {
+      return `kanji span "${span.surface}" is missing a reading`;
+    }
+
+    if (isKanaOrPunctuationOnly(span.surface) && span.reading !== null) {
+      return `kana-only span "${span.surface}" should have reading=null`;
+    }
+
+    if (!hasKanji(span.surface) && span.reading !== null) {
+      return `non-kanji span "${span.surface}" should not have a reading`;
+    }
+
+    // Ruby is valid only when the ruby base is kanji-only, or a digit+kanji date/counter
+    // compound (e.g. 4月, 1日, 20日) whose reading belongs to the whole surface.
+    // Reject anything else that mixes kanji with kana, Latin, or other scripts.
+    const isValidRubyBase = KANJI_ONLY_RE.test(span.surface) || DIGIT_KANJI_RE.test(span.surface);
+    if (hasKanji(span.surface) && span.reading !== null && !isValidRubyBase) {
+      return `kanji span "${span.surface}" must be kanji-only or a digit+kanji date/counter compound — split out any kana, Latin, or other characters`;
+    }
+
+    if (hasKanji(span.surface) && span.reading !== null && span.reading.trim().length === 0) {
+      return `kanji span "${span.surface}" has an empty reading`;
+    }
+  }
+
+  const reconstructed = spans.map((span) => span.surface).join('');
+  if (reconstructed !== chunkText) {
+    return `span surfaces reconstruct "${reconstructed}" instead of the original chunk`;
+  }
+
+  const html = renderFuriganaHtml(spans);
+  const missed = findUnannotatedKanji(html);
+  if (missed.length > 0) {
+    return `rendered HTML is missing furigana for: ${missed.join('')}`;
+  }
+
+  return null;
+}
+
+// TODO: extract furigana-specific functions (buildRetryPrompt, retryAnnotateChunk,
+// annotateChunksWithSpans, validateFuriganaSpans, renderSpanToHtml, renderFuriganaHtml)
+// into src/lib/api/furigana.ts as this file grows.
+function buildRetryPrompt(
+  chunkText: string,
+  firstPassSpans: readonly FuriganaSpan[],
+  reason: string
+): string {
+  return `The previous furigana span annotation was suspicious.
+
+Original chunk:
+${chunkText}
+
+Previous spans:
+${JSON.stringify(firstPassSpans, null, 2)}
+
+Problem detected:
+${reason}
+
+Try again and fix the span boundaries. Preserve the original chunk text exactly.
+Be especially careful to keep normal lexical compounds together, such as:
+- 日本 -> one span with reading にほん
+- 日本語 -> one span with reading にほんご
+- 留学生 -> one span with reading りゅうがくせい
+
+Also follow this contract strictly:
+- A span with a reading must have a kanji-only surface OR a digit+kanji date/counter compound.
+- Kana-only spans must use reading=null.
+- If a word has okurigana, split it into a kanji span plus a plain kana span.
+- Correct: [{"surface":"聞","reading":"き"},{"surface":"いて","reading":null}]
+- Wrong: [{"surface":"聞いて","reading":"きいて"}]
+- Date/counter compounds: keep the number and kanji together with the correct compound reading:
+  - Correct: [{"surface":"4月","reading":"しがつ"},{"surface":"1日","reading":"ついたち"}]
+  - Wrong: {"surface":"4","reading":null} + {"surface":"月","reading":"がつ"}
+  - Wrong: {"surface":"4月1日","reading":"しがつついたち"}  <- month and day must be separate spans
+  - Month readings: 1月=いちがつ, 2月=にがつ, 3月=さんがつ, 4月=しがつ, 5月=ごがつ, 6月=ろくがつ, 7月=しちがつ, 8月=はちがつ, 9月=くがつ, 10月=じゅうがつ, 11月=じゅういちがつ, 12月=じゅうにがつ
+  - Irregular day readings: 1日=ついたち, 2日=ふつか, 3日=みっか, 4日=よっか, 5日=いつか, 6日=むいか, 7日=なのか, 8日=ようか, 9日=ここのか, 10日=とおか, 14日=じゅうよっか, 20日=はつか, 24日=にじゅうよっか
+
+Wrong:
+- 日 + 本 when the intended compound is 日本
+- 日本 + 語 when the intended compound is 日本語
+
+Return spans only. Do not add or remove text. Use reading=null for kana-only spans and punctuation.`;
+}
+
+const FURIGANA_PROMPT = `Annotate each Japanese text chunk as structured spans for furigana.
+
+For each chunk, return an ordered "spans" array.
+Each span object must contain:
+- "surface": exact text from the original chunk
+- "reading": hiragana reading for kanji-bearing spans, or null for kana-only / katakana / punctuation / symbols
 
 Rules:
-- Every kanji character MUST be wrapped — do not skip any.
-- For compound words read as a unit, wrap all kanji together:
-  <ruby>日本語<rt>にほんご</rt></ruby>  <ruby>勉強<rt>べんきょう</rt></ruby>
-- For a single kanji (especially with okurigana), wrap only the kanji:
-  <ruby>聞<rt>き</rt></ruby>いて  <ruby>食<rt>た</rt></ruby>べる
-- A <ruby> tag is valid only when its base text is kanji-only.
-- Hiragana, katakana, punctuation, and okurigana pass through unchanged.
-- Wrong: <ruby>テスト<rt>てすと</rt></ruby>
-- Wrong: <ruby>ありがとう<rt>ありがとう</rt></ruby>
-- Wrong: <ruby>聞いて<rt>きいて</rt></ruby>
-- Correct: <ruby>聞<rt>き</rt></ruby>いて
-- Do not add spaces not present in the original.
+- Concatenating every "surface" in order MUST reproduce the original chunk exactly.
+- Group normal lexical compounds into a single span:
+  - 日本 -> reading にほん
+  - 日本語 -> reading にほんご
+  - 留学生 -> reading りゅうがくせい
+- Use smaller spans only when the reading genuinely belongs to separate parts:
+  - 聞いて -> [{"surface":"聞","reading":"き"},{"surface":"いて","reading":null}]
+  - 食べる -> [{"surface":"食","reading":"た"},{"surface":"べる","reading":null}]
+- A span with a reading is valid only when its surface is kanji-only OR a digit+kanji date/counter compound.
+- Kana-only, katakana-only, punctuation, and symbols must use reading=null.
+- Do not add spaces, remove text, or rewrite text.
+- Dates and counters: keep the number and kanji together as one span and use the correct compound reading:
+  - Month names: 1月=いちがつ, 2月=にがつ, 3月=さんがつ, 4月=しがつ, 5月=ごがつ, 6月=ろくがつ, 7月=しちがつ, 8月=はちがつ, 9月=くがつ, 10月=じゅうがつ, 11月=じゅういちがつ, 12月=じゅうにがつ
+  - Irregular day readings: 1日=ついたち, 2日=ふつか, 3日=みっか, 4日=よっか, 5日=いつか, 6日=むいか, 7日=なのか, 8日=ようか, 9日=ここのか, 10日=とおか, 14日=じゅうよっか, 20日=はつか, 24日=にじゅうよっか
+  - Other days use standard readings (e.g., 15日=じゅうごにち, 25日=にじゅうごにち)
+
+Wrong examples:
+- [{"surface":"日","reading":"にほん"},{"surface":"本","reading":"ほん"}]
+- [{"surface":"日本","reading":"にほん"},{"surface":"語","reading":"ご"}]
+- [{"surface":"テスト","reading":"てすと"}]
+- [{"surface":"聞いて","reading":"きいて"}]
+- [{"surface":"4","reading":null},{"surface":"月","reading":"がつ"}]  <- wrong, loses month-name context; correct: {"surface":"4月","reading":"しがつ"}
+- [{"surface":"1","reading":null},{"surface":"日","reading":"にち"}]  <- wrong; correct: {"surface":"1日","reading":"ついたち"}
+- [{"surface":"4月1日","reading":"しがつついたち"}]  <- wrong, month and day must be separate spans; correct: [{"surface":"4月","reading":"しがつ"},{"surface":"1日","reading":"ついたち"}]
 
 Chunks:
 `;
 
+async function annotateChunksWithSpans(
+  chunks: readonly TranscriptChunk[],
+  anthropic: ReturnType<typeof createAnthropic>
+): Promise<Map<number, readonly FuriganaSpan[]>> {
+  const chunkList = chunks.map((c, i) => `[${i}] ${c.text}`).join('\n');
+  const { object } = await generateObject({
+    model: anthropic(CLAUDE_FURIGANA_MODEL),
+    schema: furiganaResultSchema,
+    prompt: FURIGANA_PROMPT + chunkList,
+    temperature: 0,
+  });
+  return new Map(object.annotated_chunks.map((ac) => [ac.index, ac.spans]));
+}
+
+async function retryAnnotateChunk(
+  chunk: TranscriptChunk,
+  firstPassSpans: readonly FuriganaSpan[],
+  reason: string,
+  anthropic: ReturnType<typeof createAnthropic>
+): Promise<readonly FuriganaSpan[] | undefined> {
+  const { object } = await generateObject({
+    model: anthropic(CLAUDE_FURIGANA_MODEL),
+    schema: furiganaResultSchema,
+    prompt: buildRetryPrompt(chunk.text, firstPassSpans, reason),
+    temperature: 0,
+  });
+  return object.annotated_chunks[0]?.spans;
+}
+
+function mockChunkWithDefaults(
+  chunk: Omit<ChunkWithFurigana, 'furigana_status' | 'furigana_warning'>
+): ChunkWithFurigana {
+  return {
+    ...chunk,
+    furigana_status: 'ok',
+    furigana_warning: null,
+  };
+}
+
 /**
- * Annotate each chunk's text with <ruby> furigana tags using Claude.
+ * Annotate each chunk's text with furigana using Claude-generated structured spans.
  * Stored contract:
  * - <ruby> may wrap kanji-only base text
  * - hiragana, katakana, punctuation, and okurigana must remain plain text
- * Invalid ruby around kana is normalized away before persistence.
+ * The spans are validated and rendered into ruby HTML server-side.
  *
  * Set USE_MOCKS=true to return fixture data.
  */
@@ -150,57 +323,59 @@ export async function addFurigana(
   chunks: readonly TranscriptChunk[]
 ): Promise<readonly ChunkWithFurigana[]> {
   if (process.env.USE_MOCKS === 'true') {
-    return furiganaFixture as ChunkWithFurigana[];
+    return (furiganaFixture as Omit<ChunkWithFurigana, 'furigana_status' | 'furigana_warning'>[])
+      .map(mockChunkWithDefaults);
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
 
   const anthropic = createAnthropic({ apiKey });
-  const chunkList = chunks.map((c, i) => `[${i}] ${c.text}`).join('\n');
+  const firstPassByIndex = await annotateChunksWithSpans(chunks, anthropic);
 
-  const { object } = await generateObject({
-    model: anthropic(CLAUDE_FURIGANA_MODEL),
-    schema: furiganaResultSchema,
-    prompt: FURIGANA_PROMPT + chunkList,
-    temperature: 0,
-  });
+  const results: ChunkWithFurigana[] = [];
 
-  // Map by .index field, not array position — Claude may return results out of order
-  // or return fewer items than requested. Fall back to raw text (no ruby) if missing.
-  const furiganaByIndex = new Map(
-    object.annotated_chunks.map((ac) => [ac.index, ac.text_furigana])
-  );
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const firstPassSpans = firstPassByIndex.get(i);
+    const fallbackText = sanitizeHtml(chunk.text, { allowedTags: [], allowedAttributes: {} });
 
-  return chunks.map((chunk, i) => {
-    const furigana = furiganaByIndex.get(i);
+    const firstReason = firstPassSpans === undefined
+      ? 'No furigana annotation was returned for this chunk.'
+      : validateFuriganaSpans(chunk.text, firstPassSpans);
+    let finalSpans = firstPassSpans ?? [];
+    let finalReason = firstReason;
 
-    if (furigana === undefined) {
-      console.error(`[addFurigana] no annotation returned for chunk index ${i} — falling back to raw text`);
-      return {
-        text: chunk.text,
-        text_furigana: sanitizeHtml(chunk.text, { allowedTags: [], allowedAttributes: {} }),
-        first_word_index: chunk.first_word_index,
-        last_word_index: chunk.last_word_index,
-      };
+    if (firstReason !== null) {
+      console.error(`[addFurigana] chunk ${i} suspicious on first pass: ${firstReason}`);
+      const retrySpans = await retryAnnotateChunk(chunk, finalSpans, firstReason, anthropic);
+      if (retrySpans !== undefined) {
+        finalSpans = retrySpans;
+        finalReason = validateFuriganaSpans(chunk.text, retrySpans);
+        if (finalReason !== null) {
+          console.error(`[addFurigana] chunk ${i} still suspicious after retry: ${finalReason}`);
+        }
+      } else {
+        finalReason = 'Retry did not return any furigana spans.';
+        console.error(`[addFurigana] chunk ${i} retry returned no spans`);
+      }
     }
 
-    const normalizedFurigana = unwrapRubyContainingKana(furigana);
-    const missed = findUnannotatedKanji(normalizedFurigana);
-    if (missed.length > 0) {
-      console.error(`[addFurigana] chunk ${i} missing furigana for: ${missed.join('')}`);
-    }
+    const renderedHtml = finalReason === null
+      ? renderFuriganaHtml(finalSpans)
+      : (finalSpans.length > 0 ? renderFuriganaHtml(finalSpans) : fallbackText);
 
-    return {
+    results.push({
       text: chunk.text,
-      text_furigana: sanitizeHtml(normalizedFurigana, {
-        allowedTags: ['ruby', 'rt', 'rp'],
-        allowedAttributes: {},
-      }),
+      text_furigana: renderedHtml,
       first_word_index: chunk.first_word_index,
       last_word_index: chunk.last_word_index,
-    };
-  });
+      furigana_status: finalReason === null ? 'ok' : 'suspect',
+      furigana_warning: finalReason === null ? null : `This furigana may contain mistakes. ${finalReason}`,
+    });
+  }
+
+  return results;
 }
 
 /**

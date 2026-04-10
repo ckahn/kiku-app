@@ -33,7 +33,14 @@ const DUMMY_TRANSCRIPT = {
   segments: [{ text: 'テスト', startSecond: 0, endSecond: 0.5 }],
 };
 const DUMMY_CHUNKS = [{ text: 'テスト', first_word_index: 0, last_word_index: 0 }];
-const DUMMY_FURIGANA = [{ text: 'テスト', text_furigana: '<ruby>テスト<rt>てすと</rt></ruby>', first_word_index: 0, last_word_index: 0 }];
+const DUMMY_FURIGANA = [{
+  text: 'テスト',
+  text_furigana: '<ruby>テスト<rt>てすと</rt></ruby>',
+  first_word_index: 0,
+  last_word_index: 0,
+  furigana_status: 'ok',
+  furigana_warning: null,
+}];
 
 describe('POST /api/episodes/[id]/chunk', () => {
   beforeEach(() => {
