@@ -13,6 +13,22 @@ export async function insertChunks(
   chunksWithFurigana: readonly ChunkWithFurigana[],
   words: readonly ElevenLabsWord[]
 ): Promise<void> {
+  // Pre-compute raw startMs for every chunk so we can extend each chunk's
+  // endMs to fill the gap before the next chunk starts. ElevenLabs sometimes
+  // compresses word timestamps at phrase boundaries, placing the last few
+  // words inside the reported endSecond while the speech actually runs into
+  // the inter-chunk gap. Filling the gap ensures no spoken audio is lost.
+  const rawStartMs = chunksWithFurigana.map((chunk, index) => {
+    const startWord = words[chunk.first_word_index];
+    if (!startWord) {
+      throw new Error(
+        `Chunk ${index} has out-of-bounds first_word_index=${chunk.first_word_index}, ` +
+        `words.length=${words.length}`
+      );
+    }
+    return Math.round(startWord.startSecond * 1000);
+  });
+
   const values = chunksWithFurigana.map((chunk, index) => {
     const startWord = words[chunk.first_word_index];
     const endWord = words[chunk.last_word_index];
@@ -23,8 +39,14 @@ export async function insertChunks(
         `words.length=${words.length}`
       );
     }
-    const startMs = Math.round(startWord.startSecond * 1000);
-    const endMs = Math.round(endWord.endSecond * 1000);
+    const startMs = rawStartMs[index];
+    const wordEndMs = Math.round(endWord.endSecond * 1000);
+    const nextStartMs = rawStartMs[index + 1];
+    // Extend endMs to fill any gap before the next chunk, so speech that
+    // ElevenLabs places in the gap (due to timestamp compression) is included.
+    const endMs = nextStartMs !== undefined && nextStartMs > wordEndMs
+      ? nextStartMs
+      : wordEndMs;
     return {
       episodeId,
       chunkIndex: index,

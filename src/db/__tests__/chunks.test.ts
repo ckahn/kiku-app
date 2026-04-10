@@ -63,10 +63,55 @@ describe('insertChunks()', () => {
     await insertChunks(42, SAMPLE_CHUNKS, SAMPLE_WORDS);
 
     const [rows] = valuesCapture.mock.calls;
-    expect(rows[0][0].startMs).toBe(0);   // 0.0s * 1000
-    expect(rows[0][0].endMs).toBe(1200);  // 1.2s * 1000
+    expect(rows[0][0].startMs).toBe(0);    // 0.0s * 1000
+    expect(rows[0][0].endMs).toBe(1500);   // gap-filled to chunk 1 startMs (1.5s)
     expect(rows[0][1].startMs).toBe(1500); // 1.5s * 1000
-    expect(rows[0][1].endMs).toBe(2000);   // 2.0s * 1000
+    expect(rows[0][1].endMs).toBe(2000);   // last chunk — no gap-fill
+  });
+
+  it('extends endMs to next chunk startMs when there is a gap', async () => {
+    const valuesCapture = vi.fn().mockResolvedValue(undefined);
+    mockInsert.mockReturnValue({ values: valuesCapture });
+
+    // word[1] ends at 1.0s but word[2] starts at 2.0s — 1s gap
+    const words: ElevenLabsWord[] = [
+      { text: 'A', startSecond: 0.0, endSecond: 0.5 },
+      { text: 'B', startSecond: 0.6, endSecond: 1.0 },
+      { text: 'C', startSecond: 2.0, endSecond: 2.5 },
+    ];
+    const chunkData: ChunkWithFurigana[] = [
+      { text: 'AB', text_furigana: 'AB', first_word_index: 0, last_word_index: 1, furigana_status: 'ok', furigana_warning: null },
+      { text: 'C',  text_furigana: 'C',  first_word_index: 2, last_word_index: 2, furigana_status: 'ok', furigana_warning: null },
+    ];
+
+    const { insertChunks } = await import('../chunks');
+    await insertChunks(42, chunkData, words);
+
+    const [rows] = valuesCapture.mock.calls;
+    expect(rows[0][0].endMs).toBe(2000); // gap-filled: chunk 1 startMs = 2.0s
+    expect(rows[0][1].endMs).toBe(2500); // last chunk — no gap-fill
+  });
+
+  it('does not extend endMs when chunks are contiguous', async () => {
+    const valuesCapture = vi.fn().mockResolvedValue(undefined);
+    mockInsert.mockReturnValue({ values: valuesCapture });
+
+    // word[1] ends at 1.0s and word[2] starts at 1.0s — no gap
+    const words: ElevenLabsWord[] = [
+      { text: 'A', startSecond: 0.0, endSecond: 0.5 },
+      { text: 'B', startSecond: 0.6, endSecond: 1.0 },
+      { text: 'C', startSecond: 1.0, endSecond: 1.5 },
+    ];
+    const chunkData: ChunkWithFurigana[] = [
+      { text: 'AB', text_furigana: 'AB', first_word_index: 0, last_word_index: 1, furigana_status: 'ok', furigana_warning: null },
+      { text: 'C',  text_furigana: 'C',  first_word_index: 2, last_word_index: 2, furigana_status: 'ok', furigana_warning: null },
+    ];
+
+    const { insertChunks } = await import('../chunks');
+    await insertChunks(42, chunkData, words);
+
+    const [rows] = valuesCapture.mock.calls;
+    expect(rows[0][0].endMs).toBe(1000); // no gap — stays at wordEndMs
   });
 
   it('sets chunkIndex as the array position', async () => {
@@ -93,7 +138,7 @@ describe('insertChunks()', () => {
     expect(firstSentences).toHaveLength(1);
     expect(firstSentences[0].text).toBe('おはようございます');
     expect(firstSentences[0].start_ms).toBe(0);
-    expect(firstSentences[0].end_ms).toBe(1200);
+    expect(firstSentences[0].end_ms).toBe(1500); // gap-filled to chunk 1 startMs
   });
 
   it('stores episodeId on each row', async () => {
@@ -140,7 +185,7 @@ describe('insertChunks()', () => {
       furigana_warning: null,
     }];
     await expect(insertChunks(42, badChunk, SAMPLE_WORDS)).rejects.toThrow(
-      'out-of-bounds word indices'
+      'out-of-bounds'
     );
   });
 
@@ -155,7 +200,7 @@ describe('insertChunks()', () => {
       furigana_warning: null,
     }];
     await expect(insertChunks(42, badChunk, SAMPLE_WORDS)).rejects.toThrow(
-      'out-of-bounds word indices'
+      'out-of-bounds'
     );
   });
 });
