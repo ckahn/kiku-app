@@ -68,7 +68,6 @@ export default function StudyScreen({
 }: StudyScreenProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showFurigana, setShowFurigana] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
   const [openSections, setOpenSections] = useState({
     vocabulary: true,
@@ -109,14 +108,8 @@ export default function StudyScreen({
     };
   }, [studyGuideUrl]);
 
-  async function handlePlayPause() {
+  async function playFromChunkStart() {
     if (!audioRef.current) {
-      return;
-    }
-
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
       return;
     }
 
@@ -129,12 +122,25 @@ export default function StudyScreen({
     }
   }
 
-  function handleRestart() {
+  function stopPlayback() {
     if (!audioRef.current) {
       return;
     }
 
+    audioRef.current.pause();
     audioRef.current.currentTime = chunk.startMs / 1000;
+    setIsPlaying(false);
+  }
+
+  function handleTimeUpdate() {
+    if (!audioRef.current) {
+      return;
+    }
+
+    const chunkEndTime = chunk.endMs / 1000;
+    if (audioRef.current.currentTime >= chunkEndTime) {
+      stopPlayback();
+    }
   }
 
   function toggleSection(section: keyof typeof openSections) {
@@ -144,13 +150,12 @@ export default function StudyScreen({
     }));
   }
 
-  const anchorHtml = showFurigana ? chunk.textFurigana : chunk.textRaw;
-
   return (
     <div className="space-y-6">
       <audio
         ref={audioRef}
         src={audioUrl}
+        onTimeUpdate={handleTimeUpdate}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
       />
@@ -173,7 +178,7 @@ export default function StudyScreen({
         <div className="space-y-3">
           <div
             className="text-base text-ink font-jp leading-loose"
-            dangerouslySetInnerHTML={{ __html: anchorHtml }}
+            dangerouslySetInnerHTML={{ __html: chunk.textFurigana }}
           />
 
           {chunk.furiganaStatus === 'suspect' && (
@@ -188,24 +193,10 @@ export default function StudyScreen({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={handlePlayPause}
+              onClick={isPlaying ? stopPlayback : playFromChunkStart}
               className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
             >
-              {isPlaying ? 'Pause audio' : 'Play audio'}
-            </button>
-            <button
-              type="button"
-              onClick={handleRestart}
-              className="inline-flex items-center justify-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-canvas-subtle"
-            >
-              Restart chunk
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowFurigana((current) => !current)}
-              className="inline-flex items-center justify-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-canvas-subtle"
-            >
-              {showFurigana ? 'Hide furigana' : 'Show furigana'}
+              {isPlaying ? 'Stop audio' : 'Play audio'}
             </button>
           </div>
         </div>

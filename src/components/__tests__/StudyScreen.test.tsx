@@ -25,6 +25,19 @@ function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
 describe('StudyScreen', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
   });
 
   it('renders the anchor card immediately and shows a loading state while fetching', () => {
@@ -42,8 +55,11 @@ describe('StudyScreen', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Study' })).toBeInTheDocument();
-    expect(screen.getByText('日本語の文です。')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === '日本語にほんごの文です。')).toBeInTheDocument();
     expect(screen.getByText(/loading study guide/i)).toBeInTheDocument();
+    expect(screen.getByText('にほんご')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /furigana/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Restart chunk' })).toBeNull();
   });
 
   it('opens vocabulary by default and keeps the other sections collapsed', async () => {
@@ -107,5 +123,82 @@ describe('StudyScreen', () => {
     fireEvent.click(revealButton);
 
     expect(screen.getByText(studyGuideFixture.translation.fullEnglish)).toBeInTheDocument();
+  });
+
+  it('starts playback from the beginning of the chunk and changes the control to stop', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: studyGuideFixture }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
+
+    const audio = document.querySelector('audio') as HTMLAudioElement;
+    expect(audio.currentTime).toBe(1);
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Stop audio' })).toBeInTheDocument();
+    });
+  });
+
+  it('stops playback when the chunk reaches its end time', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: studyGuideFixture }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
+
+    const audio = document.querySelector('audio') as HTMLAudioElement;
+    audio.currentTime = 3.5;
+    fireEvent(audio, new Event('timeupdate'));
+
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+    expect(audio.currentTime).toBe(1);
+    expect(screen.getByRole('button', { name: 'Play audio' })).toBeInTheDocument();
+  });
+
+  it('stops playback and resets to the chunk start when the user clicks stop', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: studyGuideFixture }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
+    const audio = document.querySelector('audio') as HTMLAudioElement;
+    audio.currentTime = 2.2;
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop audio' }));
+
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+    expect(audio.currentTime).toBe(1);
+    expect(screen.getByRole('button', { name: 'Play audio' })).toBeInTheDocument();
   });
 });
