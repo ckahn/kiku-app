@@ -61,8 +61,8 @@ Content rules:
 - Do not be exhaustive
 - Prefer clarity over completeness
 - Keep explanations concise and learner-friendly
-- Use hiragana in reading fields when a reading is useful
-- If a reading is unnecessary, return null
+- Reading fields: provide a hiragana reading ONLY when the text contains at least one kanji character; otherwise return null
+- breakdown.cue must be an instructive explanation of the segment's meaning or grammar — never a question or quiz prompt
 - breakdown.order must start at 0 and increase by 1
 - Every id must be a short stable string
 - Keep the translation natural English, not word-for-word unless needed for clarity`;
