@@ -208,4 +208,46 @@ describe('StudyScreen', () => {
     expect(audio.currentTime).toBe(1);
     expect(screen.getByRole('button', { name: 'Play audio' })).toBeInTheDocument();
   });
+
+  it('shows an error when audio.play() rejects', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(
+      () => new Promise(() => undefined) as Promise<Response>
+    );
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      configurable: true,
+      value: vi.fn().mockRejectedValue(new DOMException('blocked', 'NotAllowedError')),
+    });
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play audio' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/could not play this chunk audio/i);
+    });
+  });
+
+  it('shows the furigana suspect warning when furiganaStatus is suspect', () => {
+    vi.spyOn(global, 'fetch').mockImplementation(
+      () => new Promise(() => undefined) as Promise<Response>
+    );
+
+    render(
+      <StudyScreen
+        chunk={makeChunk({ furiganaStatus: 'suspect', furiganaWarning: 'Suspicious reading detected.' })}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Suspicious reading detected.');
+  });
 });

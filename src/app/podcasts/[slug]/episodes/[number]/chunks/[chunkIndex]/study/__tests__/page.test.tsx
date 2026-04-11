@@ -80,4 +80,31 @@ describe('Study page', () => {
       })
     ).rejects.toThrow('NEXT_NOT_FOUND');
   });
+
+  it('calls notFound when the podcast does not exist', async () => {
+    mockWhere
+      .mockReset()
+      .mockResolvedValueOnce([]); // podcast query returns empty
+    const { default: StudyPage } = await import('../page');
+
+    await expect(
+      StudyPage({
+        params: Promise.resolve({ slug: 'missing', number: '1', chunkIndex: '0' }),
+      })
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  it('calls notFound when the episode does not exist', async () => {
+    mockWhere
+      .mockReset()
+      .mockResolvedValueOnce([{ id: 1, slug: 'slow-japanese', name: 'Slow Japanese' }]) // podcast found
+      .mockResolvedValueOnce([]); // episode missing
+    const { default: StudyPage } = await import('../page');
+
+    await expect(
+      StudyPage({
+        params: Promise.resolve({ slug: 'slow-japanese', number: '99', chunkIndex: '0' }),
+      })
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+  });
 });
