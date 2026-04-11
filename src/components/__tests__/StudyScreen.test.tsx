@@ -87,7 +87,7 @@ describe('StudyScreen', () => {
     expect(await screen.findByRole('button', { name: 'Vocabulary' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('button', { name: 'Structure' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'Breakdown' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('button', { name: 'Show English Translation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'English translation' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText(studyGuideFixture.translation.fullEnglish)).toBeNull();
   });
 
@@ -111,7 +111,7 @@ describe('StudyScreen', () => {
     });
   });
 
-  it('reveals the translation only after the user asks for it', async () => {
+  it('reveals the translation only after the user opens its accordion', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ success: true, data: studyGuideFixture }),
@@ -126,8 +126,8 @@ describe('StudyScreen', () => {
       />
     );
 
-    const revealButton = await screen.findByRole('button', { name: 'Show English Translation' });
-    fireEvent.click(revealButton);
+    const translationToggle = await screen.findByRole('button', { name: 'English translation' });
+    fireEvent.click(translationToggle);
 
     expect(screen.getByText(studyGuideFixture.translation.fullEnglish)).toBeInTheDocument();
   });

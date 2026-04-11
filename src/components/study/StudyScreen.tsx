@@ -69,11 +69,11 @@ export default function StudyScreen({
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showTranslation, setShowTranslation] = useState(false);
   const [openSections, setOpenSections] = useState({
     vocabulary: true,
     structure: false,
     breakdown: false,
+    translation: false,
   });
   const [studyGuide, setStudyGuide] = useState<StudyGuideContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -284,30 +284,18 @@ export default function StudyScreen({
             </ol>
           )}
         </StudySection>
-      </div>
-
-      {studyGuide && (
-        <section className="rounded-lg border border-border bg-surface p-4">
-          {!showTranslation ? (
-            <button
-              type="button"
-              onClick={() => setShowTranslation(true)}
-              className="text-sm font-medium text-ink underline underline-offset-2"
-            >
-              Show English Translation
-            </button>
+        <StudySection
+          title="English translation"
+          isOpen={openSections.translation}
+          onToggle={() => toggleSection('translation')}
+        >
+          {!studyGuide ? (
+            <p className="text-sm text-muted">Translation will appear here.</p>
           ) : (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-                English Translation
-              </p>
-              <p className="text-sm leading-6 text-ink">
-                {studyGuide.translation.fullEnglish}
-              </p>
-            </div>
+            <p className="text-sm leading-6 text-ink">{studyGuide.translation.fullEnglish}</p>
           )}
-        </section>
-      )}
+        </StudySection>
+      </div>
 
     </div>
   );
