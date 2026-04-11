@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { getChunkById } from '@/db/chunks';
-import { getStudyGuideByChunkId } from '@/db/study-guides';
+import { getStudyGuideByChunkId, saveStudyGuideForChunkId } from '@/db/study-guides';
+import { generateStudyGuide } from '@/lib/api/claude';
 import { parseStudyGuideContent } from '@/lib/api/study-guide';
 import { apiErr, apiOk } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
@@ -31,11 +32,17 @@ export async function GET(
     }
 
     const cachedStudyGuide = await getStudyGuideByChunkId(chunkId);
-    if (!cachedStudyGuide) {
-      return apiErr('study guide not found', 404);
+    if (cachedStudyGuide) {
+      return apiOk(parseStudyGuideContent(cachedStudyGuide.content));
     }
 
-    return apiOk(parseStudyGuideContent(cachedStudyGuide.content));
+    const generatedStudyGuide = parseStudyGuideContent(
+      await generateStudyGuide(chunk.textRaw)
+    );
+
+    await saveStudyGuideForChunkId(chunkId, generatedStudyGuide);
+
+    return apiOk(generatedStudyGuide);
   } catch (error: unknown) {
     console.error(`[study-guide] chunk ${chunkId} failed`, error);
     return apiErr(getErrorMessage(error), 500);
