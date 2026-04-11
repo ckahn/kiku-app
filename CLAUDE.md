@@ -13,19 +13,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Database:** Vercel Postgres (Neon) via Drizzle ORM
 - **File storage:** Vercel Blob (audio files)
 - **External APIs:** ElevenLabs Scribe v2 (transcription), Anthropic Claude (chunking, furigana, study guides)
+- **AI SDK:** Vercel AI SDK (`ai` + `@ai-sdk/anthropic`) — uses `generateObject` with Zod schemas for structured output
 
 ## Common Commands
 
 ```bash
-npm run dev       # Start dev server
-npm run build     # Production build
-npm run lint      # Run ESLint
+npm run dev            # Start dev server
+npm run build          # Production build
+npm run lint           # Run ESLint
+npm run test           # Run all tests once
+npm run test:watch     # Run tests in watch mode
+npm run test:coverage  # Run tests with coverage report
+npm run db:generate    # Generate Drizzle migration files
+npm run db:migrate     # Apply pending migrations
 ```
 
-To bootstrap (not yet done):
-```bash
-npx create-next-app@latest kiku-app --typescript --tailwind --app
-```
+To run a single test file: `npx vitest run src/path/to/file.test.ts`
+
+## Path Aliases
+
+- `@/` → `src/`
+- `@fixtures/` → `fixtures/`
 
 ## Architecture
 
@@ -45,7 +53,8 @@ Five core tables: `podcasts`, `episodes`, `raw_transcripts`, `chunks`, `study_gu
 - `episodes.status`: `uploaded | transcribing | chunking | ready | error`
 - `episodes.study_status`: `new | studying | learned`
 - `chunks.sentences`: JSONB array of `{ text, start_ms, end_ms }`
-- `study_guides.content`: JSONB — `{ version, vocabulary, structures, breakdown, translation }`
+- `chunks.furigana_status`: `ok | suspect` — set to `suspect` when furigana validation/repair fails; `furigana_warning` stores the reason
+- `study_guides.content`: JSONB — `StudyGuideContent` v2: `{ version: 2, vocabulary, structures, breakdown, translation }`
 
 ### API Routes
 
@@ -69,7 +78,7 @@ Upload → ElevenLabs STT → Claude chunking → Claude furigana → ready. Eac
 **Chunking two-pass approach:**
 1. Claude receives full transcript text + word-index list, returns chunk boundaries (`first_word_index`, `last_word_index`)
 2. Map word indices back to timestamps for `start_ms`/`end_ms`
-3. Second Claude call adds `<ruby>` furigana tags to each chunk's text
+3. Second Claude call returns structured furigana spans (`{ surface, reading }[]`) per chunk; spans are validated, auto-repaired (mixed kana+kanji splits), then rendered to `<ruby>` HTML server-side. Chunks that fail validation still store the best-effort HTML but get `furigana_status = 'suspect'`.
 
 ### Audio Player
 
@@ -122,3 +131,4 @@ The Claude prompts are in `docs/kiku-app-plan.md` under "Prompt Templates". The 
 - Study guides are lazy-generated and stored; regenerate = `UPDATE` in place (one row per chunk, `UNIQUE(chunk_id)`)
 - Raw ElevenLabs transcript stored in `raw_transcripts.payload` (JSONB) to allow reprocessing without re-calling the API
 - Furigana stored as HTML (`<ruby>` tags) in `chunks.text_furigana`, not computed client-side
+- Claude model IDs are centralized in `src/lib/constants.ts` — update them there when switching models
