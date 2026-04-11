@@ -70,26 +70,14 @@ describe('EpisodePlayer (integration)', () => {
     expect(screen.getByRole('slider', { name: 'Playback position' })).toBeInTheDocument();
   });
 
-  it('clicking a chunk focuses it and shows chunk controls', () => {
+  it('clicking a chunk seeks audio to its start', () => {
     render(
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     const items = screen.getAllByRole('listitem');
-    fireEvent.click(items[1]); // click chunk 2
-    expect(items[1]).toHaveAttribute('data-focused');
-    expect(screen.getByRole('button', { name: /play chunk|pause chunk/i })).toBeInTheDocument();
-  });
-
-  it('exit button unfocuses the chunk', () => {
-    render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
-    );
-    const items = screen.getAllByRole('listitem');
-    fireEvent.click(items[0]);
-    expect(items[0]).toHaveAttribute('data-focused');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Exit chunk focus' }));
-    expect(items[0]).not.toHaveAttribute('data-focused');
+    fireEvent.click(items[1]); // click chunk 2 (startMs = 5000)
+    const audio = document.querySelector('audio') as HTMLAudioElement;
+    expect(audio.currentTime).toBe(5); // 5000ms / 1000
   });
 
   it('play button calls audio.play', async () => {
@@ -110,15 +98,6 @@ describe('EpisodePlayer (integration)', () => {
     expect(loopBtn).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(loopBtn);
     expect(loopBtn).toHaveAttribute('aria-pressed', 'true');
-  });
-
-  it('furigana toggle shows ふりがな button when chunk is focused', () => {
-    render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
-    );
-    const items = screen.getAllByRole('listitem');
-    fireEvent.click(items[0]);
-    expect(screen.getByRole('button', { name: /hide furigana|show furigana/i })).toBeInTheDocument();
   });
 
   it('Space key toggles playback', async () => {
@@ -148,7 +127,7 @@ describe('EpisodePlayer (integration)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/could not play this episode audio/i);
   });
 
-  it('restores the previously studied chunk and scrolls it into view', async () => {
+  it('restores the previously studied chunk by scrolling it into view', async () => {
     vi.spyOn(studyNavigation, 'consumeTranscriptRestoreState')
       .mockReturnValueOnce({
         episodeHref: '/podcasts/slow-japanese/episodes/7',
@@ -169,8 +148,6 @@ describe('EpisodePlayer (integration)', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const items = screen.getAllByRole('listitem');
-    expect(items[1]).toHaveAttribute('data-focused');
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
   });
 });

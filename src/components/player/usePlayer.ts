@@ -5,8 +5,6 @@ import type { Chunk } from '@/db/schema';
 import { playerReducer, initialPlayerState } from './playerReducer';
 import type { PlayerState, PlayerAction } from './types';
 
-const CLAMP_EPSILON = 0.05; // seconds — prevent loop-point overshoot flicker
-export const CHUNK_PLAYBACK_OFFSET_SEC = 0.2; // seconds — trim chunk playback slightly earlier at both edges
 const GENERIC_PLAYBACK_ERROR =
   'Could not play this episode audio. Try again or refresh the page. If it keeps failing, the audio file may be unavailable.';
 
@@ -31,9 +29,7 @@ export type PlayerControls = {
   forward: () => void;
   toggleLoop: () => void;
   restart: () => void;
-  focusChunk: (chunkId: number) => void;
-  unfocusChunk: () => void;
-  toggleFurigana: (chunkId: number) => void;
+  seekToChunk: (chunkId: number) => void;
 };
 
 export type UsePlayerReturn = {
@@ -44,20 +40,6 @@ export type UsePlayerReturn = {
   playbackError: string | null;
   clearPlaybackError: () => void;
 };
-
-function getChunkBounds(
-  chunks: readonly Chunk[],
-  chunkId: number | null,
-): { startSec: number; endSec: number } | null {
-  if (chunkId === null) return null;
-  const chunk = chunks.find((c) => c.id === chunkId);
-  if (!chunk) return null;
-  // Apply a small player-only offset so focused chunk playback starts and
-  // loops a touch earlier than the stored DB timestamps.
-  const startSec = Math.max(0, chunk.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC);
-  const endSec = Math.max(startSec, chunk.endMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC);
-  return { startSec, endSec };
-}
 
 export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlayerReturn {
   const [state, dispatch] = useReducer(playerReducer, initialPlayerState);
@@ -81,45 +63,44 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     stateRef.current = state;
   });
 
-  const clampedSeek = useCallback(
-    (timeSec: number, bounds: { startSec: number; endSec: number } | null) => {
-      const audio = audioRef.current;
-      if (!audio) return;
-      const min = bounds?.startSec ?? 0;
-      const max = bounds?.endSec ?? (isFinite(audio.duration) ? audio.duration : durationMs / 1000);
-      audio.currentTime = Math.max(min, Math.min(max, timeSec));
-    },
-    [durationMs],
-  );
+  // Mirror chunks in a ref so event listeners always see current chunks
+  // without needing them in effect dependency arrays.
+  const chunksRef = useRef(chunks);
+  useLayoutEffect(() => {
+    chunksRef.current = chunks;
+  });
 
-  // timeupdate handler — clamp chunk mode and handle loop
+  // Tracks which chunk is being looped so the timeupdate handler knows
+  // where to seek back when the chunk boundary is crossed.
+  const loopChunkRef = useRef<Chunk | null>(null);
+
+  // timeupdate handler — sync currentTime to state and enforce chunk looping
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     function handleTimeUpdate() {
-      const s = stateRef.current;
-      dispatch({ type: 'SET_TIME', payload: audio!.currentTime });
+      const currentTimeSec = audio!.currentTime;
+      dispatch({ type: 'SET_TIME', payload: currentTimeSec });
 
-      if (s.mode !== 'chunk') return;
-      const bounds = getChunkBounds(chunks, s.focusedChunkId);
-      if (!bounds) return;
-
-      const { startSec, endSec } = bounds;
-      if (audio!.currentTime >= endSec - CLAMP_EPSILON) {
-        if (s.isLooping) {
-          audio!.currentTime = startSec;
-        } else {
-          audio!.pause();
-          audio!.currentTime = startSec;
-          dispatch({ type: 'PAUSE' });
+      if (stateRef.current.isLooping) {
+        if (!loopChunkRef.current) {
+          // Lock onto whatever chunk is currently playing when loop is first enabled
+          loopChunkRef.current =
+            chunksRef.current.find(
+              (c) => currentTimeSec >= c.startMs / 1000 && currentTimeSec < c.endMs / 1000,
+            ) ?? null;
+        } else if (currentTimeSec >= loopChunkRef.current.endMs / 1000) {
+          audio!.currentTime = loopChunkRef.current.startMs / 1000;
         }
+      } else {
+        loopChunkRef.current = null;
       }
     }
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     return () => audio.removeEventListener('timeupdate', handleTimeUpdate);
-  }, [chunks, audioMounted]);
+  }, [audioMounted]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -132,6 +113,23 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
 
     audio.addEventListener('error', handleError);
     return () => audio.removeEventListener('error', handleError);
+  }, [audioMounted]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    function handleEnded() {
+      if (stateRef.current.isLooping && loopChunkRef.current) {
+        audio!.currentTime = loopChunkRef.current.startMs / 1000;
+        audio!.play().catch(() => dispatch({ type: 'PAUSE' }));
+      } else {
+        dispatch({ type: 'PAUSE' });
+      }
+    }
+
+    audio.addEventListener('ended', handleEnded);
+    return () => audio.removeEventListener('ended', handleEnded);
   }, [audioMounted]);
 
   const controls: PlayerControls = {
@@ -177,64 +175,45 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
 
     seek: useCallback(
       (timeSec: number) => {
-        const s = stateRef.current;
-        const bounds =
-          s.mode === 'chunk' ? getChunkBounds(chunks, s.focusedChunkId) : null;
-        clampedSeek(timeSec, bounds);
+        const audio = audioRef.current;
+        if (!audio) return;
+        const max = isFinite(audio.duration) ? audio.duration : durationMs / 1000;
+        audio.currentTime = Math.max(0, Math.min(max, timeSec));
       },
-      [chunks, clampedSeek],
+      [durationMs],
     ),
 
     rewind: useCallback(() => {
       const audio = audioRef.current;
       if (!audio) return;
-      const s = stateRef.current;
-      const bounds =
-        s.mode === 'chunk' ? getChunkBounds(chunks, s.focusedChunkId) : null;
-      clampedSeek(audio.currentTime - 5, bounds);
-    }, [chunks, clampedSeek]),
+      const max = isFinite(audio.duration) ? audio.duration : durationMs / 1000;
+      audio.currentTime = Math.max(0, Math.min(max, audio.currentTime - 5));
+    }, [durationMs]),
 
     forward: useCallback(() => {
       const audio = audioRef.current;
       if (!audio) return;
-      const s = stateRef.current;
-      const bounds =
-        s.mode === 'chunk' ? getChunkBounds(chunks, s.focusedChunkId) : null;
-      clampedSeek(audio.currentTime + 5, bounds);
-    }, [chunks, clampedSeek]),
+      const max = isFinite(audio.duration) ? audio.duration : durationMs / 1000;
+      audio.currentTime = Math.max(0, Math.min(max, audio.currentTime + 5));
+    }, [durationMs]),
 
     toggleLoop: useCallback(() => dispatch({ type: 'TOGGLE_LOOP' }), []),
 
     restart: useCallback(() => {
       const audio = audioRef.current;
       if (!audio) return;
-      const s = stateRef.current;
-      const bounds =
-        s.mode === 'chunk' ? getChunkBounds(chunks, s.focusedChunkId) : null;
-      const targetSec = bounds?.startSec ?? 0;
-      audio.currentTime = targetSec;
+      audio.currentTime = 0;
       audio.pause();
-      dispatch({ type: 'RESTART', payload: targetSec });
-    }, [chunks]),
+      dispatch({ type: 'RESTART', payload: 0 });
+    }, []),
 
-    focusChunk: useCallback((chunkId: number) => {
-      // Dispatch first so stateRef is queued to update before any subsequent
-      // timeupdate event can fire against the stale focusedChunkId.
-      dispatch({ type: 'FOCUS_CHUNK', payload: chunkId });
-      const bounds = getChunkBounds(chunks, chunkId);
-      if (bounds && audioRef.current) {
-        audioRef.current.currentTime = bounds.startSec;
+    seekToChunk: useCallback((chunkId: number) => {
+      const chunk = chunks.find((c) => c.id === chunkId);
+      if (chunk && audioRef.current) {
+        audioRef.current.currentTime = chunk.startMs / 1000;
+        loopChunkRef.current = chunk;
       }
     }, [chunks]),
-
-    unfocusChunk: useCallback(() => {
-      audioRef.current?.pause();
-      dispatch({ type: 'UNFOCUS_CHUNK' });
-    }, []),
-
-    toggleFurigana: useCallback((chunkId: number) => {
-      dispatch({ type: 'TOGGLE_FURIGANA', payload: chunkId });
-    }, []),
   };
 
   const clearPlaybackError = useCallback(() => setPlaybackError(null), []);

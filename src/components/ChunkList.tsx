@@ -23,20 +23,15 @@ export default function ChunkList({
   episodeNumber,
   episodeHref,
 }: ChunkListProps) {
-  const activeChunkId =
-    playerState.mode === 'global'
-      ? findActiveChunkId(chunks, playerState.currentTime)
-      : null;
+  const activeChunkId = findActiveChunkId(chunks, playerState.currentTime);
 
   return (
-    <ol className="space-y-4">
+    <ol className="space-y-4 pb-4">
       {chunks.map((chunk) => (
         <ChunkItem
           key={chunk.id}
           chunk={chunk}
-          isFocused={playerState.focusedChunkId === chunk.id}
           isActive={activeChunkId === chunk.id}
-          playerState={playerState}
           controls={controls}
           podcastSlug={podcastSlug}
           episodeNumber={episodeNumber}

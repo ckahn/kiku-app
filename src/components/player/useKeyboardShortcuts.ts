@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import type { PlayerControls } from './usePlayer';
-import type { PlayerMode } from './types';
 
 const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
@@ -15,22 +13,23 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 const HANDLED_KEYS = new Set([
-  'Space', 'ArrowLeft', 'ArrowRight', 'KeyL', 'Escape',
+  'Space', 'ArrowLeft', 'ArrowRight', 'KeyL',
 ]);
 
 interface UseKeyboardShortcutsOptions {
-  readonly controls: PlayerControls;
-  readonly mode: PlayerMode;
+  readonly toggle: () => void;
+  readonly rewind: () => void;
+  readonly forward: () => void;
+  readonly toggleLoop: () => void;
 }
 
-export function useKeyboardShortcuts({ controls, mode }: UseKeyboardShortcutsOptions): void {
+export function useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop }: UseKeyboardShortcutsOptions): void {
   useEffect(() => {
     const keyMap: Record<string, () => void> = {
-      Space: () => controls.toggle(),
-      ArrowLeft: () => controls.rewind(),
-      ArrowRight: () => controls.forward(),
-      KeyL: () => controls.toggleLoop(),
-      Escape: mode === 'chunk' ? () => controls.unfocusChunk() : () => undefined,
+      Space: toggle,
+      ArrowLeft: rewind,
+      ArrowRight: forward,
+      KeyL: toggleLoop,
     };
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -43,5 +42,5 @@ export function useKeyboardShortcuts({ controls, mode }: UseKeyboardShortcutsOpt
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [controls, mode]);
+  }, [toggle, rewind, forward, toggleLoop]);
 }
