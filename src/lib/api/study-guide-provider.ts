@@ -62,6 +62,14 @@ function generateFakeStudyGuideProviderResponse(
 }
 
 function buildStudyGuidePrompt(request: StudyGuideProviderRequest): string {
+  // We send the full episode transcript so the model has enough context to
+  // produce accurate translations and grammar notes for the chunk (e.g. to
+  // resolve pronouns or topic-dropped subjects that only make sense in context).
+  //
+  // TODO: This multiplies token cost by the number of chunks per episode.
+  // Consider a more efficient approach — e.g. store a short episode summary
+  // and pass that instead, and/or include only the N segments immediately
+  // surrounding the chunk.
   return `You are a Japanese teacher creating a concise mobile study guide for one Japanese podcast chunk.
 
 Return structured JSON only.
