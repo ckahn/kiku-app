@@ -14,7 +14,7 @@ export interface StudyGuideProviderRequest {
   readonly transcriptText: string;
 }
 
-export interface StudyGuideProviderResponse {
+interface StudyGuideProviderResponse {
   readonly object: StudyGuideContent;
 }
 
@@ -23,7 +23,7 @@ export const studyGuideProviderRequestSchema = z.object({
   transcriptText: z.string().min(1),
 }) satisfies z.ZodType<StudyGuideProviderRequest>;
 
-export const studyGuideProviderResponseSchema = z.object({
+const studyGuideProviderResponseSchema = z.object({
   object: studyGuideContentSchema,
 }) satisfies z.ZodType<StudyGuideProviderResponse>;
 
