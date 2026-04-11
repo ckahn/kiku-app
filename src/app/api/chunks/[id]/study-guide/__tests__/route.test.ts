@@ -122,16 +122,17 @@ describe('GET /api/chunks/[id]/study-guide', () => {
     expect(mockGenerateStudyGuideFromProvider).not.toHaveBeenCalled();
   });
 
-  it('returns 500 when the provider adapter rejects invalid provider content', async () => {
-    mockGenerateStudyGuideFromProvider.mockRejectedValueOnce(
-      new Error('Invalid study guide provider response: expected object')
-    );
+  it('returns 500 when the provider returns invalid study guide content', async () => {
+    mockGenerateStudyGuideFromProvider.mockResolvedValueOnce({
+      ...studyGuideFixture,
+      translation: null,
+    });
 
     const response = await callRoute('12');
     const json = await response.json();
 
     expect(response.status).toBe(500);
-    expect(json.error).toMatch(/provider response/i);
+    expect(json.error).toMatch(/study guide content/i);
     expect(mockSaveStudyGuideForChunkId).not.toHaveBeenCalled();
   });
 

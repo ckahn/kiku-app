@@ -14,18 +14,10 @@ export interface StudyGuideProviderRequest {
   readonly transcriptText: string;
 }
 
-interface StudyGuideProviderResponse {
-  readonly object: StudyGuideContent;
-}
-
 export const studyGuideProviderRequestSchema = z.object({
   chunkText: z.string().min(1),
   transcriptText: z.string().min(1),
 }) satisfies z.ZodType<StudyGuideProviderRequest>;
-
-const studyGuideProviderResponseSchema = z.object({
-  object: studyGuideContentSchema,
-}) satisfies z.ZodType<StudyGuideProviderResponse>;
 
 export function parseStudyGuideProviderRequest(request: unknown): StudyGuideProviderRequest {
   const result = studyGuideProviderRequestSchema.safeParse(request);
@@ -37,28 +29,6 @@ export function parseStudyGuideProviderRequest(request: unknown): StudyGuideProv
   }
 
   return result.data;
-}
-
-export function parseStudyGuideProviderResponse(response: unknown): StudyGuideContent {
-  const result = studyGuideProviderResponseSchema.safeParse(response);
-
-  if (!result.success) {
-    throw new Error(
-      `Invalid study guide provider response: ${result.error.issues[0]?.message ?? 'Unknown error'}`
-    );
-  }
-
-  return result.data.object;
-}
-
-function generateFakeStudyGuideProviderResponse(
-  request: StudyGuideProviderRequest
-): StudyGuideProviderResponse {
-  parseStudyGuideProviderRequest(request);
-
-  return {
-    object: studyGuideFixture as StudyGuideContent,
-  };
 }
 
 function buildStudyGuidePrompt(request: StudyGuideProviderRequest): string {
@@ -100,7 +70,7 @@ Content rules:
 
 async function generateStudyGuideWithClaude(
   request: StudyGuideProviderRequest
-): Promise<StudyGuideProviderResponse> {
+): Promise<StudyGuideContent> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY is not configured');
@@ -114,9 +84,7 @@ async function generateStudyGuideWithClaude(
     temperature: 0,
   });
 
-  return {
-    object,
-  };
+  return object;
 }
 
 export async function generateStudyGuideFromProvider(
@@ -126,8 +94,8 @@ export async function generateStudyGuideFromProvider(
   const request = parseStudyGuideProviderRequest({ chunkText, transcriptText });
 
   if (process.env.USE_MOCKS === 'true') {
-    return parseStudyGuideProviderResponse(generateFakeStudyGuideProviderResponse(request));
+    return studyGuideFixture as StudyGuideContent;
   }
 
-  return parseStudyGuideProviderResponse(await generateStudyGuideWithClaude(request));
+  return generateStudyGuideWithClaude(request);
 }

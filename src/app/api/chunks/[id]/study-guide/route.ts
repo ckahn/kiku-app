@@ -46,9 +46,8 @@ export async function GET(
       return apiErr('transcript not available for this episode', 404);
     }
 
-    const generatedStudyGuide = await generateStudyGuideFromProvider(
-      chunk.textRaw,
-      transcript.text
+    const generatedStudyGuide = parseStudyGuideContent(
+      await generateStudyGuideFromProvider(chunk.textRaw, transcript.text)
     );
 
     await saveStudyGuideForChunkId(chunkId, generatedStudyGuide);
