@@ -29,7 +29,7 @@ export default function ChunkList({
       : null;
 
   return (
-    <ol className="space-y-4">
+    <ol className="space-y-4 pb-24">
       {chunks.map((chunk) => (
         <ChunkItem
           key={chunk.id}
