@@ -211,6 +211,80 @@ describe('usePlayer', () => {
     });
   });
 
+  describe('chunk looping', () => {
+    it('seeks back to chunk start when timeupdate fires past the chunk end while looping', () => {
+      const { result, audioMock } = setup();
+
+      // Enable looping and position inside chunk 2 (5s–12s)
+      act(() => { result.current.controls.toggleLoop(); });
+      audioMock.currentTime = 6;
+      act(() => { audioMock._emit('timeupdate'); });
+
+      // Simulate time advancing past chunk 2's end
+      audioMock.currentTime = 12.1;
+      act(() => { audioMock._emit('timeupdate'); });
+
+      // Should have been reset to chunk 2's start
+      expect(audioMock.currentTime).toBe(5); // 5000ms / 1000
+    });
+
+    it('does not seek back when looping is off', () => {
+      const { result, audioMock } = setup();
+
+      // Position inside chunk 2, then advance past it — no loop active
+      audioMock.currentTime = 6;
+      act(() => { audioMock._emit('timeupdate'); });
+      audioMock.currentTime = 12.1;
+      act(() => { audioMock._emit('timeupdate'); });
+
+      expect(audioMock.currentTime).toBe(12.1);
+    });
+
+    it('loops the new chunk after seekToChunk while looping', () => {
+      const { result, audioMock } = setup();
+
+      // Enable looping, establish loop chunk 1 (0–5s)
+      act(() => { result.current.controls.toggleLoop(); });
+      audioMock.currentTime = 2;
+      act(() => { audioMock._emit('timeupdate'); });
+
+      // Seek to chunk 3 (12s–20s)
+      act(() => { result.current.controls.seekToChunk(3); });
+      audioMock.currentTime = 14;
+      act(() => { audioMock._emit('timeupdate'); });
+
+      // Advance past chunk 3's end
+      audioMock.currentTime = 20.1;
+      act(() => { audioMock._emit('timeupdate'); });
+
+      expect(audioMock.currentTime).toBe(12); // 12000ms / 1000
+    });
+
+    it('loops chunk on ended event when looping is active', async () => {
+      const { result, audioMock } = setup();
+
+      act(() => { result.current.controls.toggleLoop(); });
+      audioMock.currentTime = 14;
+      act(() => { audioMock._emit('timeupdate'); });
+
+      // Episode ends while in chunk 3 (12s–20s)
+      await act(async () => { audioMock._emit('ended'); });
+
+      expect(audioMock.currentTime).toBe(12);
+      expect(audioMock.play).toHaveBeenCalled();
+    });
+
+    it('pauses on ended event when looping is off', async () => {
+      const { result, audioMock } = setup();
+      await act(async () => { result.current.controls.play(); });
+      await act(async () => { audioMock._emit('ended'); });
+
+      expect(result.current.state.isPlaying).toBe(false);
+      // play was called once for the initial play, not again for loop
+      expect(audioMock.play).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('restart', () => {
     it('seeks to 0 and stops', () => {
       const { result, audioMock } = setup();

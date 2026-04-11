@@ -63,13 +63,39 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     stateRef.current = state;
   });
 
-  // timeupdate handler — sync currentTime to state
+  // Mirror chunks in a ref so event listeners always see current chunks
+  // without needing them in effect dependency arrays.
+  const chunksRef = useRef(chunks);
+  useLayoutEffect(() => {
+    chunksRef.current = chunks;
+  });
+
+  // Tracks which chunk is being looped so the timeupdate handler knows
+  // where to seek back when the chunk boundary is crossed.
+  const loopChunkRef = useRef<Chunk | null>(null);
+
+  // timeupdate handler — sync currentTime to state and enforce chunk looping
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     function handleTimeUpdate() {
-      dispatch({ type: 'SET_TIME', payload: audio!.currentTime });
+      const currentTimeSec = audio!.currentTime;
+      dispatch({ type: 'SET_TIME', payload: currentTimeSec });
+
+      if (stateRef.current.isLooping) {
+        if (!loopChunkRef.current) {
+          // Lock onto whatever chunk is currently playing when loop is first enabled
+          loopChunkRef.current =
+            chunksRef.current.find(
+              (c) => currentTimeSec >= c.startMs / 1000 && currentTimeSec < c.endMs / 1000,
+            ) ?? null;
+        } else if (currentTimeSec >= loopChunkRef.current.endMs / 1000) {
+          audio!.currentTime = loopChunkRef.current.startMs / 1000;
+        }
+      } else {
+        loopChunkRef.current = null;
+      }
     }
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
@@ -94,7 +120,12 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     if (!audio) return;
 
     function handleEnded() {
-      dispatch({ type: 'PAUSE' });
+      if (stateRef.current.isLooping && loopChunkRef.current) {
+        audio!.currentTime = loopChunkRef.current.startMs / 1000;
+        audio!.play().catch(() => dispatch({ type: 'PAUSE' }));
+      } else {
+        dispatch({ type: 'PAUSE' });
+      }
     }
 
     audio.addEventListener('ended', handleEnded);
@@ -180,6 +211,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
       const chunk = chunks.find((c) => c.id === chunkId);
       if (chunk && audioRef.current) {
         audioRef.current.currentTime = chunk.startMs / 1000;
+        loopChunkRef.current = chunk;
       }
     }, [chunks]),
   };
