@@ -5,6 +5,7 @@ import type { PlayerState } from './types';
 import type { PlayerControls } from './usePlayer';
 import { stripFurigana } from './chunkUtils';
 import ChunkControls from './ChunkControls';
+import ChunkStudyLink from './ChunkStudyLink';
 import FuriganaToggle from './FuriganaToggle';
 
 interface ChunkItemProps {
@@ -13,6 +14,9 @@ interface ChunkItemProps {
   readonly isActive: boolean;
   readonly playerState: PlayerState;
   readonly controls: PlayerControls;
+  readonly podcastSlug?: string;
+  readonly episodeNumber?: number;
+  readonly episodeHref?: string;
 }
 
 export default function ChunkItem({
@@ -21,6 +25,9 @@ export default function ChunkItem({
   isActive,
   playerState,
   controls,
+  podcastSlug,
+  episodeNumber,
+  episodeHref,
 }: ChunkItemProps) {
   const showFurigana = playerState.showFurigana[chunk.id] ?? false;
   const displayHtml = showFurigana ? chunk.textFurigana : stripFurigana(chunk.textFurigana);
@@ -74,6 +81,15 @@ export default function ChunkItem({
               onToggleLoop={controls.toggleLoop}
               onExit={controls.unfocusChunk}
             />
+            {podcastSlug && episodeNumber !== undefined && (
+              <ChunkStudyLink
+                chunkId={chunk.id}
+                podcastSlug={podcastSlug}
+                episodeNumber={episodeNumber}
+                chunkIndex={chunk.chunkIndex}
+                episodeHref={episodeHref}
+              />
+            )}
           </div>
           <div className="mt-2">
             <FuriganaToggle

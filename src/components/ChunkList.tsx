@@ -10,9 +10,19 @@ interface ChunkListProps {
   readonly chunks: readonly Chunk[];
   readonly playerState: PlayerState;
   readonly controls: PlayerControls;
+  readonly podcastSlug?: string;
+  readonly episodeNumber?: number;
+  readonly episodeHref?: string;
 }
 
-export default function ChunkList({ chunks, playerState, controls }: ChunkListProps) {
+export default function ChunkList({
+  chunks,
+  playerState,
+  controls,
+  podcastSlug,
+  episodeNumber,
+  episodeHref,
+}: ChunkListProps) {
   const activeChunkId =
     playerState.mode === 'global'
       ? findActiveChunkId(chunks, playerState.currentTime)
@@ -28,6 +38,9 @@ export default function ChunkList({ chunks, playerState, controls }: ChunkListPr
           isActive={activeChunkId === chunk.id}
           playerState={playerState}
           controls={controls}
+          podcastSlug={podcastSlug}
+          episodeNumber={episodeNumber}
+          episodeHref={episodeHref}
         />
       ))}
     </ol>
