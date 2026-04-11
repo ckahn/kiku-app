@@ -1,7 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import type { Chunk } from '@/db/schema';
+import type { ApiResponse } from '@/lib/api-response';
+import type { StudyGuideContent } from '@/lib/api/types';
 
 interface StudyScreenProps {
   readonly chunk: Pick<
@@ -13,18 +16,149 @@ interface StudyScreenProps {
   readonly backHref: string;
 }
 
+interface StudySectionProps {
+  readonly title: string;
+  readonly isOpen: boolean;
+  readonly onToggle: () => void;
+  readonly children: React.ReactNode;
+}
+
+function getClientErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'Unexpected error';
+}
+
+function StudySection({ title, isOpen, onToggle, children }: StudySectionProps) {
+  return (
+    <section className="rounded-lg border border-border bg-surface">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-ink"
+        aria-label={title}
+        aria-expanded={isOpen}
+        onClick={onToggle}
+      >
+        <span>{title}</span>
+        <span className="text-muted">{isOpen ? '−' : '+'}</span>
+      </button>
+      {isOpen && <div className="border-t border-border px-4 py-4">{children}</div>}
+    </section>
+  );
+}
+
+async function loadStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent> {
+  const response = await fetch(studyGuideUrl);
+  const payload = await response.json() as ApiResponse<StudyGuideContent>;
+
+  if (!response.ok || !payload.success || !payload.data) {
+    throw new Error(payload.error ?? 'Could not load the study guide.');
+  }
+
+  return payload.data;
+}
+
 export default function StudyScreen({
   chunk,
   audioUrl,
   studyGuideUrl,
   backHref,
 }: StudyScreenProps) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showFurigana, setShowFurigana] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [openSections, setOpenSections] = useState({
+    vocabulary: true,
+    structure: false,
+    breakdown: false,
+  });
+  const [studyGuide, setStudyGuide] = useState<StudyGuideContent | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchStudyGuide() {
+      try {
+        setIsLoading(true);
+        setErrorMessage(null);
+        const nextStudyGuide = await loadStudyGuide(studyGuideUrl);
+
+        if (!isCancelled) {
+          setStudyGuide(nextStudyGuide);
+        }
+      } catch (error: unknown) {
+        if (!isCancelled) {
+          setErrorMessage(getClientErrorMessage(error));
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void fetchStudyGuide();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [studyGuideUrl]);
+
+  async function handlePlayPause() {
+    if (!audioRef.current) {
+      return;
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    try {
+      audioRef.current.currentTime = chunk.startMs / 1000;
+      await audioRef.current.play();
+      setIsPlaying(true);
+    } catch (_error: unknown) {
+      setErrorMessage('Could not play this chunk audio.');
+    }
+  }
+
+  function handleRestart() {
+    if (!audioRef.current) {
+      return;
+    }
+
+    audioRef.current.currentTime = chunk.startMs / 1000;
+  }
+
+  function toggleSection(section: keyof typeof openSections) {
+    setOpenSections((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
+  }
+
+  const anchorHtml = showFurigana ? chunk.textFurigana : chunk.textRaw;
+
   return (
     <div className="space-y-6">
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      />
+
       <div>
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink transition-colors"
+          className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
         >
           ← Back to transcript
         </Link>
@@ -35,13 +169,148 @@ export default function StudyScreen({
         <h1 className="text-2xl font-bold text-ink">Study</h1>
       </header>
 
-      <section className="rounded-lg border border-border bg-surface p-4">
-        <p className="text-sm text-ink font-jp leading-loose">{chunk.textRaw}</p>
-        <div className="mt-3 text-xs text-muted">
-          <p>Audio: {audioUrl}</p>
-          <p>Study guide: {studyGuideUrl}</p>
+      <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+        <div className="space-y-3">
+          <div
+            className="text-base text-ink font-jp leading-loose"
+            dangerouslySetInnerHTML={{ __html: anchorHtml }}
+          />
+
+          {chunk.furiganaStatus === 'suspect' && (
+            <p
+              role="alert"
+              className="rounded-md bg-warning-subtle px-3 py-2 text-xs text-warning-on-subtle"
+            >
+              {chunk.furiganaWarning ?? 'This furigana may contain mistakes.'}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePlayPause}
+              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
+            >
+              {isPlaying ? 'Pause audio' : 'Play audio'}
+            </button>
+            <button
+              type="button"
+              onClick={handleRestart}
+              className="inline-flex items-center justify-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-canvas-subtle"
+            >
+              Restart chunk
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFurigana((current) => !current)}
+              className="inline-flex items-center justify-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-canvas-subtle"
+            >
+              {showFurigana ? 'Hide furigana' : 'Show furigana'}
+            </button>
+          </div>
         </div>
       </section>
+
+      {isLoading && (
+        <p className="text-sm text-muted">Loading study guide...</p>
+      )}
+
+      {errorMessage && (
+        <div
+          role="alert"
+          className="rounded-lg border border-error-subtle bg-error-subtle px-4 py-3 text-sm text-error-on-subtle"
+        >
+          {errorMessage}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <StudySection
+          title="Vocabulary"
+          isOpen={openSections.vocabulary}
+          onToggle={() => toggleSection('vocabulary')}
+        >
+          {!studyGuide ? (
+            <p className="text-sm text-muted">Vocabulary will appear here.</p>
+          ) : (
+            <ul className="space-y-3">
+              {studyGuide.vocabulary.map((item) => (
+                <li key={item.id} className="space-y-1">
+                  <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
+                  {item.reading && <p className="text-sm text-muted">{item.reading}</p>}
+                  <p className="text-sm text-ink">{item.meaning}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </StudySection>
+
+        <StudySection
+          title="Structure"
+          isOpen={openSections.structure}
+          onToggle={() => toggleSection('structure')}
+        >
+          {!studyGuide ? (
+            <p className="text-sm text-muted">Structure notes will appear here.</p>
+          ) : (
+            <ul className="space-y-3">
+              {studyGuide.structures.map((item) => (
+                <li key={item.id} className="space-y-1">
+                  <p className="text-sm font-semibold text-ink font-jp">{item.pattern}</p>
+                  {item.reading && <p className="text-sm text-muted">{item.reading}</p>}
+                  <p className="text-sm text-ink">{item.meaning}</p>
+                  {item.note && <p className="text-sm text-muted">{item.note}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </StudySection>
+
+        <StudySection
+          title="Breakdown"
+          isOpen={openSections.breakdown}
+          onToggle={() => toggleSection('breakdown')}
+        >
+          {!studyGuide ? (
+            <p className="text-sm text-muted">Breakdown notes will appear here.</p>
+          ) : (
+            <ol className="space-y-3">
+              {studyGuide.breakdown
+                .slice()
+                .sort((left, right) => left.order - right.order)
+                .map((item) => (
+                  <li key={item.id} className="space-y-1">
+                    <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
+                    <p className="text-sm text-ink">{item.cue}</p>
+                  </li>
+                ))}
+            </ol>
+          )}
+        </StudySection>
+      </div>
+
+      {studyGuide && (
+        <section className="rounded-lg border border-border bg-surface p-4">
+          {!showTranslation ? (
+            <button
+              type="button"
+              onClick={() => setShowTranslation(true)}
+              className="text-sm font-medium text-ink underline underline-offset-2"
+            >
+              Show English Translation
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+                English Translation
+              </p>
+              <p className="text-sm leading-6 text-ink">
+                {studyGuide.translation.fullEnglish}
+              </p>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
