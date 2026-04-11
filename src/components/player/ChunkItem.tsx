@@ -29,8 +29,7 @@ export default function ChunkItem({
   episodeNumber,
   episodeHref,
 }: ChunkItemProps) {
-  const showFurigana = playerState.showFurigana[chunk.id] ?? false;
-  const displayHtml = showFurigana ? chunk.textFurigana : stripFurigana(chunk.textFurigana);
+  const displayHtml = stripFurigana(chunk.textFurigana);
 
   function handleClick() {
     if (!isFocused) {
