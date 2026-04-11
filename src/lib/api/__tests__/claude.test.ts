@@ -383,7 +383,26 @@ describe('addFurigana() — real API', () => {
     expect(result[0].furigana_warning).toBeNull();
   });
 
-  it('keeps internal kana+kanji mixes like 昼ご飯 as suspect with a clearer warning', async () => {
+  it('repairs internal kana splits like 夜ご飯 before validation', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '夜ご飯', reading: 'よるごはん' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: '夜ご飯', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).toBe('<ruby>夜<rt>よる</rt></ruby>ご<ruby>飯<rt>はん</rt></ruby>');
+    expect(result[0].furigana_status).toBe('ok');
+    expect(result[0].furigana_warning).toBeNull();
+  });
+
+  it('repairs internal kana splits like 昼ご飯 before validation', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
@@ -397,8 +416,9 @@ describe('addFurigana() — real API', () => {
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: '昼ご飯', first_word_index: 0, last_word_index: 0 }]);
 
-    expect(result[0].furigana_status).toBe('suspect');
-    expect(result[0].furigana_warning).toMatch(/mixed kana\+kanji span "昼ご飯" needs manual review/i);
+    expect(result[0].text_furigana).toBe('<ruby>昼<rt>ひる</rt></ruby>ご<ruby>飯<rt>はん</rt></ruby>');
+    expect(result[0].furigana_status).toBe('ok');
+    expect(result[0].furigana_warning).toBeNull();
   });
 
   it('accepts digit+kanji date/counter compounds with readings', async () => {
