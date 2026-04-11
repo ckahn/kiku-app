@@ -55,7 +55,7 @@ function generateFakeStudyGuideProviderResponse(
   parseStudyGuideProviderRequest(request);
 
   return {
-    object: studyGuideFixture,
+    object: studyGuideFixture as StudyGuideContent,
   };
 }
 
