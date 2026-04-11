@@ -28,6 +28,8 @@ export default function EpisodePlayer({
   const player = usePlayer(chunks, durationMs);
   useKeyboardShortcuts({ controls: player.controls, mode: player.state.mode });
 
+  const { focusChunk } = player.controls;
+
   useEffect(() => {
     if (!episodeHref || chunks.length === 0) {
       return;
@@ -43,13 +45,13 @@ export default function EpisodePlayer({
       return;
     }
 
-    player.controls.focusChunk(matchingChunk.id);
+    focusChunk(matchingChunk.id);
 
     requestAnimationFrame(() => {
       const chunkElement = document.querySelector<HTMLElement>(`[data-chunk-id="${matchingChunk.id}"]`);
       chunkElement?.scrollIntoView({ block: 'start', behavior: 'auto' });
     });
-  }, [chunks, episodeHref, player.controls]);
+  }, [chunks, episodeHref, focusChunk]);
 
   return (
     <>
