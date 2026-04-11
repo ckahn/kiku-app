@@ -33,6 +33,8 @@ export async function GET(
 
     const cachedStudyGuide = await getStudyGuideByChunkId(chunkId);
     if (cachedStudyGuide) {
+      // TODO: If cached content fails validation, consider regenerating once
+      // instead of returning a 500 so corrupted rows can self-heal.
       return apiOk(parseStudyGuideContent(cachedStudyGuide.content));
     }
 
