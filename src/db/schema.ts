@@ -69,7 +69,7 @@ export const chunks = pgTable('chunks', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => [unique().on(table.episodeId, table.chunkIndex)]);
 
-export const drilldowns = pgTable('drilldowns', {
+export const studyGuides = pgTable('study_guides', {
   id: serial('id').primaryKey(),
   chunkId: integer('chunk_id')
     .notNull()
@@ -92,4 +92,4 @@ export const reviewLog = pgTable('review_log', {
 export type Podcast = typeof podcasts.$inferSelect;
 export type Episode = typeof episodes.$inferSelect;
 export type Chunk = typeof chunks.$inferSelect;
-export type Drilldown = typeof drilldowns.$inferSelect;
+export type StudyGuide = typeof studyGuides.$inferSelect;
