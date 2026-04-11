@@ -307,7 +307,7 @@ describe('addFurigana() — real API', () => {
     expect(result[0].furigana_warning).toMatch(/kana-only span "テスト" should have reading=null/i);
   });
 
-  it('marks unsplit okurigana spans as suspicious', async () => {
+  it('repairs unsplit okurigana spans before validation', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
@@ -321,9 +321,47 @@ describe('addFurigana() — real API', () => {
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: '聞いて', first_word_index: 0, last_word_index: 0 }]);
 
-    expect(result[0].text_furigana).toBe('<ruby>聞いて<rt>きいて</rt></ruby>');
-    expect(result[0].furigana_status).toBe('suspect');
-    expect(result[0].furigana_warning).toMatch(/must be kanji-only/i);
+    expect(result[0].text_furigana).toBe('<ruby>聞<rt>き</rt></ruby>いて');
+    expect(result[0].furigana_status).toBe('ok');
+    expect(result[0].furigana_warning).toBeNull();
+  });
+
+  it('repairs mixed kana-prefix spans like ご飯 before validation', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: 'ご飯', reading: 'ごはん' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: 'ご飯', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).toBe('ご<ruby>飯<rt>はん</rt></ruby>');
+    expect(result[0].furigana_status).toBe('ok');
+    expect(result[0].furigana_warning).toBeNull();
+  });
+
+  it('repairs mixed kana-suffix spans like 同じ before validation', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '同じ', reading: 'おなじ' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: '同じ', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).toBe('<ruby>同<rt>おな</rt></ruby>じ');
+    expect(result[0].furigana_status).toBe('ok');
+    expect(result[0].furigana_warning).toBeNull();
   });
 
   it('accepts digit+kanji date/counter compounds with readings', async () => {

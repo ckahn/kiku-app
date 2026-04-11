@@ -36,8 +36,10 @@ const furiganaResultSchema = z.object({
 
 const KANJI_RE = /[\u4e00-\u9fff]/;
 const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
+const KANA_ONLY_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}ー]+$/u;
 // Ruby base must contain only kanji — no kana, Latin, digits, or other scripts.
 const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf々]+$/;
+const SIMPLE_MIXED_KANA_KANJI_RE = /^([\p{Script=Hiragana}\p{Script=Katakana}ー]*)([\u4e00-\u9fff\u3400-\u4dbf々]+)([\p{Script=Hiragana}\p{Script=Katakana}ー]*)$/u;
 // 1–2 digit prefix (ASCII or full-width) followed immediately by kanji — calendar date/counter
 // compounds like 4月, １日, 20日, ２０日. Capped at 2 digits to avoid generating absurd furigana
 // for large numbers (e.g. 355432円). Full-width digits (１–９, ０) are U+FF11–FF19, U+FF10.
@@ -135,6 +137,51 @@ function renderFuriganaHtml(spans: readonly FuriganaSpan[]): string {
   });
 }
 
+function repairMixedKanaKanjiSpan(span: FuriganaSpan): readonly FuriganaSpan[] {
+  if (span.reading === null || !hasKanji(span.surface)) {
+    return [span];
+  }
+
+  const match = span.surface.match(SIMPLE_MIXED_KANA_KANJI_RE);
+  if (!match) {
+    return [span];
+  }
+
+  const [, prefixKana, kanjiSurface, suffixKana] = match;
+  if (prefixKana.length === 0 && suffixKana.length === 0) {
+    return [span];
+  }
+
+  if (
+    (prefixKana.length > 0 && (!KANA_ONLY_RE.test(prefixKana) || !span.reading.startsWith(prefixKana))) ||
+    (suffixKana.length > 0 && (!KANA_ONLY_RE.test(suffixKana) || !span.reading.endsWith(suffixKana)))
+  ) {
+    return [span];
+  }
+
+  const kanjiReading = span.reading.slice(prefixKana.length, span.reading.length - suffixKana.length);
+  if (kanjiReading.trim().length === 0) {
+    return [span];
+  }
+
+  const repaired: FuriganaSpan[] = [];
+
+  if (prefixKana.length > 0) {
+    repaired.push({ surface: prefixKana, reading: null });
+  }
+
+  repaired.push({ surface: kanjiSurface, reading: kanjiReading });
+
+  if (suffixKana.length > 0) {
+    repaired.push({ surface: suffixKana, reading: null });
+  }
+
+  return repaired;
+}
+
+function repairFuriganaSpans(spans: readonly FuriganaSpan[]): readonly FuriganaSpan[] {
+  return spans.flatMap((span) => repairMixedKanaKanjiSpan(span));
+}
 
 function validateFuriganaSpans(
   chunkText: string,
@@ -281,10 +328,11 @@ export async function addFurigana(
     const chunk = chunks[i];
     const firstPassSpans = firstPassByIndex.get(i);
     const fallbackText = sanitizeHtml(chunk.text, { allowedTags: [], allowedAttributes: {} });
+    const repairedSpans = firstPassSpans === undefined ? [] : repairFuriganaSpans(firstPassSpans);
     const finalReason = firstPassSpans === undefined
       ? 'No furigana annotation was returned for this chunk.'
-      : validateFuriganaSpans(chunk.text, firstPassSpans);
-    const finalSpans = firstPassSpans ?? [];
+      : validateFuriganaSpans(chunk.text, repairedSpans);
+    const finalSpans = repairedSpans;
 
     if (finalReason !== null) {
       console.error(`[addFurigana] chunk ${i} suspicious: ${finalReason}`);
