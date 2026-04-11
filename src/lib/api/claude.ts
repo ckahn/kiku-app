@@ -190,50 +190,9 @@ function validateFuriganaSpans(
   return null;
 }
 
-// TODO: extract furigana-specific functions (buildRetryPrompt, retryAnnotateChunk,
-// annotateChunksWithSpans, validateFuriganaSpans, renderSpanToHtml, renderFuriganaHtml)
+// TODO: extract furigana-specific functions (annotateChunksWithSpans,
+// validateFuriganaSpans, renderSpanToHtml, renderFuriganaHtml)
 // into src/lib/api/furigana.ts as this file grows.
-function buildRetryPrompt(
-  chunkText: string,
-  firstPassSpans: readonly FuriganaSpan[],
-  reason: string
-): string {
-  return `The previous furigana span annotation was suspicious.
-
-Original chunk:
-${chunkText}
-
-Previous spans:
-${JSON.stringify(firstPassSpans, null, 2)}
-
-Problem detected:
-${reason}
-
-Try again and fix the span boundaries. Preserve the original chunk text exactly.
-Be especially careful to keep normal lexical compounds together, such as:
-- 日本 -> one span with reading にほん
-- 日本語 -> one span with reading にほんご
-- 留学生 -> one span with reading りゅうがくせい
-
-Also follow this contract strictly:
-- A span with a reading must have a kanji-only surface OR a digit+kanji date/counter compound.
-- Kana-only spans must use reading=null.
-- If a word has okurigana, split it into a kanji span plus a plain kana span.
-- Correct: [{"surface":"聞","reading":"き"},{"surface":"いて","reading":null}]
-- Wrong: [{"surface":"聞いて","reading":"きいて"}]
-- Date/counter compounds: keep the number and kanji together with the correct compound reading:
-  - Correct: [{"surface":"4月","reading":"しがつ"},{"surface":"1日","reading":"ついたち"}]
-  - Wrong: {"surface":"4","reading":null} + {"surface":"月","reading":"がつ"}
-  - Wrong: {"surface":"4月1日","reading":"しがつついたち"}  <- month and day must be separate spans
-  - Month readings: 1月=いちがつ, 2月=にがつ, 3月=さんがつ, 4月=しがつ, 5月=ごがつ, 6月=ろくがつ, 7月=しちがつ, 8月=はちがつ, 9月=くがつ, 10月=じゅうがつ, 11月=じゅういちがつ, 12月=じゅうにがつ
-  - Irregular day readings: 1日=ついたち, 2日=ふつか, 3日=みっか, 4日=よっか, 5日=いつか, 6日=むいか, 7日=なのか, 8日=ようか, 9日=ここのか, 10日=とおか, 14日=じゅうよっか, 20日=はつか, 24日=にじゅうよっか
-
-Wrong:
-- 日 + 本 when the intended compound is 日本
-- 日本 + 語 when the intended compound is 日本語
-
-Return spans only. Do not add or remove text. Use reading=null for kana-only spans and punctuation.`;
-}
 
 const FURIGANA_PROMPT = `Annotate each Japanese text chunk as structured spans for furigana.
 
@@ -285,21 +244,6 @@ async function annotateChunksWithSpans(
   return new Map(object.annotated_chunks.map((ac) => [ac.index, ac.spans]));
 }
 
-async function retryAnnotateChunk(
-  chunk: TranscriptChunk,
-  firstPassSpans: readonly FuriganaSpan[],
-  reason: string,
-  anthropic: ReturnType<typeof createAnthropic>
-): Promise<readonly FuriganaSpan[] | undefined> {
-  const { object } = await generateObject({
-    model: anthropic(CLAUDE_FURIGANA_MODEL),
-    schema: furiganaResultSchema,
-    prompt: buildRetryPrompt(chunk.text, firstPassSpans, reason),
-    temperature: 0,
-  });
-  return object.annotated_chunks[0]?.spans;
-}
-
 function mockChunkWithDefaults(
   chunk: Omit<ChunkWithFurigana, 'furigana_status' | 'furigana_warning'>
 ): ChunkWithFurigana {
@@ -339,26 +283,13 @@ export async function addFurigana(
     const chunk = chunks[i];
     const firstPassSpans = firstPassByIndex.get(i);
     const fallbackText = sanitizeHtml(chunk.text, { allowedTags: [], allowedAttributes: {} });
-
-    const firstReason = firstPassSpans === undefined
+    const finalReason = firstPassSpans === undefined
       ? 'No furigana annotation was returned for this chunk.'
       : validateFuriganaSpans(chunk.text, firstPassSpans);
-    let finalSpans = firstPassSpans ?? [];
-    let finalReason = firstReason;
+    const finalSpans = firstPassSpans ?? [];
 
-    if (firstReason !== null) {
-      console.error(`[addFurigana] chunk ${i} suspicious on first pass: ${firstReason}`);
-      const retrySpans = await retryAnnotateChunk(chunk, finalSpans, firstReason, anthropic);
-      if (retrySpans !== undefined) {
-        finalSpans = retrySpans;
-        finalReason = validateFuriganaSpans(chunk.text, retrySpans);
-        if (finalReason !== null) {
-          console.error(`[addFurigana] chunk ${i} still suspicious after retry: ${finalReason}`);
-        }
-      } else {
-        finalReason = 'Retry did not return any furigana spans.';
-        console.error(`[addFurigana] chunk ${i} retry returned no spans`);
-      }
+    if (finalReason !== null) {
+      console.error(`[addFurigana] chunk ${i} suspicious: ${finalReason}`);
     }
 
     const renderedHtml = finalReason === null
