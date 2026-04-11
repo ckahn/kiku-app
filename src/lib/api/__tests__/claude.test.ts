@@ -113,50 +113,6 @@ describe('addFurigana() — mock mode', () => {
   });
 });
 
-describe('generateStudyGuide() — mock mode', () => {
-  beforeEach(() => {
-    vi.stubEnv('USE_MOCKS', 'true');
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('returns the study guide payload with a versioned top-level shape', async () => {
-    const { generateStudyGuide } = await import('../claude');
-    const result = await generateStudyGuide('テスト');
-    expect(result.version).toBe(2);
-    expect(Array.isArray(result.vocabulary)).toBe(true);
-    expect(Array.isArray(result.structures)).toBe(true);
-    expect(Array.isArray(result.breakdown)).toBe(true);
-    expect(result.translation.fullEnglish.length).toBeGreaterThan(0);
-  });
-
-  it('returns curated vocabulary, flat structures, and ordered breakdown segments', async () => {
-    const { generateStudyGuide } = await import('../claude');
-    const result = await generateStudyGuide('テスト');
-
-    for (const item of result.vocabulary) {
-      expect(item.id.length).toBeGreaterThan(0);
-      expect(item.japanese.length).toBeGreaterThan(0);
-      expect(item.meaning.length).toBeGreaterThan(0);
-    }
-
-    for (const structure of result.structures) {
-      expect(structure.id.length).toBeGreaterThan(0);
-      expect(structure.pattern.length).toBeGreaterThan(0);
-      expect(structure.meaning.length).toBeGreaterThan(0);
-    }
-
-    for (const [index, segment] of result.breakdown.entries()) {
-      expect(segment.id.length).toBeGreaterThan(0);
-      expect(segment.japanese.length).toBeGreaterThan(0);
-      expect(segment.cue.length).toBeGreaterThan(0);
-      expect(segment.order).toBe(index);
-    }
-  });
-});
-
 describe('chunkTranscript() — real API', () => {
   beforeEach(() => {
     vi.stubEnv('USE_MOCKS', 'false');
@@ -565,23 +521,5 @@ describe('addFurigana() — real API', () => {
 
     expect(result[0].furigana_status).toBe('suspect');
     expect(result[0].furigana_warning).toMatch(/reconstruct/i);
-  });
-});
-
-describe('generateStudyGuide() — non-mock mode stub', () => {
-  beforeEach(() => {
-    vi.stubEnv('USE_MOCKS', 'false');
-    vi.resetModules();
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('throws with clear message', async () => {
-    const { generateStudyGuide } = await import('../claude');
-    await expect(generateStudyGuide('')).rejects.toThrow(
-      'Real Claude API not yet implemented'
-    );
   });
 });

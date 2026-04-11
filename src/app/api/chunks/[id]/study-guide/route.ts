@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { getChunkById } from '@/db/chunks';
 import { getStudyGuideByChunkId, saveStudyGuideForChunkId } from '@/db/study-guides';
-import { generateStudyGuide } from '@/lib/api/claude';
 import { parseStudyGuideContent } from '@/lib/api/study-guide';
+import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
 import { apiErr, apiOk } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 
@@ -38,9 +38,7 @@ export async function GET(
       return apiOk(parseStudyGuideContent(cachedStudyGuide.content));
     }
 
-    const generatedStudyGuide = parseStudyGuideContent(
-      await generateStudyGuide(chunk.textRaw)
-    );
+    const generatedStudyGuide = await generateStudyGuideFromProvider(chunk.textRaw);
 
     await saveStudyGuideForChunkId(chunkId, generatedStudyGuide);
 

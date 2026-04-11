@@ -4,7 +4,7 @@ import studyGuideFixture from '@fixtures/study-guide.json';
 const mockGetChunkById = vi.fn();
 const mockGetStudyGuideByChunkId = vi.fn();
 const mockSaveStudyGuideForChunkId = vi.fn();
-const mockGenerateStudyGuide = vi.fn();
+const mockGenerateStudyGuideFromProvider = vi.fn();
 
 vi.mock('@/db/chunks', () => ({
   getChunkById: mockGetChunkById,
@@ -15,8 +15,8 @@ vi.mock('@/db/study-guides', () => ({
   saveStudyGuideForChunkId: mockSaveStudyGuideForChunkId,
 }));
 
-vi.mock('@/lib/api/claude', () => ({
-  generateStudyGuide: mockGenerateStudyGuide,
+vi.mock('@/lib/api/study-guide-provider', () => ({
+  generateStudyGuideFromProvider: mockGenerateStudyGuideFromProvider,
 }));
 
 describe('GET /api/chunks/[id]/study-guide', () => {
@@ -30,7 +30,7 @@ describe('GET /api/chunks/[id]/study-guide', () => {
       version: 2,
       content: studyGuideFixture,
     });
-    mockGenerateStudyGuide.mockResolvedValue(studyGuideFixture);
+    mockGenerateStudyGuideFromProvider.mockResolvedValue(studyGuideFixture);
   });
 
   async function callRoute(id: string) {
@@ -71,7 +71,7 @@ describe('GET /api/chunks/[id]/study-guide', () => {
 
     expect(response.status).toBe(200);
     expect(json.data).toEqual(studyGuideFixture);
-    expect(mockGenerateStudyGuide).not.toHaveBeenCalled();
+    expect(mockGenerateStudyGuideFromProvider).not.toHaveBeenCalled();
   });
 
   it('generates and persists the study guide on a cache miss', async () => {
@@ -80,7 +80,7 @@ describe('GET /api/chunks/[id]/study-guide', () => {
 
     expect(response.status).toBe(200);
     expect(json.data).toEqual(studyGuideFixture);
-    expect(mockGenerateStudyGuide).toHaveBeenCalledWith('日本語の文です。');
+    expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledWith('日本語の文です。');
     expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(12, studyGuideFixture);
   });
 
@@ -97,20 +97,30 @@ describe('GET /api/chunks/[id]/study-guide', () => {
 
     expect(response.status).toBe(500);
     expect(json.error).toMatch(/study guide/i);
-    expect(mockGenerateStudyGuide).not.toHaveBeenCalled();
+    expect(mockGenerateStudyGuideFromProvider).not.toHaveBeenCalled();
   });
 
-  it('returns 500 when generated study guide content is invalid', async () => {
-    mockGenerateStudyGuide.mockResolvedValueOnce({
-      ...studyGuideFixture,
-      translation: null,
-    });
+  it('returns 500 when the provider adapter rejects invalid provider content', async () => {
+    mockGenerateStudyGuideFromProvider.mockRejectedValueOnce(
+      new Error('Invalid study guide provider response: expected object')
+    );
 
     const response = await callRoute('12');
     const json = await response.json();
 
     expect(response.status).toBe(500);
-    expect(json.error).toMatch(/study guide/i);
+    expect(json.error).toMatch(/provider response/i);
+    expect(mockSaveStudyGuideForChunkId).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 when the provider adapter fails', async () => {
+    mockGenerateStudyGuideFromProvider.mockRejectedValueOnce(new Error('provider unavailable'));
+
+    const response = await callRoute('12');
+    const json = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(json.error).toMatch(/provider unavailable/i);
     expect(mockSaveStudyGuideForChunkId).not.toHaveBeenCalled();
   });
 
@@ -143,6 +153,6 @@ describe('GET /api/chunks/[id]/study-guide', () => {
     expect(secondResponse.status).toBe(200);
     expect(firstJson.data).toEqual(studyGuideFixture);
     expect(secondJson.data).toEqual(studyGuideFixture);
-    expect(mockGenerateStudyGuide).toHaveBeenCalledTimes(1);
+    expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledTimes(1);
   });
 });

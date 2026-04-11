@@ -7,12 +7,10 @@ import type {
   ChunkWithFurigana,
   ElevenLabsWord,
   FuriganaSpan,
-  StudyGuideContent,
   TranscriptChunk,
 } from './types';
 import chunksFixture from '../../../fixtures/chunks.json';
 import furiganaFixture from '../../../fixtures/furigana.json';
-import studyGuideFixture from '../../../fixtures/study-guide.json';
 
 const transcriptChunkSchema = z.object({
   text: z.string(),
@@ -307,19 +305,4 @@ export async function addFurigana(
   }
 
   return results;
-}
-
-/**
- * Generate a study guide for a single chunk using Claude.
- * Returns the full cached payload shape used by the Study screen.
- *
- * Set USE_MOCKS=true to return fixture data (same fixture for all chunks).
- */
-export async function generateStudyGuide(
-  _chunkText: string
-): Promise<StudyGuideContent> {
-  if (process.env.USE_MOCKS === 'true') {
-    return studyGuideFixture as StudyGuideContent;
-  }
-  throw new Error('Real Claude API not yet implemented — set USE_MOCKS=true');
 }
