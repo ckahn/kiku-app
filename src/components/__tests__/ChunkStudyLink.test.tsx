@@ -7,9 +7,11 @@ describe('ChunkStudyLink', () => {
   it('builds an episode-scoped chunk-index study href', () => {
     render(
       <ChunkStudyLink
+        chunkId={9}
         podcastSlug="slow-japanese"
         episodeNumber={7}
         chunkIndex={3}
+        episodeHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 

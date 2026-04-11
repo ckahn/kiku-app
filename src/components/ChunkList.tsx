@@ -12,6 +12,7 @@ interface ChunkListProps {
   readonly controls: PlayerControls;
   readonly podcastSlug?: string;
   readonly episodeNumber?: number;
+  readonly episodeHref?: string;
 }
 
 export default function ChunkList({
@@ -20,6 +21,7 @@ export default function ChunkList({
   controls,
   podcastSlug,
   episodeNumber,
+  episodeHref,
 }: ChunkListProps) {
   const activeChunkId =
     playerState.mode === 'global'
@@ -38,6 +40,7 @@ export default function ChunkList({
           controls={controls}
           podcastSlug={podcastSlug}
           episodeNumber={episodeNumber}
+          episodeHref={episodeHref}
         />
       ))}
     </ol>

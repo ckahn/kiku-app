@@ -5,6 +5,13 @@ import studyGuideFixture from '@fixtures/study-guide.json';
 import type { Chunk } from '@/db/schema';
 import StudyScreen from '../study/StudyScreen';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    back: vi.fn(),
+    push: vi.fn(),
+  }),
+}));
+
 function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
   return {
     id: 12,
@@ -50,6 +57,7 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -72,6 +80,7 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -93,6 +102,7 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -112,6 +122,7 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -132,6 +143,7 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -156,6 +168,7 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -181,6 +194,7 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 

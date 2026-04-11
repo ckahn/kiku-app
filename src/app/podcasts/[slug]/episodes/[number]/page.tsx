@@ -80,6 +80,7 @@ export default async function EpisodePage({
             durationMs={episode.durationMs ?? 0}
             podcastSlug={slug}
             episodeNumber={episode.episodeNumber}
+            episodeHref={`/podcasts/${slug}/episodes/${episode.episodeNumber}`}
           />
         ) : episode.status === 'error' ? (
           <div

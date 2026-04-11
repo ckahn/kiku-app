@@ -16,6 +16,7 @@ interface ChunkItemProps {
   readonly controls: PlayerControls;
   readonly podcastSlug?: string;
   readonly episodeNumber?: number;
+  readonly episodeHref?: string;
 }
 
 export default function ChunkItem({
@@ -26,6 +27,7 @@ export default function ChunkItem({
   controls,
   podcastSlug,
   episodeNumber,
+  episodeHref,
 }: ChunkItemProps) {
   const showFurigana = playerState.showFurigana[chunk.id] ?? false;
   const displayHtml = showFurigana ? chunk.textFurigana : stripFurigana(chunk.textFurigana);
@@ -81,9 +83,11 @@ export default function ChunkItem({
             />
             {podcastSlug && episodeNumber !== undefined && (
               <ChunkStudyLink
+                chunkId={chunk.id}
                 podcastSlug={podcastSlug}
                 episodeNumber={episodeNumber}
                 chunkIndex={chunk.chunkIndex}
+                episodeHref={episodeHref}
               />
             )}
           </div>

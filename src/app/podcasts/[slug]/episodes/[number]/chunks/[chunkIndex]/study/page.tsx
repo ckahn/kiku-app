@@ -47,11 +47,12 @@ export default async function StudyPage({
   }
 
   return (
-    <PageShell backHref={`/podcasts/${slug}/episodes/${episode.episodeNumber}`} backLabel="Transcript">
+    <PageShell>
       <StudyScreen
         chunk={chunk}
         audioUrl={`/api/episodes/${episode.id}/audio`}
         studyGuideUrl={`/api/chunks/${chunk.id}/study-guide`}
+        backHref={`/podcasts/${slug}/episodes/${episode.episodeNumber}`}
       />
     </PageShell>
   );

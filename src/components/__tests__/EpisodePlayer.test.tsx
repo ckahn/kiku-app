@@ -3,9 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import EpisodePlayer from '../player/EpisodePlayer';
 import type { Chunk } from '@/db/schema';
+import * as studyNavigation from '../player/studyNavigation';
 
 // Mock HTMLMediaElement since jsdom doesn't implement playback
 beforeEach(() => {
+  vi.restoreAllMocks();
   Object.defineProperty(HTMLMediaElement.prototype, 'play', {
     configurable: true,
     value: vi.fn().mockResolvedValue(undefined),
@@ -19,6 +21,14 @@ beforeEach(() => {
     configurable: true,
     writable: true,
     value: 0,
+  });
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
   });
 });
 
@@ -136,5 +146,31 @@ describe('EpisodePlayer (integration)', () => {
     });
 
     expect(screen.getByRole('alert')).toHaveTextContent(/could not play this episode audio/i);
+  });
+
+  it('restores the previously studied chunk and scrolls it into view', async () => {
+    vi.spyOn(studyNavigation, 'consumeTranscriptRestoreState')
+      .mockReturnValueOnce({
+        episodeHref: '/podcasts/slow-japanese/episodes/7',
+        chunkId: 2,
+      })
+      .mockReturnValue(null);
+
+    render(
+      <EpisodePlayer
+        chunks={CHUNKS}
+        audioUrl="/api/episodes/1/audio"
+        durationMs={20000}
+        episodeHref="/podcasts/slow-japanese/episodes/7"
+      />,
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const items = screen.getAllByRole('listitem');
+    expect(items[1]).toHaveAttribute('data-focused');
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
   });
 });

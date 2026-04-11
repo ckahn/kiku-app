@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
@@ -12,6 +13,7 @@ interface StudyScreenProps {
   >;
   readonly audioUrl: string;
   readonly studyGuideUrl: string;
+  readonly backHref: string;
 }
 
 interface StudySectionProps {
@@ -62,7 +64,9 @@ export default function StudyScreen({
   chunk,
   audioUrl,
   studyGuideUrl,
+  backHref,
 }: StudyScreenProps) {
+  const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
@@ -147,6 +151,15 @@ export default function StudyScreen({
     }));
   }
 
+  function handleBack() {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push(backHref);
+  }
+
   return (
     <div className="space-y-6">
       <audio
@@ -156,6 +169,16 @@ export default function StudyScreen({
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
       />
+
+      <div>
+        <button
+          type="button"
+          onClick={handleBack}
+          className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
+        >
+          ← Transcript
+        </button>
+      </div>
 
       <header className="space-y-1">
         <p className="text-sm text-muted">Chunk {chunk.chunkIndex + 1}</p>
