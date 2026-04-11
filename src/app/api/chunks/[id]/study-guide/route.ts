@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { getChunkById } from '@/db/chunks';
+import { getRawTranscript } from '@/db/episodes';
 import { getStudyGuideByChunkId, saveStudyGuideForChunkId } from '@/db/study-guides';
 import { parseStudyGuideContent } from '@/lib/api/study-guide';
 import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
@@ -38,7 +39,11 @@ export async function GET(
       return apiOk(parseStudyGuideContent(cachedStudyGuide.content));
     }
 
-    const generatedStudyGuide = await generateStudyGuideFromProvider(chunk.textRaw);
+    const transcript = await getRawTranscript(chunk.episodeId);
+    const generatedStudyGuide = await generateStudyGuideFromProvider(
+      chunk.textRaw,
+      transcript.text
+    );
 
     await saveStudyGuideForChunkId(chunkId, generatedStudyGuide);
 

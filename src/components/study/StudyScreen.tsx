@@ -69,7 +69,6 @@ export default function StudyScreen({
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showTranslation, setShowTranslation] = useState(false);
   const [openSections, setOpenSections] = useState({
     vocabulary: true,
     structure: false,
@@ -286,28 +285,6 @@ export default function StudyScreen({
         </StudySection>
       </div>
 
-      {studyGuide && (
-        <section className="rounded-lg border border-border bg-surface p-4">
-          {!showTranslation ? (
-            <button
-              type="button"
-              onClick={() => setShowTranslation(true)}
-              className="text-sm font-medium text-ink underline underline-offset-2"
-            >
-              Show English Translation
-            </button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-                English Translation
-              </p>
-              <p className="text-sm leading-6 text-ink">
-                {studyGuide.translation.fullEnglish}
-              </p>
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }

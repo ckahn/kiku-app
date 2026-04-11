@@ -48,6 +48,18 @@ describe('study guide provider adapter', () => {
     expect(() =>
       parseStudyGuideProviderRequest({
         chunkText: '',
+        transcriptText: '文脈です。',
+      })
+    ).toThrow(/provider request/i);
+  });
+
+  it('requires transcript context in provider requests', async () => {
+    const { parseStudyGuideProviderRequest } = await import('../study-guide-provider');
+
+    expect(() =>
+      parseStudyGuideProviderRequest({
+        chunkText: '日本語の文です。',
+        transcriptText: '',
       })
     ).toThrow(/provider request/i);
   });
@@ -56,7 +68,9 @@ describe('study guide provider adapter', () => {
     vi.stubEnv('USE_MOCKS', 'true');
     const { generateStudyGuideFromProvider } = await import('../study-guide-provider');
 
-    await expect(generateStudyGuideFromProvider('日本語の文です。')).resolves.toEqual(studyGuideFixture);
+    await expect(
+      generateStudyGuideFromProvider('日本語の文です。', '日本語の文です。前後の文もあります。')
+    ).resolves.toEqual(studyGuideFixture);
   });
 
   it('throws when ANTHROPIC_API_KEY is not configured in real mode', async () => {
@@ -64,7 +78,9 @@ describe('study guide provider adapter', () => {
     vi.stubEnv('ANTHROPIC_API_KEY', '');
     const { generateStudyGuideFromProvider } = await import('../study-guide-provider');
 
-    await expect(generateStudyGuideFromProvider('日本語の文です。')).rejects.toThrow(
+    await expect(
+      generateStudyGuideFromProvider('日本語の文です。', '日本語の文です。前後の文もあります。')
+    ).rejects.toThrow(
       'ANTHROPIC_API_KEY is not configured'
     );
   });
@@ -79,7 +95,9 @@ describe('study guide provider adapter', () => {
 
     const { generateStudyGuideFromProvider } = await import('../study-guide-provider');
 
-    await expect(generateStudyGuideFromProvider('日本語の文です。')).resolves.toEqual(studyGuideFixture);
+    await expect(
+      generateStudyGuideFromProvider('日本語の文です。', '日本語の文です。前後の文もあります。')
+    ).resolves.toEqual(studyGuideFixture);
     expect(generateObject).toHaveBeenCalledTimes(1);
   });
 
@@ -96,7 +114,9 @@ describe('study guide provider adapter', () => {
 
     const { generateStudyGuideFromProvider } = await import('../study-guide-provider');
 
-    await expect(generateStudyGuideFromProvider('日本語の文です。')).rejects.toThrow(
+    await expect(
+      generateStudyGuideFromProvider('日本語の文です。', '日本語の文です。前後の文もあります。')
+    ).rejects.toThrow(
       /provider response/i
     );
   });

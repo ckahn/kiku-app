@@ -87,7 +87,7 @@ describe('StudyScreen', () => {
     expect(await screen.findByRole('button', { name: 'Vocabulary' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('button', { name: 'Structure' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'Breakdown' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('button', { name: 'Show English Translation' })).toBeInTheDocument();
+    expect(screen.queryByText(/english translation/i)).toBeNull();
     expect(screen.queryByText(studyGuideFixture.translation.fullEnglish)).toBeNull();
   });
 
@@ -109,27 +109,6 @@ describe('StudyScreen', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/study guide unavailable/i);
     });
-  });
-
-  it('reveals the translation only after the user asks for it', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: studyGuideFixture }),
-    } as Response);
-
-    render(
-      <StudyScreen
-        chunk={makeChunk()}
-        audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
-      />
-    );
-
-    const revealButton = await screen.findByRole('button', { name: 'Show English Translation' });
-    fireEvent.click(revealButton);
-
-    expect(screen.getByText(studyGuideFixture.translation.fullEnglish)).toBeInTheDocument();
   });
 
   it('starts playback from the beginning of the chunk and changes the control to stop', async () => {

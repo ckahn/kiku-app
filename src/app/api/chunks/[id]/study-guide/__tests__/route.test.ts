@@ -2,12 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import studyGuideFixture from '@fixtures/study-guide.json';
 
 const mockGetChunkById = vi.fn();
+const mockGetRawTranscript = vi.fn();
 const mockGetStudyGuideByChunkId = vi.fn();
 const mockSaveStudyGuideForChunkId = vi.fn();
 const mockGenerateStudyGuideFromProvider = vi.fn();
 
 vi.mock('@/db/chunks', () => ({
   getChunkById: mockGetChunkById,
+}));
+
+vi.mock('@/db/episodes', () => ({
+  getRawTranscript: mockGetRawTranscript,
 }));
 
 vi.mock('@/db/study-guides', () => ({
@@ -22,7 +27,8 @@ vi.mock('@/lib/api/study-guide-provider', () => ({
 describe('GET /api/chunks/[id]/study-guide', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetChunkById.mockResolvedValue({ id: 12, textRaw: '日本語の文です。' });
+    mockGetChunkById.mockResolvedValue({ id: 12, episodeId: 5, textRaw: '日本語の文です。' });
+    mockGetRawTranscript.mockResolvedValue({ text: '日本語の文です。前後の文もあります。' });
     mockGetStudyGuideByChunkId.mockResolvedValue(null);
     mockSaveStudyGuideForChunkId.mockResolvedValue({
       id: 4,
@@ -80,7 +86,11 @@ describe('GET /api/chunks/[id]/study-guide', () => {
 
     expect(response.status).toBe(200);
     expect(json.data).toEqual(studyGuideFixture);
-    expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledWith('日本語の文です。');
+    expect(mockGetRawTranscript).toHaveBeenCalledWith(5);
+    expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledWith(
+      '日本語の文です。',
+      '日本語の文です。前後の文もあります。'
+    );
     expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(12, studyGuideFixture);
   });
 
@@ -98,6 +108,7 @@ describe('GET /api/chunks/[id]/study-guide', () => {
     expect(response.status).toBe(500);
     expect(json.error).toMatch(/study guide/i);
     expect(mockGenerateStudyGuideFromProvider).not.toHaveBeenCalled();
+    expect(mockGetRawTranscript).not.toHaveBeenCalled();
   });
 
   it('returns 500 when the provider adapter rejects invalid provider content', async () => {

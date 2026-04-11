@@ -11,6 +11,7 @@ import type { StudyGuideContent } from './types';
 // handlers depend on app-shaped providers instead of vendor-specific modules.
 export interface StudyGuideProviderRequest {
   readonly chunkText: string;
+  readonly transcriptText: string;
 }
 
 export interface StudyGuideProviderResponse {
@@ -19,6 +20,7 @@ export interface StudyGuideProviderResponse {
 
 export const studyGuideProviderRequestSchema = z.object({
   chunkText: z.string().min(1),
+  transcriptText: z.string().min(1),
 }) satisfies z.ZodType<StudyGuideProviderRequest>;
 
 export const studyGuideProviderResponseSchema = z.object({
@@ -59,13 +61,16 @@ function generateFakeStudyGuideProviderResponse(
   };
 }
 
-function buildStudyGuidePrompt(chunkText: string): string {
+function buildStudyGuidePrompt(request: StudyGuideProviderRequest): string {
   return `You are a Japanese teacher creating a concise mobile study guide for one Japanese podcast chunk.
 
 Return structured JSON only.
 
+Full transcript for context:
+${request.transcriptText}
+
 Chunk text:
-${chunkText}
+${request.chunkText}
 
 Output requirements:
 - version must be 2
@@ -97,7 +102,7 @@ async function generateStudyGuideWithClaude(
   const { object } = await generateObject({
     model: anthropic(CLAUDE_STUDY_GUIDE_MODEL),
     schema: studyGuideContentSchema,
-    prompt: buildStudyGuidePrompt(request.chunkText),
+    prompt: buildStudyGuidePrompt(request),
     temperature: 0,
   });
 
@@ -107,9 +112,10 @@ async function generateStudyGuideWithClaude(
 }
 
 export async function generateStudyGuideFromProvider(
-  chunkText: string
+  chunkText: string,
+  transcriptText: string
 ): Promise<StudyGuideContent> {
-  const request = parseStudyGuideProviderRequest({ chunkText });
+  const request = parseStudyGuideProviderRequest({ chunkText, transcriptText });
 
   if (process.env.USE_MOCKS === 'true') {
     return parseStudyGuideProviderResponse(generateFakeStudyGuideProviderResponse(request));
