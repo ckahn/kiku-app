@@ -11,6 +11,11 @@ import {
 import { segmentTranscriptDeterministically } from '@/lib/transcript-segmentation';
 import { getRawTranscript, setEpisodeReady, setEpisodeError } from '@/db/episodes';
 import { insertChunks } from '@/db/chunks';
+import type {
+  ChunkWithFurigana,
+  DeterministicTranscriptChunk,
+  TranscriptChunk,
+} from '@/lib/api/types';
 
 export const maxDuration = 60;
 
@@ -39,6 +44,23 @@ async function segmentTranscript(
   return chunkTranscript(text, segments);
 }
 
+function attachSentenceMetadata(
+  transcriptChunks: readonly TranscriptChunk[] | readonly DeterministicTranscriptChunk[],
+  chunksWithFurigana: readonly ChunkWithFurigana[]
+): readonly (ChunkWithFurigana & { readonly sentences?: DeterministicTranscriptChunk['sentences'] })[] {
+  return chunksWithFurigana.map((chunk, index) => {
+    const transcriptChunk = transcriptChunks[index];
+    if (transcriptChunk === undefined || !('sentences' in transcriptChunk)) {
+      return chunk;
+    }
+
+    return {
+      ...chunk,
+      sentences: transcriptChunk.sentences,
+    };
+  });
+}
+
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -61,7 +83,11 @@ export async function POST(
     const chunksWithFurigana = await timed('claude furigana', () =>
       addFurigana(transcriptChunks)
     );
-    await insertChunks(episodeId, chunksWithFurigana, rawTranscript.segments);
+    await insertChunks(
+      episodeId,
+      attachSentenceMetadata(transcriptChunks, chunksWithFurigana),
+      rawTranscript.segments
+    );
     await setEpisodeReady(episodeId);
     return apiOk({ status: 'ready' });
   } catch (error: unknown) {

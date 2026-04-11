@@ -37,7 +37,20 @@ const DUMMY_TRANSCRIPT = {
   text: 'テスト',
   segments: [{ text: 'テスト', startSecond: 0, endSecond: 0.5 }],
 };
-const DUMMY_CHUNKS = [{ text: 'テスト', first_word_index: 0, last_word_index: 0 }];
+const DUMMY_CHUNKS = [{
+  text: 'テスト',
+  first_word_index: 0,
+  last_word_index: 0,
+  sentences: [
+    {
+      text: 'テスト',
+      first_word_index: 0,
+      last_word_index: 0,
+      start_ms: 0,
+      end_ms: 500,
+    },
+  ],
+}];
 const DUMMY_FURIGANA = [{
   text: 'テスト',
   text_furigana: '<ruby>テスト<rt>てすと</rt></ruby>',
@@ -134,6 +147,26 @@ describe('POST /api/episodes/[id]/chunk', () => {
     await callRoute();
 
     expect(mockAddFurigana).toHaveBeenCalledWith(DUMMY_CHUNKS);
+  });
+
+  it('preserves sentence metadata when inserting chunk rows', async () => {
+    mockWhere.mockResolvedValueOnce([{ status: 'chunking' }]);
+    mockGetRawTranscript.mockResolvedValueOnce(DUMMY_TRANSCRIPT);
+    mockSegmentTranscriptDeterministically.mockReturnValueOnce(DUMMY_CHUNKS);
+    mockAddFurigana.mockResolvedValueOnce(DUMMY_FURIGANA);
+    mockInsertChunks.mockResolvedValueOnce(undefined);
+    mockSetEpisodeReady.mockResolvedValueOnce(undefined);
+
+    await callRoute();
+
+    expect(mockInsertChunks).toHaveBeenCalledWith(
+      5,
+      [{
+        ...DUMMY_FURIGANA[0],
+        sentences: DUMMY_CHUNKS[0].sentences,
+      }],
+      DUMMY_TRANSCRIPT.segments
+    );
   });
 
   it('calls setEpisodeError and returns 500 when deterministic segmentation throws', async () => {

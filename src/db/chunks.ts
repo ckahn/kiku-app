@@ -2,7 +2,31 @@ import { and, asc, eq } from 'drizzle-orm';
 import { db } from '.';
 import { chunks } from './schema';
 import type { Chunk } from './schema';
-import type { ChunkWithFurigana, ElevenLabsWord } from '@/lib/api/types';
+import type {
+  ChunkWithFurigana,
+  ElevenLabsWord,
+  TranscriptSentence,
+} from '@/lib/api/types';
+
+type ChunkInsertInput = ChunkWithFurigana & {
+  readonly sentences?: readonly TranscriptSentence[];
+};
+
+function buildChunkSentences(
+  chunk: ChunkInsertInput,
+  startMs: number,
+  endMs: number
+): readonly Record<string, unknown>[] {
+  if (chunk.sentences === undefined || chunk.sentences.length === 0) {
+    return [{ text: chunk.text, start_ms: startMs, end_ms: endMs }];
+  }
+
+  return chunk.sentences.map((sentence) => ({
+    text: sentence.text,
+    start_ms: sentence.start_ms,
+    end_ms: sentence.end_ms,
+  }));
+}
 
 /**
  * Bulk-insert chunks for an episode.
@@ -10,7 +34,7 @@ import type { ChunkWithFurigana, ElevenLabsWord } from '@/lib/api/types';
  */
 export async function insertChunks(
   episodeId: number,
-  chunksWithFurigana: readonly ChunkWithFurigana[],
+  chunksWithFurigana: readonly ChunkInsertInput[],
   words: readonly ElevenLabsWord[]
 ): Promise<void> {
   // Pre-compute raw startMs for every chunk so we can extend each chunk's
@@ -56,7 +80,7 @@ export async function insertChunks(
       furiganaWarning: chunk.furigana_warning,
       startMs,
       endMs,
-      sentences: [{ text: chunk.text, start_ms: startMs, end_ms: endMs }] as unknown as Record<string, unknown>[],
+      sentences: buildChunkSentences(chunk, startMs, endMs),
     };
   });
   await db.insert(chunks).values(values);

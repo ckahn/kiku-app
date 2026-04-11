@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ChunkWithFurigana, ElevenLabsWord } from '@/lib/api/types';
+import type {
+  ChunkWithFurigana,
+  ElevenLabsWord,
+  TranscriptSentence,
+} from '@/lib/api/types';
 
 const mockInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
 const mockSelect = vi.fn();
@@ -42,6 +46,10 @@ const SAMPLE_CHUNKS: ChunkWithFurigana[] = [
     furigana_warning: null,
   },
 ];
+
+type ChunkInsertInput = ChunkWithFurigana & {
+  readonly sentences?: readonly TranscriptSentence[];
+};
 
 describe('insertChunks()', () => {
   beforeEach(() => {
@@ -126,7 +134,7 @@ describe('insertChunks()', () => {
     expect(rows[0][1].chunkIndex).toBe(1);
   });
 
-  it('builds sentences JSONB with one entry per chunk', async () => {
+  it('falls back to one sentence per chunk when sentence metadata is missing', async () => {
     const valuesCapture = vi.fn().mockResolvedValue(undefined);
     mockInsert.mockReturnValue({ values: valuesCapture });
 
@@ -139,6 +147,44 @@ describe('insertChunks()', () => {
     expect(firstSentences[0].text).toBe('おはようございます');
     expect(firstSentences[0].start_ms).toBe(0);
     expect(firstSentences[0].end_ms).toBe(1500); // gap-filled to chunk 1 startMs
+  });
+
+  it('persists provided sentence metadata instead of synthesizing one sentence', async () => {
+    const valuesCapture = vi.fn().mockResolvedValue(undefined);
+    mockInsert.mockReturnValue({ values: valuesCapture });
+    const chunkData: ChunkInsertInput[] = [{
+      text: 'おはようございます。今日も',
+      text_furigana: 'おはようございます。<ruby>今日<rt>きょう</rt></ruby>も',
+      first_word_index: 0,
+      last_word_index: 2,
+      furigana_status: 'ok',
+      furigana_warning: null,
+      sentences: [
+        {
+          text: 'おはようございます。',
+          first_word_index: 0,
+          last_word_index: 1,
+          start_ms: 0,
+          end_ms: 1200,
+        },
+        {
+          text: '今日も',
+          first_word_index: 2,
+          last_word_index: 2,
+          start_ms: 1500,
+          end_ms: 2000,
+        },
+      ],
+    }];
+
+    const { insertChunks } = await import('../chunks');
+    await insertChunks(42, chunkData, SAMPLE_WORDS);
+
+    const [rows] = valuesCapture.mock.calls;
+    expect(rows[0][0].sentences).toEqual([
+      { text: 'おはようございます。', start_ms: 0, end_ms: 1200 },
+      { text: '今日も', start_ms: 1500, end_ms: 2000 },
+    ]);
   });
 
   it('stores episodeId on each row', async () => {
