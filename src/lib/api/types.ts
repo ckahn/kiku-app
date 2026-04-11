@@ -21,6 +21,18 @@ export interface TranscriptChunk {
   readonly last_word_index: number;
 }
 
+export interface TranscriptSentence {
+  readonly text: string;
+  readonly first_word_index: number;
+  readonly last_word_index: number;
+  readonly start_ms: number;
+  readonly end_ms: number;
+}
+
+export interface DeterministicTranscriptChunk extends TranscriptChunk {
+  readonly sentences: readonly TranscriptSentence[];
+}
+
 export interface FuriganaSpan {
   readonly surface: string;
   readonly reading: string | null;
