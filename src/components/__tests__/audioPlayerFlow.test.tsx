@@ -65,7 +65,7 @@ describe('click chunk → clamped playback', () => {
     expect(audio.currentTime).toBe(chunk2StartSec);
   });
 
-  it('timeupdate past chunk end pauses audio when loop is off', () => {
+  it('timeupdate past chunk end exits chunk mode and continues playing when loop is off', () => {
     render(
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
@@ -73,6 +73,7 @@ describe('click chunk → clamped playback', () => {
     const items = screen.getAllByRole('listitem');
 
     act(() => { fireEvent.click(items[1]); });
+    expect(items[1]).toHaveAttribute('data-focused');
 
     // Simulate timeupdate at near-end of chunk (within CLAMP_EPSILON = 0.05s)
     act(() => {
@@ -80,8 +81,9 @@ describe('click chunk → clamped playback', () => {
       fireEvent(audio, new Event('timeupdate'));
     });
 
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
-    expect(audio.currentTime).toBe(chunk2StartSec);
+    // Should exit chunk mode without pausing — no chunk is focused anymore
+    expect(HTMLMediaElement.prototype.pause).not.toHaveBeenCalled();
+    expect(items[1]).not.toHaveAttribute('data-focused');
   });
 
   it('timeupdate past chunk end loops back when loop is on', () => {

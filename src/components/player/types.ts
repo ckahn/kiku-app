@@ -16,6 +16,7 @@ export type PlayerAction =
   | { type: 'SET_TIME'; payload: number }
   | { type: 'FOCUS_CHUNK'; payload: number }
   | { type: 'UNFOCUS_CHUNK' }
+  | { type: 'EXIT_CHUNK_PLAYING' }
   | { type: 'TOGGLE_LOOP' }
   | { type: 'TOGGLE_FURIGANA'; payload: number }
   | { type: 'RESTART'; payload: number };

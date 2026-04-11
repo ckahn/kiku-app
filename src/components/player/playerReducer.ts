@@ -38,6 +38,13 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
         isPlaying: false,
       };
 
+    case 'EXIT_CHUNK_PLAYING':
+      return {
+        ...state,
+        mode: 'global',
+        focusedChunkId: null,
+      };
+
     case 'TOGGLE_LOOP':
       return { ...state, isLooping: !state.isLooping };
 

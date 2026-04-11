@@ -110,9 +110,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
         if (s.isLooping) {
           audio!.currentTime = startSec;
         } else {
-          audio!.pause();
-          audio!.currentTime = startSec;
-          dispatch({ type: 'PAUSE' });
+          dispatch({ type: 'EXIT_CHUNK_PLAYING' });
         }
       }
     }

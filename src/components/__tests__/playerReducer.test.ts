@@ -91,6 +91,21 @@ describe('playerReducer', () => {
     });
   });
 
+  describe('EXIT_CHUNK_PLAYING', () => {
+    it('returns to global mode and clears focusedChunkId', () => {
+      const s = state({ mode: 'chunk', focusedChunkId: 5, isPlaying: true });
+      const result = playerReducer(s, { type: 'EXIT_CHUNK_PLAYING' });
+      expect(result.mode).toBe('global');
+      expect(result.focusedChunkId).toBeNull();
+    });
+
+    it('preserves isPlaying so audio continues', () => {
+      const s = state({ mode: 'chunk', focusedChunkId: 5, isPlaying: true });
+      const result = playerReducer(s, { type: 'EXIT_CHUNK_PLAYING' });
+      expect(result.isPlaying).toBe(true);
+    });
+  });
+
   describe('TOGGLE_LOOP', () => {
     it('flips isLooping from false to true', () => {
       const result = playerReducer(state({ isLooping: false }), { type: 'TOGGLE_LOOP' });
