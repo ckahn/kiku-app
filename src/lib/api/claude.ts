@@ -5,14 +5,14 @@ import { z } from 'zod';
 import { CLAUDE_CHUNK_MODEL, CLAUDE_FURIGANA_MODEL } from '@/lib/constants';
 import type {
   ChunkWithFurigana,
-  DrilldownContent,
   ElevenLabsWord,
   FuriganaSpan,
+  StudyGuideContent,
   TranscriptChunk,
 } from './types';
 import chunksFixture from '../../../fixtures/chunks.json';
 import furiganaFixture from '../../../fixtures/furigana.json';
-import drilldownFixture from '../../../fixtures/drilldown.json';
+import studyGuideFixture from '../../../fixtures/study-guide.json';
 
 const transcriptChunkSchema = z.object({
   text: z.string(),
@@ -379,16 +379,16 @@ export async function addFurigana(
 }
 
 /**
- * Generate a drill-down for a single chunk using Claude.
- * Returns per-sentence translations and grammar structure explanations.
+ * Generate a study guide for a single chunk using Claude.
+ * Returns the full cached payload shape used by the Study screen.
  *
  * Set USE_MOCKS=true to return fixture data (same fixture for all chunks).
  */
-export async function generateDrilldown(
+export async function generateStudyGuide(
   _chunkText: string
-): Promise<DrilldownContent> {
+): Promise<StudyGuideContent> {
   if (process.env.USE_MOCKS === 'true') {
-    return drilldownFixture as DrilldownContent;
+    return studyGuideFixture as StudyGuideContent;
   }
   throw new Error('Real Claude API not yet implemented — set USE_MOCKS=true');
 }

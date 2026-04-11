@@ -113,7 +113,7 @@ describe('addFurigana() — mock mode', () => {
   });
 });
 
-describe('generateDrilldown() — mock mode', () => {
+describe('generateStudyGuide() — mock mode', () => {
   beforeEach(() => {
     vi.stubEnv('USE_MOCKS', 'true');
   });
@@ -122,21 +122,37 @@ describe('generateDrilldown() — mock mode', () => {
     vi.unstubAllEnvs();
   });
 
-  it('returns an object with a non-empty sentences array', async () => {
-    const { generateDrilldown } = await import('../claude');
-    const result = await generateDrilldown('テスト');
-    expect(result).toHaveProperty('sentences');
-    expect(Array.isArray(result.sentences)).toBe(true);
-    expect(result.sentences.length).toBeGreaterThan(0);
+  it('returns the study guide payload with a versioned top-level shape', async () => {
+    const { generateStudyGuide } = await import('../claude');
+    const result = await generateStudyGuide('テスト');
+    expect(result.version).toBe(2);
+    expect(Array.isArray(result.vocabulary)).toBe(true);
+    expect(Array.isArray(result.structures)).toBe(true);
+    expect(Array.isArray(result.breakdown)).toBe(true);
+    expect(result.translation.fullEnglish.length).toBeGreaterThan(0);
   });
 
-  it('each sentence has japanese, english, and structures', async () => {
-    const { generateDrilldown } = await import('../claude');
-    const result = await generateDrilldown('テスト');
-    for (const sentence of result.sentences) {
-      expect(sentence).toHaveProperty('japanese');
-      expect(sentence).toHaveProperty('english');
-      expect(sentence).toHaveProperty('structures');
+  it('returns curated vocabulary, flat structures, and ordered breakdown segments', async () => {
+    const { generateStudyGuide } = await import('../claude');
+    const result = await generateStudyGuide('テスト');
+
+    for (const item of result.vocabulary) {
+      expect(item.id.length).toBeGreaterThan(0);
+      expect(item.japanese.length).toBeGreaterThan(0);
+      expect(item.meaning.length).toBeGreaterThan(0);
+    }
+
+    for (const structure of result.structures) {
+      expect(structure.id.length).toBeGreaterThan(0);
+      expect(structure.pattern.length).toBeGreaterThan(0);
+      expect(structure.meaning.length).toBeGreaterThan(0);
+    }
+
+    for (const [index, segment] of result.breakdown.entries()) {
+      expect(segment.id.length).toBeGreaterThan(0);
+      expect(segment.japanese.length).toBeGreaterThan(0);
+      expect(segment.cue.length).toBeGreaterThan(0);
+      expect(segment.order).toBe(index);
     }
   });
 });
@@ -598,7 +614,7 @@ describe('addFurigana() — real API', () => {
   });
 });
 
-describe('generateDrilldown() — non-mock mode stub', () => {
+describe('generateStudyGuide() — non-mock mode stub', () => {
   beforeEach(() => {
     vi.stubEnv('USE_MOCKS', 'false');
     vi.resetModules();
@@ -609,8 +625,8 @@ describe('generateDrilldown() — non-mock mode stub', () => {
   });
 
   it('throws with clear message', async () => {
-    const { generateDrilldown } = await import('../claude');
-    await expect(generateDrilldown('')).rejects.toThrow(
+    const { generateStudyGuide } = await import('../claude');
+    await expect(generateStudyGuide('')).rejects.toThrow(
       'Real Claude API not yet implemented'
     );
   });
