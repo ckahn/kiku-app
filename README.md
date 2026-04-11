@@ -51,8 +51,9 @@ Set `USE_MOCKS=true` in `.env.local` to avoid API costs. API wrappers return can
 
 Study-guide generation now routes through the provider adapter in
 `src/lib/api/study-guide-provider.ts`. In mock mode, that adapter uses a fake
-provider implementation so the cache-miss flow matches the real integration
-shape we plan to keep when Anthropic wiring lands.
+provider implementation. Otherwise it uses the Claude-backed provider path with
+`ANTHROPIC_API_KEY`, while keeping the same cache-miss contract at the route
+layer.
 
 ---
 

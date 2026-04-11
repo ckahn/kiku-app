@@ -1,5 +1,8 @@
+import { generateObject } from 'ai';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import studyGuideFixture from '../../../fixtures/study-guide.json';
 import { z } from 'zod';
+import { CLAUDE_STUDY_GUIDE_MODEL } from '@/lib/constants';
 import { studyGuideContentSchema } from './study-guide';
 import type { StudyGuideContent } from './types';
 
@@ -56,6 +59,53 @@ function generateFakeStudyGuideProviderResponse(
   };
 }
 
+function buildStudyGuidePrompt(chunkText: string): string {
+  return `You are a Japanese teacher creating a concise mobile study guide for one Japanese podcast chunk.
+
+Return structured JSON only.
+
+Chunk text:
+${chunkText}
+
+Output requirements:
+- version must be 2
+- vocabulary: a curated list of the most useful words or short expressions only
+- structures: a short list of key grammar patterns or sentence structures
+- breakdown: guided interpretation steps in natural study order
+- translation.fullEnglish: one complete fallback English translation
+
+Content rules:
+- Do not be exhaustive
+- Prefer clarity over completeness
+- Keep explanations concise and learner-friendly
+- Use hiragana in reading fields when a reading is useful
+- If a reading is unnecessary, return null
+- breakdown.order must start at 0 and increase by 1
+- Every id must be a short stable string
+- Keep the translation natural English, not word-for-word unless needed for clarity`;
+}
+
+async function generateStudyGuideWithClaude(
+  request: StudyGuideProviderRequest
+): Promise<StudyGuideProviderResponse> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY is not configured');
+  }
+
+  const anthropic = createAnthropic({ apiKey });
+  const { object } = await generateObject({
+    model: anthropic(CLAUDE_STUDY_GUIDE_MODEL),
+    schema: studyGuideContentSchema,
+    prompt: buildStudyGuidePrompt(request.chunkText),
+    temperature: 0,
+  });
+
+  return {
+    object,
+  };
+}
+
 export async function generateStudyGuideFromProvider(
   chunkText: string
 ): Promise<StudyGuideContent> {
@@ -65,5 +115,5 @@ export async function generateStudyGuideFromProvider(
     return parseStudyGuideProviderResponse(generateFakeStudyGuideProviderResponse(request));
   }
 
-  throw new Error('Real study guide provider not yet implemented — set USE_MOCKS=true');
+  return parseStudyGuideProviderResponse(await generateStudyGuideWithClaude(request));
 }
