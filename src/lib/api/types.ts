@@ -37,25 +37,36 @@ export interface ChunkWithFurigana {
   readonly furigana_warning: string | null;
 }
 
-// Claude drill-down API types
+// Claude study guide API types
 
-export interface GrammarExample {
-  readonly ja: string;
-  readonly en: string;
-}
-
-export interface GrammarStructure {
-  readonly pattern: string;
-  readonly explanation: string;
-  readonly example: GrammarExample;
-}
-
-export interface DrilldownSentence {
+export interface StudyGuideVocabularyItem {
+  readonly id: string;
   readonly japanese: string;
-  readonly english: string;
-  readonly structures: readonly GrammarStructure[];
+  readonly reading: string | null;
+  readonly meaning: string;
 }
 
-export interface DrilldownContent {
-  readonly sentences: readonly DrilldownSentence[];
+export interface StudyGuideStructureItem {
+  readonly id: string;
+  readonly pattern: string;
+  readonly reading: string | null;
+  readonly meaning: string;
+  readonly note?: string;
+}
+
+export interface StudyGuideBreakdownSegment {
+  readonly id: string;
+  readonly japanese: string;
+  readonly cue: string;
+  readonly order: number;
+}
+
+export interface StudyGuideContent {
+  readonly version: 2;
+  readonly vocabulary: readonly StudyGuideVocabularyItem[];
+  readonly structures: readonly StudyGuideStructureItem[];
+  readonly breakdown: readonly StudyGuideBreakdownSegment[];
+  readonly translation: {
+    readonly fullEnglish: string;
+  };
 }

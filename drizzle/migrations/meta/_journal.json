@@ -8,6 +8,13 @@
       "when": 1775694275715,
       "tag": "0000_strange_jamie_braddock",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775866127558,
+      "tag": "0001_green_gauntlet",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import transcript from '@fixtures/elevenlabs-transcript.json';
 import chunks from '@fixtures/chunks.json';
 import furigana from '@fixtures/furigana.json';
-import drilldown from '@fixtures/drilldown.json';
+import studyGuide from '@fixtures/study-guide.json';
 
 describe('elevenlabs-transcript.json', () => {
   it('has a non-empty text field', () => {
@@ -108,32 +108,43 @@ describe('furigana.json', () => {
   });
 });
 
-describe('drilldown.json', () => {
-  it('has a non-empty sentences array', () => {
-    expect(drilldown.sentences.length).toBeGreaterThan(0);
+describe('study-guide.json', () => {
+  it('has version 2', () => {
+    expect(studyGuide.version).toBe(2);
   });
 
-  it('each sentence has non-empty japanese and english fields', () => {
-    for (const sentence of drilldown.sentences) {
-      expect(sentence.japanese.length).toBeGreaterThan(0);
-      expect(sentence.english.length).toBeGreaterThan(0);
+  it('has a curated vocabulary list with required fields', () => {
+    expect(studyGuide.vocabulary.length).toBeGreaterThan(0);
+
+    for (const item of studyGuide.vocabulary) {
+      expect(item.id.length).toBeGreaterThan(0);
+      expect(item.japanese.length).toBeGreaterThan(0);
+      expect(item.meaning.length).toBeGreaterThan(0);
     }
   });
 
-  it('each sentence has at least one grammar structure', () => {
-    for (const sentence of drilldown.sentences) {
-      expect(sentence.structures.length).toBeGreaterThan(0);
+  it('has flat structure items with required fields', () => {
+    expect(studyGuide.structures.length).toBeGreaterThan(0);
+
+    for (const structure of studyGuide.structures) {
+      expect(structure.id.length).toBeGreaterThan(0);
+      expect(structure.pattern.length).toBeGreaterThan(0);
+      expect(structure.meaning.length).toBeGreaterThan(0);
     }
   });
 
-  it('each structure has pattern, explanation, and example with ja/en', () => {
-    for (const sentence of drilldown.sentences) {
-      for (const structure of sentence.structures) {
-        expect(structure.pattern.length).toBeGreaterThan(0);
-        expect(structure.explanation.length).toBeGreaterThan(0);
-        expect(structure.example.ja.length).toBeGreaterThan(0);
-        expect(structure.example.en.length).toBeGreaterThan(0);
-      }
+  it('has ordered breakdown segments with cues', () => {
+    expect(studyGuide.breakdown.length).toBeGreaterThan(0);
+
+    for (const [index, segment] of studyGuide.breakdown.entries()) {
+      expect(segment.id.length).toBeGreaterThan(0);
+      expect(segment.japanese.length).toBeGreaterThan(0);
+      expect(segment.cue.length).toBeGreaterThan(0);
+      expect(segment.order).toBe(index);
     }
+  });
+
+  it('has a full English translation', () => {
+    expect(studyGuide.translation.fullEnglish.length).toBeGreaterThan(0);
   });
 });
