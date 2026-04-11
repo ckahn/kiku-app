@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ElevenLabsWord } from '@/lib/api/types';
 import {
   chunkSentencesByCharacterCount,
+  segmentTranscriptDeterministically,
   splitTranscriptIntoSentences,
 } from '@/lib/transcript-segmentation';
 
@@ -131,6 +132,84 @@ describe('chunkSentencesByCharacterCount()', () => {
         first_word_index: 0,
         last_word_index: 6,
         sentences,
+      },
+    ]);
+  });
+});
+
+describe('segmentTranscriptDeterministically()', () => {
+  it('returns one chunk when the whole transcript is shorter than the minimum length', () => {
+    const words: ElevenLabsWord[] = [
+      { text: '短い', startSecond: 0, endSecond: 0.2 },
+      { text: 'です', startSecond: 0.2, endSecond: 0.4 },
+      { text: '。', startSecond: 0.4, endSecond: 0.4 },
+    ];
+
+    expect(segmentTranscriptDeterministically(words, 30)).toEqual([
+      {
+        text: '短いです。',
+        first_word_index: 0,
+        last_word_index: 2,
+        sentences: [
+          {
+            text: '短いです。',
+            first_word_index: 0,
+            last_word_index: 2,
+            start_ms: 0,
+            end_ms: 400,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('uses the smallest number of complete sentences needed to cross the threshold', () => {
+    const words: ElevenLabsWord[] = [
+      { text: '最初', startSecond: 0, endSecond: 0.2 },
+      { text: 'の', startSecond: 0.2, endSecond: 0.3 },
+      { text: '文', startSecond: 0.3, endSecond: 0.5 },
+      { text: 'です', startSecond: 0.5, endSecond: 0.7 },
+      { text: '。', startSecond: 0.7, endSecond: 0.7 },
+      { text: '二つ目', startSecond: 0.9, endSecond: 1.2 },
+      { text: 'の', startSecond: 1.2, endSecond: 1.3 },
+      { text: '文', startSecond: 1.3, endSecond: 1.5 },
+      { text: 'です', startSecond: 1.5, endSecond: 1.7 },
+      { text: '。', startSecond: 1.7, endSecond: 1.7 },
+      { text: '最後', startSecond: 1.9, endSecond: 2.1 },
+      { text: 'です', startSecond: 2.1, endSecond: 2.3 },
+      { text: '。', startSecond: 2.3, endSecond: 2.3 },
+    ];
+
+    const chunks = segmentTranscriptDeterministically(words, 10);
+
+    expect(chunks).toEqual([
+      {
+        text: '最初の文です。二つ目の文です。最後です。',
+        first_word_index: 0,
+        last_word_index: 12,
+        sentences: [
+          {
+            text: '最初の文です。',
+            first_word_index: 0,
+            last_word_index: 4,
+            start_ms: 0,
+            end_ms: 700,
+          },
+          {
+            text: '二つ目の文です。',
+            first_word_index: 5,
+            last_word_index: 9,
+            start_ms: 900,
+            end_ms: 1700,
+          },
+          {
+            text: '最後です。',
+            first_word_index: 10,
+            last_word_index: 12,
+            start_ms: 1900,
+            end_ms: 2300,
+          },
+        ],
       },
     ]);
   });
