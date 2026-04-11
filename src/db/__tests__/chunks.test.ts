@@ -275,3 +275,39 @@ describe('getChunkById()', () => {
     await expect(getChunkById(8)).resolves.toEqual(fakeChunk);
   });
 });
+
+describe('getChunkByEpisodeIdAndIndex()', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockWhere.mockResolvedValue([]);
+  });
+
+  it('returns null when the chunk does not exist for the episode', async () => {
+    const { getChunkByEpisodeIdAndIndex } = await import('../chunks');
+
+    await expect(getChunkByEpisodeIdAndIndex(3, 9)).resolves.toBeNull();
+  });
+
+  it('returns the matching chunk when the episode and chunk index exist', async () => {
+    const fakeChunk = {
+      id: 12,
+      episodeId: 3,
+      chunkIndex: 1,
+      textRaw: '勉強します。',
+      textFurigana: '勉強します。',
+      furiganaStatus: 'ok',
+      furiganaWarning: null,
+      startMs: 1000,
+      endMs: 2400,
+      sentences: [],
+      createdAt: new Date(),
+    };
+    mockWhere.mockResolvedValueOnce([fakeChunk]);
+
+    const { getChunkByEpisodeIdAndIndex } = await import('../chunks');
+
+    await expect(getChunkByEpisodeIdAndIndex(3, 1)).resolves.toEqual(fakeChunk);
+  });
+});
