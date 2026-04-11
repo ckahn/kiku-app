@@ -179,8 +179,21 @@ function repairMixedKanaKanjiSpan(span: FuriganaSpan): readonly FuriganaSpan[] {
   return repaired;
 }
 
+function normalizeKanaOnlySpan(span: FuriganaSpan): FuriganaSpan {
+  if (span.reading !== null && isKanaOrPunctuationOnly(span.surface)) {
+    return {
+      surface: span.surface,
+      reading: null,
+    };
+  }
+
+  return span;
+}
+
 function repairFuriganaSpans(spans: readonly FuriganaSpan[]): readonly FuriganaSpan[] {
-  return spans.flatMap((span) => repairMixedKanaKanjiSpan(span));
+  return spans
+    .flatMap((span) => repairMixedKanaKanjiSpan(span))
+    .map((span) => normalizeKanaOnlySpan(span));
 }
 
 function validateFuriganaSpans(

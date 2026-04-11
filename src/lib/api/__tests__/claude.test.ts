@@ -303,8 +303,27 @@ describe('addFurigana() — real API', () => {
     const result = await addFurigana([{ text: 'テスト', first_word_index: 0, last_word_index: 0 }]);
 
     expect(result[0].text_furigana).toBe('テスト');
-    expect(result[0].furigana_status).toBe('suspect');
-    expect(result[0].furigana_warning).toMatch(/kana-only span "テスト" should have reading=null/i);
+    expect(result[0].furigana_status).toBe('ok');
+    expect(result[0].furigana_warning).toBeNull();
+  });
+
+  it('drops unnecessary readings from kana-only suffix spans after repair', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: 'いた', reading: 'いた' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: 'いた', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).toBe('いた');
+    expect(result[0].furigana_status).toBe('ok');
+    expect(result[0].furigana_warning).toBeNull();
   });
 
   it('repairs unsplit okurigana spans before validation', async () => {
