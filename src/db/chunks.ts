@@ -72,3 +72,15 @@ export async function getChunksByEpisodeId(episodeId: number): Promise<Chunk[]> 
     .where(eq(chunks.episodeId, episodeId))
     .orderBy(asc(chunks.chunkIndex));
 }
+
+/**
+ * Fetch a single chunk by id.
+ */
+export async function getChunkById(chunkId: number): Promise<Chunk | null> {
+  const [chunk] = await db
+    .select()
+    .from(chunks)
+    .where(eq(chunks.id, chunkId));
+
+  return chunk ?? null;
+}
