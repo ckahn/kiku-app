@@ -1,8 +1,11 @@
 'use client';
 
+import Link from 'next/link';
+import { BookOpen } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { PlayerControls } from './usePlayer';
 import { stripFurigana } from './chunkUtils';
+import { saveTranscriptRestoreState } from './studyNavigation';
 
 interface ChunkItemProps {
   readonly chunk: Chunk;
@@ -27,23 +30,43 @@ export default function ChunkItem({
     controls.seekToChunk(chunk.id);
   }
 
+  const studyHref =
+    podcastSlug && episodeNumber !== undefined
+      ? `/podcasts/${podcastSlug}/episodes/${episodeNumber}/chunks/${chunk.chunkIndex}/study`
+      : null;
+
   return (
     <li
       data-chunk-id={chunk.id}
       data-active={isActive || undefined}
       onClick={handleClick}
-      className={`rounded-lg border transition-all p-4 cursor-pointer ${
+      className={`relative rounded-lg border transition-all p-4 cursor-pointer ${
         isActive
           ? 'border-primary/40 bg-primary/5 hover:bg-primary/10'
           : 'border-border bg-surface hover:border-primary/30 hover:bg-canvas-subtle'
       }`}
     >
       <p
-        className="text-sm text-ink font-jp leading-loose"
+        className="text-sm text-ink font-jp leading-loose pr-7"
         // textFurigana is Claude-generated HTML containing only <ruby>/<rt> tags.
         // It is not user-supplied input.
         dangerouslySetInnerHTML={{ __html: displayHtml }}
       />
+      {studyHref && (
+        <Link
+          href={studyHref}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (episodeHref) {
+              saveTranscriptRestoreState({ episodeHref, chunkId: chunk.id });
+            }
+          }}
+          className="absolute top-3 right-3 text-muted hover:text-primary transition-colors"
+          aria-label="Study this chunk"
+        >
+          <BookOpen size={16} />
+        </Link>
+      )}
     </li>
   );
 }
