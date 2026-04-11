@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { studyGuideContentSchema } from './study-guide';
 import type { StudyGuideContent } from './types';
 
+// TODO: Standardize the rest of our external capability integrations around this
+// provider pattern too (for example transcript, chunking, and furigana) so route
+// handlers depend on app-shaped providers instead of vendor-specific modules.
 export interface StudyGuideProviderRequest {
   readonly chunkText: string;
 }
