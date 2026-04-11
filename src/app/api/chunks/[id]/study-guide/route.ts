@@ -39,7 +39,13 @@ export async function GET(
       return apiOk(parseStudyGuideContent(cachedStudyGuide.content));
     }
 
-    const transcript = await getRawTranscript(chunk.episodeId);
+    let transcript;
+    try {
+      transcript = await getRawTranscript(chunk.episodeId);
+    } catch {
+      return apiErr('transcript not available for this episode', 404);
+    }
+
     const generatedStudyGuide = await generateStudyGuideFromProvider(
       chunk.textRaw,
       transcript.text
