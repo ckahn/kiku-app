@@ -3,6 +3,7 @@
 // TODO: Revisit furigana model quality once the audio pipeline is faster overall.
 export const CLAUDE_CHUNK_MODEL = 'claude-sonnet-4-20250514';
 export const CLAUDE_FURIGANA_MODEL = 'claude-haiku-4-5-20251001';
+export const CLAUDE_STUDY_GUIDE_MODEL = 'claude-sonnet-4-20250514';
 export const TRANSCRIPT_SEGMENTATION_STRATEGY = 'deterministic';
 export const MINIMUM_CHUNK_CHARACTERS = 30;
 

@@ -47,7 +47,13 @@ Set `USE_MOCKS=true` in `.env.local` to avoid API costs. API wrappers return can
 | `elevenlabs-transcript.json` | Real ElevenLabs response |
 | `chunks.json` | Claude chunking output |
 | `furigana.json` | Furigana annotations |
-| `drilldown.json` | Drill-down content |
+| `study-guide.json` | Study guide content |
+
+Study-guide generation now routes through the provider adapter in
+`src/lib/api/study-guide-provider.ts`. In mock mode, that adapter uses a fake
+provider implementation. Otherwise it uses the Claude-backed provider path with
+`ANTHROPIC_API_KEY`, while keeping the same cache-miss contract at the route
+layer.
 
 ---
 

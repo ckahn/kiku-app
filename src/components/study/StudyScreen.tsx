@@ -308,6 +308,7 @@ export default function StudyScreen({
           )}
         </section>
       )}
+
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { getChunkById } from '@/db/chunks';
+import { getRawTranscript } from '@/db/episodes';
 import { getStudyGuideByChunkId, saveStudyGuideForChunkId } from '@/db/study-guides';
-import { generateStudyGuide } from '@/lib/api/claude';
 import { parseStudyGuideContent } from '@/lib/api/study-guide';
+import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
 import { apiErr, apiOk } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 
@@ -38,8 +39,15 @@ export async function GET(
       return apiOk(parseStudyGuideContent(cachedStudyGuide.content));
     }
 
+    let transcript;
+    try {
+      transcript = await getRawTranscript(chunk.episodeId);
+    } catch {
+      return apiErr('transcript not available for this episode', 404);
+    }
+
     const generatedStudyGuide = parseStudyGuideContent(
-      await generateStudyGuide(chunk.textRaw)
+      await generateStudyGuideFromProvider(chunk.textRaw, transcript.text)
     );
 
     await saveStudyGuideForChunkId(chunkId, generatedStudyGuide);
