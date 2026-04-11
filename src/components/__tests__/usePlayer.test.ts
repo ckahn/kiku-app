@@ -56,8 +56,6 @@ function createAudioMock() {
   return audio;
 }
 
-type AudioMock = ReturnType<typeof createAudioMock>;
-
 function setup() {
   const audioMock = createAudioMock();
   const { result } = renderHook(() => usePlayer(CHUNKS, DURATION_MS));
