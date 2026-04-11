@@ -78,6 +78,8 @@ export default async function EpisodePage({
             chunks={chunks}
             audioUrl={`/api/episodes/${episode.id}/audio`}
             durationMs={episode.durationMs ?? 0}
+            podcastSlug={slug}
+            episodeNumber={episode.episodeNumber}
           />
         ) : episode.status === 'error' ? (
           <div
