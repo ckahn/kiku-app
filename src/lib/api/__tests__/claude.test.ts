@@ -299,69 +299,49 @@ describe('addFurigana() — real API', () => {
   it('marks a chunk suspect when no annotation is returned', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: { annotated_chunks: [] },
-      } as Awaited<ReturnType<typeof generateObject>>)
-      .mockResolvedValueOnce({
-        object: { annotated_chunks: [] },
-      } as Awaited<ReturnType<typeof generateObject>>);
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: { annotated_chunks: [] },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana(DUMMY_CHUNKS);
 
-    expect(generateObject).toHaveBeenCalledTimes(2);
+    expect(generateObject).toHaveBeenCalledTimes(1);
     expect(result[0].text_furigana).toBe('日本語');
     expect(result[0].furigana_status).toBe('suspect');
-    expect(result[0].furigana_warning).toMatch(/retry did not return any furigana spans/i);
+    expect(result[0].furigana_warning).toMatch(/no furigana annotation was returned/i);
   });
 
-  it('retries once when the first pass fails validation and marks ok when retry passes', async () => {
+  it('keeps suspicious first-pass output instead of retrying', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            // First pass: kanji span missing its reading
-            { index: 0, spans: [{ surface: '日本', reading: null }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: '日本', reading: 'にほん' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>);
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '日本', reading: null }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: '日本', first_word_index: 0, last_word_index: 0 }]);
 
-    expect(generateObject).toHaveBeenCalledTimes(2);
-    expect(result[0].text_furigana).toBe('<ruby>日本<rt>にほん</rt></ruby>');
-    expect(result[0].furigana_status).toBe('ok');
+    expect(generateObject).toHaveBeenCalledTimes(1);
+    expect(result[0].text_furigana).toBe('日本');
+    expect(result[0].furigana_status).toBe('suspect');
+    expect(result[0].furigana_warning).toMatch(/missing a reading/i);
   });
 
   it('marks kana-only spans with readings as suspicious', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: 'テスト', reading: 'てすと' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: 'テスト', reading: 'てすと' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>);
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: 'テスト', reading: 'てすと' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: 'テスト', first_word_index: 0, last_word_index: 0 }]);
@@ -374,21 +354,13 @@ describe('addFurigana() — real API', () => {
   it('marks unsplit okurigana spans as suspicious', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: '聞いて', reading: 'きいて' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: '聞いて', reading: 'きいて' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>);
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '聞いて', reading: 'きいて' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: '聞いて', first_word_index: 0, last_word_index: 0 }]);
@@ -444,6 +416,25 @@ describe('addFurigana() — real API', () => {
     expect(result[0].furigana_status).toBe('ok');
   });
 
+  it('accepts kanji iteration marks like 時々 as part of a valid ruby base', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '時々', reading: 'ときどき' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: '時々', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).toBe('<ruby>時々<rt>ときどき</rt></ruby>');
+    expect(result[0].furigana_status).toBe('ok');
+    expect(result[0].furigana_warning).toBeNull();
+  });
+
   it('accepts full-width digit+kanji date compounds', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
@@ -473,21 +464,13 @@ describe('addFurigana() — real API', () => {
   it('rejects a collapsed month+day span like 4月1日 as a single surface', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: '4月1日', reading: 'しがつついたち' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: '4月1日', reading: 'しがつついたち' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>);
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '4月1日', reading: 'しがつついたち' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: '4月1日', first_word_index: 0, last_word_index: 0 }]);
@@ -499,21 +482,13 @@ describe('addFurigana() — real API', () => {
   it('rejects digit+kanji compounds with 3+ digit prefixes', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: '355432円', reading: 'さんびゃくごじゅうごまんよんせんさんびゃくさんじゅうにえん' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: '355432円', reading: 'さんびゃくごじゅうごまんよんせんさんびゃくさんじゅうにえん' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>);
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '355432円', reading: 'さんびゃくごじゅうごまんよんせんさんびゃくさんじゅうにえん' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: '355432円', first_word_index: 0, last_word_index: 0 }]);
@@ -525,21 +500,13 @@ describe('addFurigana() — real API', () => {
   it('marks Latin+kanji mixed surfaces as suspicious', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: 'abc漢字', reading: 'えーびーしーかんじ' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: 'abc漢字', reading: 'えーびーしーかんじ' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>);
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: 'abc漢字', reading: 'えーびーしーかんじ' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: 'abc漢字', first_word_index: 0, last_word_index: 0 }]);
@@ -566,23 +533,18 @@ describe('addFurigana() — real API', () => {
     expect(result[0].text_furigana).toContain('<ruby>漢字');
   });
 
-  it('keeps suspicious output with a warning when retry still fails validation', async () => {
+  it('keeps suspicious output with a warning when validation fails', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
-    // Both passes return a span whose surfaces don't reconstruct the original text
     const badSpans = [{ surface: '日本語', reading: 'にほんご' }];
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: { annotated_chunks: [{ index: 0, spans: badSpans }] },
-      } as Awaited<ReturnType<typeof generateObject>>)
-      .mockResolvedValueOnce({
-        object: { annotated_chunks: [{ index: 0, spans: badSpans }] },
-      } as Awaited<ReturnType<typeof generateObject>>);
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: { annotated_chunks: [{ index: 0, spans: badSpans }] },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: '日本', first_word_index: 0, last_word_index: 0 }]);
 
-    expect(generateObject).toHaveBeenCalledTimes(2);
+    expect(generateObject).toHaveBeenCalledTimes(1);
     expect(result[0].furigana_status).toBe('suspect');
     expect(result[0].furigana_warning).toMatch(/may contain mistakes/i);
   });
@@ -590,21 +552,13 @@ describe('addFurigana() — real API', () => {
   it('marks malformed spans suspect when they do not reconstruct the original text', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
-    vi.mocked(generateObject)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: '日本', reading: 'にほん' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>)
-      .mockResolvedValueOnce({
-        object: {
-          annotated_chunks: [
-            { index: 0, spans: [{ surface: '日本', reading: 'にほん' }] },
-          ],
-        },
-      } as Awaited<ReturnType<typeof generateObject>>);
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '日本', reading: 'にほん' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
     const result = await addFurigana([{ text: '日本語', first_word_index: 0, last_word_index: 0 }]);

@@ -4,8 +4,18 @@ import { episodes } from '@/db/schema';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { chunkTranscript, addFurigana } from '@/lib/api/claude';
+import {
+  MINIMUM_CHUNK_CHARACTERS,
+  TRANSCRIPT_SEGMENTATION_STRATEGY,
+} from '@/lib/constants';
+import { segmentTranscriptDeterministically } from '@/lib/transcript-segmentation';
 import { getRawTranscript, setEpisodeReady, setEpisodeError } from '@/db/episodes';
 import { insertChunks } from '@/db/chunks';
+import type {
+  ChunkWithFurigana,
+  DeterministicTranscriptChunk,
+  TranscriptChunk,
+} from '@/lib/api/types';
 
 export const maxDuration = 60;
 
@@ -19,6 +29,36 @@ async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
     console.error(`[chunk] ${label} failed after ${Date.now() - start}ms`);
     throw err;
   }
+}
+
+async function segmentTranscript(
+  text: string,
+  segments: Parameters<typeof chunkTranscript>[1]
+) {
+  // TODO: remove the Claude chunking branch entirely or move it to a better async job flow
+  // before we consider enabling it again.
+  if (TRANSCRIPT_SEGMENTATION_STRATEGY === 'deterministic') {
+    return segmentTranscriptDeterministically(segments, MINIMUM_CHUNK_CHARACTERS);
+  }
+
+  return chunkTranscript(text, segments);
+}
+
+function attachSentenceMetadata(
+  transcriptChunks: readonly TranscriptChunk[] | readonly DeterministicTranscriptChunk[],
+  chunksWithFurigana: readonly ChunkWithFurigana[]
+): readonly (ChunkWithFurigana & { readonly sentences?: DeterministicTranscriptChunk['sentences'] })[] {
+  return chunksWithFurigana.map((chunk, index) => {
+    const transcriptChunk = transcriptChunks[index];
+    if (transcriptChunk === undefined || !('sentences' in transcriptChunk)) {
+      return chunk;
+    }
+
+    return {
+      ...chunk,
+      sentences: transcriptChunk.sentences,
+    };
+  });
 }
 
 export async function POST(
@@ -37,13 +77,17 @@ export async function POST(
 
   try {
     const rawTranscript = await getRawTranscript(episodeId);
-    const transcriptChunks = await timed('claude chunk', () =>
-      chunkTranscript(rawTranscript.text, rawTranscript.segments)
+    const transcriptChunks = await timed(`${TRANSCRIPT_SEGMENTATION_STRATEGY} segmentation`, () =>
+      segmentTranscript(rawTranscript.text, rawTranscript.segments)
     );
     const chunksWithFurigana = await timed('claude furigana', () =>
       addFurigana(transcriptChunks)
     );
-    await insertChunks(episodeId, chunksWithFurigana, rawTranscript.segments);
+    await insertChunks(
+      episodeId,
+      attachSentenceMetadata(transcriptChunks, chunksWithFurigana),
+      rawTranscript.segments
+    );
     await setEpisodeReady(episodeId);
     return apiOk({ status: 'ready' });
   } catch (error: unknown) {

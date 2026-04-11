@@ -26,13 +26,31 @@ vi.mock('@/lib/api/claude', () => ({
   addFurigana: mockAddFurigana,
 }));
 
+const mockSegmentTranscriptDeterministically = vi.fn();
+vi.mock('@/lib/transcript-segmentation', () => ({
+  segmentTranscriptDeterministically: mockSegmentTranscriptDeterministically,
+}));
+
 const DUMMY_TRANSCRIPT = {
   language_code: 'ja',
   language_probability: 0.99,
   text: 'テスト',
   segments: [{ text: 'テスト', startSecond: 0, endSecond: 0.5 }],
 };
-const DUMMY_CHUNKS = [{ text: 'テスト', first_word_index: 0, last_word_index: 0 }];
+const DUMMY_CHUNKS = [{
+  text: 'テスト',
+  first_word_index: 0,
+  last_word_index: 0,
+  sentences: [
+    {
+      text: 'テスト',
+      first_word_index: 0,
+      last_word_index: 0,
+      start_ms: 0,
+      end_ms: 500,
+    },
+  ],
+}];
 const DUMMY_FURIGANA = [{
   text: 'テスト',
   text_furigana: '<ruby>テスト<rt>てすと</rt></ruby>',
@@ -51,6 +69,7 @@ describe('POST /api/episodes/[id]/chunk', () => {
     mockInsertChunks.mockReset();
     mockChunkTranscript.mockReset();
     mockAddFurigana.mockReset();
+    mockSegmentTranscriptDeterministically.mockReset();
   });
 
   async function callRoute(id = '5') {
@@ -87,7 +106,7 @@ describe('POST /api/episodes/[id]/chunk', () => {
   it('runs full pipeline and returns 200 with ready status on success', async () => {
     mockWhere.mockResolvedValueOnce([{ status: 'chunking' }]);
     mockGetRawTranscript.mockResolvedValueOnce(DUMMY_TRANSCRIPT);
-    mockChunkTranscript.mockResolvedValueOnce(DUMMY_CHUNKS);
+    mockSegmentTranscriptDeterministically.mockReturnValueOnce(DUMMY_CHUNKS);
     mockAddFurigana.mockResolvedValueOnce(DUMMY_FURIGANA);
     mockInsertChunks.mockResolvedValueOnce(undefined);
     mockSetEpisodeReady.mockResolvedValueOnce(undefined);
@@ -99,24 +118,28 @@ describe('POST /api/episodes/[id]/chunk', () => {
     expect(json.data).toEqual({ status: 'ready' });
   });
 
-  it('passes raw transcript text and segments to chunkTranscript', async () => {
+  it('passes transcript segments to deterministic segmentation', async () => {
     mockWhere.mockResolvedValueOnce([{ status: 'chunking' }]);
     mockGetRawTranscript.mockResolvedValueOnce(DUMMY_TRANSCRIPT);
-    mockChunkTranscript.mockResolvedValueOnce(DUMMY_CHUNKS);
+    mockSegmentTranscriptDeterministically.mockReturnValueOnce(DUMMY_CHUNKS);
     mockAddFurigana.mockResolvedValueOnce(DUMMY_FURIGANA);
     mockInsertChunks.mockResolvedValueOnce(undefined);
     mockSetEpisodeReady.mockResolvedValueOnce(undefined);
 
     await callRoute('7');
 
-    expect(mockChunkTranscript).toHaveBeenCalledWith(DUMMY_TRANSCRIPT.text, DUMMY_TRANSCRIPT.segments);
+    expect(mockSegmentTranscriptDeterministically).toHaveBeenCalledWith(
+      DUMMY_TRANSCRIPT.segments,
+      30
+    );
+    expect(mockChunkTranscript).not.toHaveBeenCalled();
     expect(mockGetRawTranscript).toHaveBeenCalledWith(7);
   });
 
   it('passes chunk output to addFurigana', async () => {
     mockWhere.mockResolvedValueOnce([{ status: 'chunking' }]);
     mockGetRawTranscript.mockResolvedValueOnce(DUMMY_TRANSCRIPT);
-    mockChunkTranscript.mockResolvedValueOnce(DUMMY_CHUNKS);
+    mockSegmentTranscriptDeterministically.mockReturnValueOnce(DUMMY_CHUNKS);
     mockAddFurigana.mockResolvedValueOnce(DUMMY_FURIGANA);
     mockInsertChunks.mockResolvedValueOnce(undefined);
     mockSetEpisodeReady.mockResolvedValueOnce(undefined);
@@ -126,25 +149,47 @@ describe('POST /api/episodes/[id]/chunk', () => {
     expect(mockAddFurigana).toHaveBeenCalledWith(DUMMY_CHUNKS);
   });
 
-  it('calls setEpisodeError and returns 500 when chunkTranscript throws', async () => {
+  it('preserves sentence metadata when inserting chunk rows', async () => {
     mockWhere.mockResolvedValueOnce([{ status: 'chunking' }]);
     mockGetRawTranscript.mockResolvedValueOnce(DUMMY_TRANSCRIPT);
-    mockChunkTranscript.mockRejectedValueOnce(new Error('Claude API error'));
+    mockSegmentTranscriptDeterministically.mockReturnValueOnce(DUMMY_CHUNKS);
+    mockAddFurigana.mockResolvedValueOnce(DUMMY_FURIGANA);
+    mockInsertChunks.mockResolvedValueOnce(undefined);
+    mockSetEpisodeReady.mockResolvedValueOnce(undefined);
+
+    await callRoute();
+
+    expect(mockInsertChunks).toHaveBeenCalledWith(
+      5,
+      [{
+        ...DUMMY_FURIGANA[0],
+        sentences: DUMMY_CHUNKS[0].sentences,
+      }],
+      DUMMY_TRANSCRIPT.segments
+    );
+  });
+
+  it('calls setEpisodeError and returns 500 when deterministic segmentation throws', async () => {
+    mockWhere.mockResolvedValueOnce([{ status: 'chunking' }]);
+    mockGetRawTranscript.mockResolvedValueOnce(DUMMY_TRANSCRIPT);
+    mockSegmentTranscriptDeterministically.mockImplementationOnce(() => {
+      throw new Error('Segmentation failed');
+    });
     mockSetEpisodeError.mockResolvedValueOnce(undefined);
 
     const res = await callRoute('5');
     const json = await res.json();
 
     expect(res.status).toBe(500);
-    expect(json.error).toMatch(/Claude API error/);
-    expect(mockSetEpisodeError).toHaveBeenCalledWith(5, 'Claude API error');
+    expect(json.error).toMatch(/Segmentation failed/);
+    expect(mockSetEpisodeError).toHaveBeenCalledWith(5, 'Segmentation failed');
     expect(mockSetEpisodeReady).not.toHaveBeenCalled();
   });
 
   it('calls setEpisodeError and returns 500 when addFurigana throws', async () => {
     mockWhere.mockResolvedValueOnce([{ status: 'chunking' }]);
     mockGetRawTranscript.mockResolvedValueOnce(DUMMY_TRANSCRIPT);
-    mockChunkTranscript.mockResolvedValueOnce(DUMMY_CHUNKS);
+    mockSegmentTranscriptDeterministically.mockReturnValueOnce(DUMMY_CHUNKS);
     mockAddFurigana.mockRejectedValueOnce(new Error('furigana failed'));
     mockSetEpisodeError.mockResolvedValueOnce(undefined);
 
@@ -157,7 +202,7 @@ describe('POST /api/episodes/[id]/chunk', () => {
   it('calls setEpisodeError and returns 500 when insertChunks throws', async () => {
     mockWhere.mockResolvedValueOnce([{ status: 'chunking' }]);
     mockGetRawTranscript.mockResolvedValueOnce(DUMMY_TRANSCRIPT);
-    mockChunkTranscript.mockResolvedValueOnce(DUMMY_CHUNKS);
+    mockSegmentTranscriptDeterministically.mockReturnValueOnce(DUMMY_CHUNKS);
     mockAddFurigana.mockResolvedValueOnce(DUMMY_FURIGANA);
     mockInsertChunks.mockRejectedValueOnce(new Error('db write failed'));
     mockSetEpisodeError.mockResolvedValueOnce(undefined);
@@ -168,11 +213,11 @@ describe('POST /api/episodes/[id]/chunk', () => {
     expect(mockSetEpisodeError).toHaveBeenCalledWith(5, 'db write failed');
   });
 
-  it('logs timing for each Claude step', async () => {
+  it('logs timing for segmentation and furigana steps', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockWhere.mockResolvedValueOnce([{ status: 'chunking' }]);
     mockGetRawTranscript.mockResolvedValueOnce(DUMMY_TRANSCRIPT);
-    mockChunkTranscript.mockResolvedValueOnce(DUMMY_CHUNKS);
+    mockSegmentTranscriptDeterministically.mockReturnValueOnce(DUMMY_CHUNKS);
     mockAddFurigana.mockResolvedValueOnce(DUMMY_FURIGANA);
     mockInsertChunks.mockResolvedValueOnce(undefined);
     mockSetEpisodeReady.mockResolvedValueOnce(undefined);
@@ -180,7 +225,7 @@ describe('POST /api/episodes/[id]/chunk', () => {
     await callRoute();
 
     const logMessages = logSpy.mock.calls.map(([msg]) => msg as string);
-    expect(logMessages.some((m) => m.includes('claude chunk') && m.includes('ms'))).toBe(true);
+    expect(logMessages.some((m) => m.includes('deterministic segmentation') && m.includes('ms'))).toBe(true);
     expect(logMessages.some((m) => m.includes('claude furigana') && m.includes('ms'))).toBe(true);
 
     logSpy.mockRestore();
