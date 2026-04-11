@@ -1,4 +1,4 @@
-import { eq, asc } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '.';
 import { chunks } from './schema';
 import type { Chunk } from './schema';
@@ -81,6 +81,24 @@ export async function getChunkById(chunkId: number): Promise<Chunk | null> {
     .select()
     .from(chunks)
     .where(eq(chunks.id, chunkId));
+
+  return chunk ?? null;
+}
+
+/**
+ * Fetch a single chunk by episode id and chunk index.
+ */
+export async function getChunkByEpisodeIdAndIndex(
+  episodeId: number,
+  chunkIndex: number
+): Promise<Chunk | null> {
+  const [chunk] = await db
+    .select()
+    .from(chunks)
+    .where(and(
+      eq(chunks.episodeId, episodeId),
+      eq(chunks.chunkIndex, chunkIndex)
+    ));
 
   return chunk ?? null;
 }
