@@ -24,7 +24,7 @@ export default function ChunkItem({
   const displayHtml = stripFurigana(chunk.textFurigana);
 
   function handleClick() {
-    controls.focusChunk(chunk.id);
+    controls.seekToChunk(chunk.id);
   }
 
   return (

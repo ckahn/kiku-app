@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { usePlayer, CHUNK_PLAYBACK_OFFSET_SEC } from '../player/usePlayer';
+import { usePlayer } from '../player/usePlayer';
 import type { Chunk } from '@/db/schema';
 
 function makeChunk(id: number, startMs: number, endMs: number): Chunk {
@@ -27,8 +27,6 @@ const CHUNKS = [
 ];
 
 const DURATION_MS = 20000;
-const chunk2StartSec = CHUNKS[1].startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC;
-const chunk2EndSec = CHUNKS[1].endMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC;
 
 // Build a minimal HTMLMediaElement mock
 function createAudioMock() {
@@ -74,11 +72,11 @@ describe('usePlayer', () => {
   });
 
   describe('initial state', () => {
-    it('starts in global mode, paused, not looping', () => {
+    it('starts paused, not looping, at time 0', () => {
       const { result } = renderHook(() => usePlayer(CHUNKS, DURATION_MS));
-      expect(result.current.state.mode).toBe('global');
       expect(result.current.state.isPlaying).toBe(false);
       expect(result.current.state.isLooping).toBe(false);
+      expect(result.current.state.currentTime).toBe(0);
     });
   });
 
@@ -167,74 +165,39 @@ describe('usePlayer', () => {
   });
 
   describe('rewind / forward', () => {
-    it('rewind subtracts 5 seconds in global mode, clamped to 0', () => {
+    it('rewind subtracts 5 seconds, clamped to 0', () => {
       const { result, audioMock } = setup();
       audioMock.currentTime = 3;
       act(() => { result.current.controls.rewind(); });
-      // Clamped to 0 since 3 - 5 = -2
       expect(audioMock.currentTime).toBe(0);
     });
 
-    it('forward adds 5 seconds in global mode, clamped to duration', () => {
+    it('forward adds 5 seconds, clamped to duration', () => {
       const { result, audioMock } = setup();
       audioMock.currentTime = 18;
       act(() => { result.current.controls.forward(); });
-      // Clamped to 20s (DURATION_MS / 1000)
       expect(audioMock.currentTime).toBe(20);
     });
-
-    it('rewind in chunk mode is clamped to chunk start', () => {
-      const { result, audioMock } = setup();
-      act(() => { result.current.controls.focusChunk(2); });
-      audioMock.currentTime = 5.5;
-      act(() => { result.current.controls.rewind(); });
-      expect(audioMock.currentTime).toBe(chunk2StartSec);
-    });
-
-    it('forward in chunk mode is clamped to chunk end', () => {
-      const { result, audioMock } = setup();
-      act(() => { result.current.controls.focusChunk(2); });
-      audioMock.currentTime = 10;
-      act(() => { result.current.controls.forward(); });
-      expect(audioMock.currentTime).toBe(chunk2EndSec);
-    });
   });
 
-  describe('focusChunk / unfocusChunk', () => {
-    it('focusChunk sets mode to chunk and records chunk id', () => {
-      const { result } = setup();
-      act(() => { result.current.controls.focusChunk(2); });
-      expect(result.current.state.mode).toBe('chunk');
-      expect(result.current.state.focusedChunkId).toBe(2);
-    });
-
-    it('focusChunk seeks audio to chunk start', () => {
+  describe('seekToChunk', () => {
+    it('seekToChunk seeks audio to chunk start', () => {
       const { result, audioMock } = setup();
-      act(() => { result.current.controls.focusChunk(2); });
-      expect(audioMock.currentTime).toBe(chunk2StartSec);
+      act(() => { result.current.controls.seekToChunk(2); });
+      expect(audioMock.currentTime).toBe(5); // 5000ms / 1000
     });
 
-    it('unfocusChunk returns to global mode', () => {
-      const { result } = setup();
-      act(() => { result.current.controls.focusChunk(2); });
-      act(() => { result.current.controls.unfocusChunk(); });
-      expect(result.current.state.mode).toBe('global');
-      expect(result.current.state.focusedChunkId).toBeNull();
-    });
-  });
-
-  describe('toggleFurigana', () => {
-    it('toggles furigana on for a chunk', () => {
-      const { result } = setup();
-      act(() => { result.current.controls.toggleFurigana(1); });
-      expect(result.current.state.showFurigana[1]).toBe(true);
+    it('seekToChunk to first chunk seeks to 0', () => {
+      const { result, audioMock } = setup();
+      act(() => { result.current.controls.seekToChunk(1); });
+      expect(audioMock.currentTime).toBe(0);
     });
 
-    it('toggles furigana off again', () => {
-      const { result } = setup();
-      act(() => { result.current.controls.toggleFurigana(1); });
-      act(() => { result.current.controls.toggleFurigana(1); });
-      expect(result.current.state.showFurigana[1]).toBe(false);
+    it('seekToChunk with unknown chunk id does nothing', () => {
+      const { result, audioMock } = setup();
+      audioMock.currentTime = 5;
+      act(() => { result.current.controls.seekToChunk(999); });
+      expect(audioMock.currentTime).toBe(5);
     });
   });
 
@@ -249,21 +212,13 @@ describe('usePlayer', () => {
   });
 
   describe('restart', () => {
-    it('seeks to 0 in global mode and stops', () => {
+    it('seeks to 0 and stops', () => {
       const { result, audioMock } = setup();
       audioMock.currentTime = 15;
       act(() => { result.current.controls.restart(); });
       expect(audioMock.currentTime).toBe(0);
       expect(audioMock.pause).toHaveBeenCalled();
       expect(result.current.state.isPlaying).toBe(false);
-    });
-
-    it('seeks to chunk start in chunk mode', () => {
-      const { result, audioMock } = setup();
-      act(() => { result.current.controls.focusChunk(2); });
-      audioMock.currentTime = 10;
-      act(() => { result.current.controls.restart(); });
-      expect(audioMock.currentTime).toBe(chunk2StartSec);
     });
   });
 });

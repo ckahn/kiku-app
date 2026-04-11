@@ -75,10 +75,9 @@ describe('EpisodePlayer (integration)', () => {
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     const items = screen.getAllByRole('listitem');
-    fireEvent.click(items[1]); // click chunk 2
+    fireEvent.click(items[1]); // click chunk 2 (startMs = 5000)
     const audio = document.querySelector('audio') as HTMLAudioElement;
-    // Audio should be seeked to chunk 2 start (5s)
-    expect(audio.currentTime).toBeGreaterThan(0);
+    expect(audio.currentTime).toBe(5); // 5000ms / 1000
   });
 
   it('play button calls audio.play', async () => {

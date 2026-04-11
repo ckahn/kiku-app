@@ -14,9 +14,7 @@ function makeControls(): PlayerControls {
     forward: vi.fn(),
     toggleLoop: vi.fn(),
     restart: vi.fn(),
-    focusChunk: vi.fn(),
-    unfocusChunk: vi.fn(),
-    toggleFurigana: vi.fn(),
+    seekToChunk: vi.fn(),
   };
 }
 
@@ -38,7 +36,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('Space', () => {
     it('calls controls.toggle', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'global' }));
+      renderHook(() => useKeyboardShortcuts({ controls }));
       pressKey('Space');
       expect(controls.toggle).toHaveBeenCalledOnce();
     });
@@ -46,7 +44,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('ArrowLeft', () => {
     it('calls controls.rewind', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'global' }));
+      renderHook(() => useKeyboardShortcuts({ controls }));
       pressKey('ArrowLeft');
       expect(controls.rewind).toHaveBeenCalledOnce();
     });
@@ -54,7 +52,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('ArrowRight', () => {
     it('calls controls.forward', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'global' }));
+      renderHook(() => useKeyboardShortcuts({ controls }));
       pressKey('ArrowRight');
       expect(controls.forward).toHaveBeenCalledOnce();
     });
@@ -62,29 +60,24 @@ describe('useKeyboardShortcuts', () => {
 
   describe('KeyL', () => {
     it('calls controls.toggleLoop', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'global' }));
+      renderHook(() => useKeyboardShortcuts({ controls }));
       pressKey('KeyL');
       expect(controls.toggleLoop).toHaveBeenCalledOnce();
     });
   });
 
   describe('Escape', () => {
-    it('calls controls.unfocusChunk when in chunk mode', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'chunk' }));
+    it('does nothing (chunk mode removed)', () => {
+      renderHook(() => useKeyboardShortcuts({ controls }));
       pressKey('Escape');
-      expect(controls.unfocusChunk).toHaveBeenCalledOnce();
-    });
-
-    it('does not call unfocusChunk in global mode', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'global' }));
-      pressKey('Escape');
-      expect(controls.unfocusChunk).not.toHaveBeenCalled();
+      expect(controls.toggle).not.toHaveBeenCalled();
+      expect(controls.rewind).not.toHaveBeenCalled();
     });
   });
 
   describe('input guard', () => {
     it('ignores Space when focus is inside an INPUT', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'global' }));
+      renderHook(() => useKeyboardShortcuts({ controls }));
       const input = document.createElement('input');
       document.body.appendChild(input);
       input.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }));
@@ -93,7 +86,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('ignores Space when focus is inside a TEXTAREA', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'global' }));
+      renderHook(() => useKeyboardShortcuts({ controls }));
       const textarea = document.createElement('textarea');
       document.body.appendChild(textarea);
       textarea.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }));
@@ -102,7 +95,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('ignores keys when target is contentEditable', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'global' }));
+      renderHook(() => useKeyboardShortcuts({ controls }));
       const div = document.createElement('div');
       div.contentEditable = 'true';
       document.body.appendChild(div);
@@ -115,7 +108,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('unhandled keys', () => {
     it('ignores unrelated keys', () => {
-      renderHook(() => useKeyboardShortcuts({ controls, mode: 'global' }));
+      renderHook(() => useKeyboardShortcuts({ controls }));
       pressKey('KeyA');
       pressKey('Enter');
       pressKey('Tab');
@@ -128,7 +121,7 @@ describe('useKeyboardShortcuts', () => {
     it('removes event listener on unmount', () => {
       const removeSpy = vi.spyOn(window, 'removeEventListener');
       const { unmount } = renderHook(() =>
-        useKeyboardShortcuts({ controls, mode: 'global' }),
+        useKeyboardShortcuts({ controls }),
       );
       unmount();
       expect(removeSpy).toHaveBeenCalledWith('keydown', expect.any(Function));

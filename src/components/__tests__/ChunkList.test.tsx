@@ -34,9 +34,7 @@ function makeControls(): PlayerControls {
     forward: vi.fn(),
     toggleLoop: vi.fn(),
     restart: vi.fn(),
-    focusChunk: vi.fn(),
-    unfocusChunk: vi.fn(),
-    toggleFurigana: vi.fn(),
+    seekToChunk: vi.fn(),
   };
 }
 
@@ -74,14 +72,14 @@ describe('ChunkList', () => {
     expect(screen.getByText('今日も')).toBeInTheDocument();
   });
 
-  it('clicking a chunk calls controls.focusChunk with the chunk id', () => {
+  it('clicking a chunk calls controls.seekToChunk with the chunk id', () => {
     const controls = makeControls();
     const chunks = [makeChunk({ id: 5, chunkIndex: 0 })];
     render(
       <ChunkList chunks={chunks} playerState={playerState()} controls={controls} />,
     );
     fireEvent.click(screen.getByRole('listitem'));
-    expect(controls.focusChunk).toHaveBeenCalledWith(5);
+    expect(controls.seekToChunk).toHaveBeenCalledWith(5);
   });
 
   it('active chunk during playback has data-active attribute', () => {

@@ -26,9 +26,9 @@ export default function EpisodePlayer({
   episodeHref,
 }: EpisodePlayerProps) {
   const player = usePlayer(chunks, durationMs);
-  useKeyboardShortcuts({ controls: player.controls, mode: player.state.mode });
+  useKeyboardShortcuts({ controls: player.controls });
 
-  const { focusChunk } = player.controls;
+  const { seekToChunk } = player.controls;
 
   useEffect(() => {
     if (!episodeHref || chunks.length === 0) {
@@ -45,13 +45,13 @@ export default function EpisodePlayer({
       return;
     }
 
-    focusChunk(matchingChunk.id);
+    seekToChunk(matchingChunk.id);
 
     requestAnimationFrame(() => {
       const chunkElement = document.querySelector<HTMLElement>(`[data-chunk-id="${matchingChunk.id}"]`);
       chunkElement?.scrollIntoView({ block: 'start', behavior: 'auto' });
     });
-  }, [chunks, episodeHref, focusChunk]);
+  }, [chunks, episodeHref, seekToChunk]);
 
   return (
     <>
