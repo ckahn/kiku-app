@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
@@ -13,7 +12,6 @@ interface StudyScreenProps {
   >;
   readonly audioUrl: string;
   readonly studyGuideUrl: string;
-  readonly backHref: string;
 }
 
 interface StudySectionProps {
@@ -64,7 +62,6 @@ export default function StudyScreen({
   chunk,
   audioUrl,
   studyGuideUrl,
-  backHref,
 }: StudyScreenProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -159,15 +156,6 @@ export default function StudyScreen({
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
       />
-
-      <div>
-        <Link
-          href={backHref}
-          className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
-        >
-          ← Back to transcript
-        </Link>
-      </div>
 
       <header className="space-y-1">
         <p className="text-sm text-muted">Chunk {chunk.chunkIndex + 1}</p>

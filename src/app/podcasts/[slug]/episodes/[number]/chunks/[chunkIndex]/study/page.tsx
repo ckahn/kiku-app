@@ -52,7 +52,6 @@ export default async function StudyPage({
         chunk={chunk}
         audioUrl={`/api/episodes/${episode.id}/audio`}
         studyGuideUrl={`/api/chunks/${chunk.id}/study-guide`}
-        backHref={`/podcasts/${slug}/episodes/${episode.episodeNumber}`}
       />
     </PageShell>
   );

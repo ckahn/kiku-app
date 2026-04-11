@@ -50,7 +50,6 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -73,7 +72,6 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -95,7 +93,6 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -115,7 +112,6 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -136,7 +132,6 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -161,7 +156,6 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
@@ -187,7 +181,6 @@ describe('StudyScreen', () => {
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/chunks/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
