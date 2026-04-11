@@ -35,6 +35,7 @@ const furiganaResultSchema = z.object({
 });
 
 const KANJI_RE = /[\u4e00-\u9fff]/;
+const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}ー]/u;
 const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
 const KANA_ONLY_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}ー]+$/u;
 // Ruby base must contain only kanji — no kana, Latin, digits, or other scripts.
@@ -114,6 +115,10 @@ export function findUnannotatedKanji(annotated: string): string[] {
 
 function hasKanji(value: string): boolean {
   return KANJI_RE.test(value);
+}
+
+function hasKana(value: string): boolean {
+  return KANA_RE.test(value);
 }
 
 function isKanaOrPunctuationOnly(value: string): boolean {
@@ -226,6 +231,10 @@ function validateFuriganaSpans(
     // Reject anything else that mixes kanji with kana, Latin, or other scripts.
     const isValidRubyBase = KANJI_ONLY_RE.test(span.surface) || DIGIT_KANJI_RE.test(span.surface);
     if (hasKanji(span.surface) && span.reading !== null && !isValidRubyBase) {
+      if (hasKana(span.surface)) {
+        return `mixed kana+kanji span "${span.surface}" needs manual review — we can auto-fix only simple kana prefixes/suffixes like ご飯 or 同じ`;
+      }
+
       return `kanji span "${span.surface}" must be kanji-only or a digit+kanji date/counter compound — split out any kana, Latin, or other characters`;
     }
 
