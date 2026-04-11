@@ -132,6 +132,18 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     return () => audio.removeEventListener('error', handleError);
   }, [audioMounted]);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    function handleEnded() {
+      dispatch({ type: 'UNFOCUS_CHUNK' });
+    }
+
+    audio.addEventListener('ended', handleEnded);
+    return () => audio.removeEventListener('ended', handleEnded);
+  }, [audioMounted]);
+
   const controls: PlayerControls = {
     play: useCallback(() => {
       const audio = audioRef.current;

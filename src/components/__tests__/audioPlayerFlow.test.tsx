@@ -86,6 +86,24 @@ describe('click chunk → clamped playback', () => {
     expect(items[1]).not.toHaveAttribute('data-focused');
   });
 
+  it('audio ended event resets to stopped global state with no focused chunk', () => {
+    render(
+      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+    );
+    const audio = document.querySelector('audio') as HTMLAudioElement;
+    const items = screen.getAllByRole('listitem');
+
+    act(() => { fireEvent.click(items[1]); }); // focus chunk 2
+    expect(items[1]).toHaveAttribute('data-focused');
+
+    act(() => {
+      fireEvent(audio, new Event('ended'));
+    });
+
+    expect(items[1]).not.toHaveAttribute('data-focused');
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+  });
+
   it('timeupdate past chunk end loops back when loop is on', () => {
     render(
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
