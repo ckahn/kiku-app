@@ -183,12 +183,21 @@ function repairMixedKanaKanjiSpan(span: FuriganaSpan): readonly FuriganaSpan[] {
     }
 
     const nextKanaToken = tokens.slice(i + 1).find((nextToken) => KANA_ONLY_RE.test(nextToken));
-    const nextBoundary = nextKanaToken === undefined
-      ? span.reading.length
-      : span.reading.indexOf(nextKanaToken, readingCursor);
 
-    if (nextBoundary < 0) {
-      return [span];
+    let nextBoundary: number;
+    if (nextKanaToken === undefined) {
+      nextBoundary = span.reading.length;
+    } else {
+      const firstIdx = span.reading.indexOf(nextKanaToken, readingCursor);
+      if (firstIdx < 0) {
+        return [span];
+      }
+      // Bail out when the kana token appears more than once in the unconsumed
+      // reading — indexOf would pick the wrong boundary.
+      if (span.reading.indexOf(nextKanaToken, firstIdx + 1) >= 0) {
+        return [span];
+      }
+      nextBoundary = firstIdx;
     }
 
     const kanjiReading = span.reading.slice(readingCursor, nextBoundary);
