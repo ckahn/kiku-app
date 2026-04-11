@@ -111,6 +111,17 @@ describe('GET /api/chunks/[id]/study-guide', () => {
     expect(mockGetRawTranscript).not.toHaveBeenCalled();
   });
 
+  it('returns 404 when the episode transcript is missing', async () => {
+    mockGetRawTranscript.mockRejectedValueOnce(new Error('No raw transcript found for episode 5'));
+
+    const response = await callRoute('12');
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.error).toMatch(/transcript not available/i);
+    expect(mockGenerateStudyGuideFromProvider).not.toHaveBeenCalled();
+  });
+
   it('returns 500 when the provider adapter rejects invalid provider content', async () => {
     mockGenerateStudyGuideFromProvider.mockRejectedValueOnce(
       new Error('Invalid study guide provider response: expected object')
