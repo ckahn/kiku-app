@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import type { PlayerControls } from './usePlayer';
 
 const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
@@ -18,16 +17,19 @@ const HANDLED_KEYS = new Set([
 ]);
 
 interface UseKeyboardShortcutsOptions {
-  readonly controls: PlayerControls;
+  readonly toggle: () => void;
+  readonly rewind: () => void;
+  readonly forward: () => void;
+  readonly toggleLoop: () => void;
 }
 
-export function useKeyboardShortcuts({ controls }: UseKeyboardShortcutsOptions): void {
+export function useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop }: UseKeyboardShortcutsOptions): void {
   useEffect(() => {
     const keyMap: Record<string, () => void> = {
-      Space: () => controls.toggle(),
-      ArrowLeft: () => controls.rewind(),
-      ArrowRight: () => controls.forward(),
-      KeyL: () => controls.toggleLoop(),
+      Space: toggle,
+      ArrowLeft: rewind,
+      ArrowRight: forward,
+      KeyL: toggleLoop,
     };
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -40,5 +42,5 @@ export function useKeyboardShortcuts({ controls }: UseKeyboardShortcutsOptions):
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [controls]);
+  }, [toggle, rewind, forward, toggleLoop]);
 }

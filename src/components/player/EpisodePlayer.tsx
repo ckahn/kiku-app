@@ -26,7 +26,8 @@ export default function EpisodePlayer({
   episodeHref,
 }: EpisodePlayerProps) {
   const player = usePlayer(chunks, durationMs);
-  useKeyboardShortcuts({ controls: player.controls });
+  const { toggle, rewind, forward, toggleLoop } = player.controls;
+  useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop });
 
   const { seekToChunk } = player.controls;
 
