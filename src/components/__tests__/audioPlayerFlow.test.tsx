@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Integration tests for the complete audio player flow:
- * click chunk → clamped playback → loop behaviour.
+ * click chunk → seek to start → playback behaviour.
  * Exercises usePlayer + ChunkList + AudioPlayer working together.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -53,13 +53,12 @@ beforeEach(() => {
 });
 
 describe('click chunk → clamped playback', () => {
-  it('focusing chunk 2 seeks audio to its start (5s)', () => {
+  it('clicking chunk 2 seeks audio to its start (5s)', () => {
     render(
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     const items = screen.getAllByRole('listitem');
-    fireEvent.click(items[1]); // focus chunk 2
-    expect(items[1]).toHaveAttribute('data-focused');
+    fireEvent.click(items[1]); // click chunk 2
     // Audio element currentTime should be set slightly before chunk 2 start.
     const audio = document.querySelector('audio') as HTMLAudioElement;
     expect(audio.currentTime).toBe(chunk2StartSec);
@@ -73,7 +72,6 @@ describe('click chunk → clamped playback', () => {
     const items = screen.getAllByRole('listitem');
 
     act(() => { fireEvent.click(items[1]); });
-    expect(items[1]).toHaveAttribute('data-focused');
 
     // Simulate timeupdate at near-end of chunk (within CLAMP_EPSILON = 0.05s)
     act(() => {
@@ -81,26 +79,20 @@ describe('click chunk → clamped playback', () => {
       fireEvent(audio, new Event('timeupdate'));
     });
 
-    // Should exit chunk mode without pausing — no chunk is focused anymore
+    // Should exit chunk mode without pausing
     expect(HTMLMediaElement.prototype.pause).not.toHaveBeenCalled();
-    expect(items[1]).not.toHaveAttribute('data-focused');
   });
 
-  it('audio ended event resets to stopped global state with no focused chunk', () => {
+  it('audio ended event stops playback', () => {
     render(
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     const audio = document.querySelector('audio') as HTMLAudioElement;
-    const items = screen.getAllByRole('listitem');
-
-    act(() => { fireEvent.click(items[1]); }); // focus chunk 2
-    expect(items[1]).toHaveAttribute('data-focused');
 
     act(() => {
       fireEvent(audio, new Event('ended'));
     });
 
-    expect(items[1]).not.toHaveAttribute('data-focused');
     expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
   });
 
@@ -113,8 +105,8 @@ describe('click chunk → clamped playback', () => {
 
     act(() => { fireEvent.click(items[1]); }); // focus chunk 2
 
-    // Enable loop — use first toggle (chunk controls; both control same state)
-    fireEvent.click(screen.getAllByRole('button', { name: 'Toggle loop' })[0]);
+    // Enable loop
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle loop' }));
 
     act(() => {
       audio.currentTime = chunk2EndSec + 0.07;
@@ -128,40 +120,10 @@ describe('click chunk → clamped playback', () => {
 });
 
 describe('EpisodePlayer click-through flow', () => {
-  it('clicking chunk 2 then exit returns to global mode', () => {
+  it('global player bar is always present', () => {
     render(
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
-    const items = screen.getAllByRole('listitem');
-
-    fireEvent.click(items[1]); // click chunk 2
-    expect(items[1]).toHaveAttribute('data-focused');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Exit chunk focus' }));
-    expect(items[1]).not.toHaveAttribute('data-focused');
-    // Global player bar is still present
     expect(screen.getByRole('slider', { name: 'Playback position' })).toBeInTheDocument();
-  });
-
-  it('furigana toggle per chunk does not affect other chunks', () => {
-    render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
-    );
-    const items = screen.getAllByRole('listitem');
-
-    // Focus chunk 1 and toggle its furigana on
-    fireEvent.click(items[0]);
-    const furiganaBtn = screen.getByRole('button', { name: /show furigana|hide furigana/i });
-    const initialLabel = furiganaBtn.getAttribute('aria-label');
-    fireEvent.click(furiganaBtn);
-    expect(furiganaBtn.getAttribute('aria-label')).not.toBe(initialLabel);
-
-    // Chunk 2 is not focused — its furigana state should be unaffected
-    // (we can't easily test its internal state without focusing it, but
-    // we verify focusing chunk 2 shows its own untouched furigana toggle)
-    fireEvent.click(screen.getByRole('button', { name: 'Exit chunk focus' }));
-    fireEvent.click(items[1]);
-    const chunk2Furigana = screen.getByRole('button', { name: /show furigana|hide furigana/i });
-    expect(chunk2Furigana).toHaveAttribute('aria-pressed', 'false');
   });
 });

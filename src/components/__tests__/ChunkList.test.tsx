@@ -64,32 +64,14 @@ describe('ChunkList', () => {
     expect(screen.queryAllByRole('listitem')).toHaveLength(0);
   });
 
-  it('renders furigana HTML via dangerouslySetInnerHTML', () => {
-    const furigana = '<ruby>今日<rt>きょう</rt></ruby>も';
-    const chunks = [makeChunk({ textFurigana: furigana, id: 1 })];
-    const { container } = render(
-      <ChunkList
-        chunks={chunks}
-        playerState={playerState({ showFurigana: { 1: true } })}
-        controls={makeControls()}
-      />,
-    );
-    expect(container.querySelector('ruby')).not.toBeNull();
-    expect(container.querySelector('rt')?.textContent).toBe('きょう');
-  });
-
-  it('renders plain text when furigana is toggled off', () => {
+  it('always renders plain text without furigana', () => {
     const furigana = '<ruby>今日<rt>きょう</rt></ruby>も';
     const chunks = [makeChunk({ textFurigana: furigana, id: 1 })];
     render(
-      <ChunkList
-        chunks={chunks}
-        playerState={playerState({ showFurigana: { 1: false } })}
-        controls={makeControls()}
-      />,
+      <ChunkList chunks={chunks} playerState={playerState()} controls={makeControls()} />,
     );
-    // rt text should not be present when furigana is off
     expect(screen.queryByText('きょう')).toBeNull();
+    expect(screen.getByText('今日も')).toBeInTheDocument();
   });
 
   it('clicking a chunk calls controls.focusChunk with the chunk id', () => {
@@ -102,24 +84,7 @@ describe('ChunkList', () => {
     expect(controls.focusChunk).toHaveBeenCalledWith(5);
   });
 
-  it('focused chunk has data-focused attribute', () => {
-    const chunks = [
-      makeChunk({ id: 1, chunkIndex: 0 }),
-      makeChunk({ id: 2, chunkIndex: 1 }),
-    ];
-    render(
-      <ChunkList
-        chunks={chunks}
-        playerState={playerState({ mode: 'chunk', focusedChunkId: 2 })}
-        controls={makeControls()}
-      />,
-    );
-    const items = screen.getAllByRole('listitem');
-    expect(items[0]).not.toHaveAttribute('data-focused');
-    expect(items[1]).toHaveAttribute('data-focused');
-  });
-
-  it('active chunk during global playback has data-active attribute', () => {
+  it('active chunk during playback has data-active attribute', () => {
     const chunks = [
       makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
       makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
@@ -128,57 +93,12 @@ describe('ChunkList', () => {
     render(
       <ChunkList
         chunks={chunks}
-        playerState={playerState({ mode: 'global', currentTime: 6 })}
+        playerState={playerState({ currentTime: 6 })}
         controls={makeControls()}
       />,
     );
     const items = screen.getAllByRole('listitem');
     expect(items[0]).not.toHaveAttribute('data-active');
     expect(items[1]).toHaveAttribute('data-active');
-  });
-
-  it('shows chunk controls when chunk is focused', () => {
-    const chunks = [makeChunk({ id: 1, chunkIndex: 0 })];
-    render(
-      <ChunkList
-        chunks={chunks}
-        playerState={playerState({ mode: 'chunk', focusedChunkId: 1 })}
-        controls={makeControls()}
-      />,
-    );
-    expect(screen.getByRole('button', { name: /play chunk|pause chunk/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Exit chunk focus' })).toBeInTheDocument();
-  });
-
-  it('shows a warning when focused furigana is marked suspect', () => {
-    const chunks = [
-      makeChunk({
-        id: 1,
-        furiganaStatus: 'suspect',
-        furiganaWarning: 'This furigana may contain mistakes.',
-      }),
-    ];
-    render(
-      <ChunkList
-        chunks={chunks}
-        playerState={playerState({ mode: 'chunk', focusedChunkId: 1 })}
-        controls={makeControls()}
-      />,
-    );
-    expect(screen.getByRole('alert')).toHaveTextContent(/furigana may contain mistakes/i);
-  });
-
-  it('exit button calls controls.unfocusChunk', () => {
-    const controls = makeControls();
-    const chunks = [makeChunk({ id: 1, chunkIndex: 0 })];
-    render(
-      <ChunkList
-        chunks={chunks}
-        playerState={playerState({ mode: 'chunk', focusedChunkId: 1 })}
-        controls={controls}
-      />,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Exit chunk focus' }));
-    expect(controls.unfocusChunk).toHaveBeenCalledOnce();
   });
 });
