@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "vocabulary": [
+    {
+      "id": "vocab-kaigi",
+      "japanese": "会議",
+      "reading": "かいぎ",
+      "meaning": "meeting"
+    },
+    {
+      "id": "vocab-junbi",
+      "japanese": "準備",
+      "reading": "じゅんび",
+      "meaning": "preparation"
+    }
+  ],
+  "structures": [
+    {
+      "id": "structure-noni",
+      "pattern": "〜のに",
+      "reading": null,
+      "meaning": "even though; despite",
+      "note": "Introduces contrast between expectation and reality."
+    },
+    {
+      "id": "structure-dekiteinai",
+      "pattern": "〜ができていない",
+      "reading": null,
+      "meaning": "has not been done yet"
+    }
+  ],
+  "breakdown": [
+    {
+      "id": "breakdown-1",
+      "japanese": "今日は大事な会議があるのに",
+      "cue": "Sets up the expectation: there is an important meeting today.",
+      "order": 0
+    },
+    {
+      "id": "breakdown-2",
+      "japanese": "まだ準備ができていません。",
+      "cue": "Contrasts that expectation with the speaker still not being ready.",
+      "order": 1
+    }
+  ],
+  "translation": {
+    "fullEnglish": "Even though I have an important meeting today, I still haven't finished preparing."
+  }
+}
