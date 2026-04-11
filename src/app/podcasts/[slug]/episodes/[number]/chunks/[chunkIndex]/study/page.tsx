@@ -21,7 +21,7 @@ export default async function StudyPage({
   const parsedEpisodeNumber = Number(number);
   const parsedChunkIndex = Number(chunkIndex);
 
-  if (!Number.isInteger(parsedEpisodeNumber) || !Number.isInteger(parsedChunkIndex) || parsedChunkIndex < 0) {
+  if (!Number.isInteger(parsedEpisodeNumber) || parsedEpisodeNumber < 1 || !Number.isInteger(parsedChunkIndex) || parsedChunkIndex < 0) {
     notFound();
   }
 

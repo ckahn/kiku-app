@@ -81,6 +81,16 @@ describe('Study page', () => {
     ).rejects.toThrow('NEXT_NOT_FOUND');
   });
 
+  it('calls notFound for episodeNumber 0', async () => {
+    const { default: StudyPage } = await import('../page');
+
+    await expect(
+      StudyPage({
+        params: Promise.resolve({ slug: 'slow-japanese', number: '0', chunkIndex: '0' }),
+      })
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
   it('calls notFound when the podcast does not exist', async () => {
     mockWhere
       .mockReset()
