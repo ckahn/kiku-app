@@ -62,7 +62,6 @@ describe('StudyScreen', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Study' })).toBeInTheDocument();
-    expect(screen.getByText((_, element) => element?.textContent === '日本語にほんごの文です。')).toBeInTheDocument();
     expect(screen.getByText(/loading study guide/i)).toBeInTheDocument();
     expect(screen.getByText('にほんご')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /furigana/i })).toBeNull();

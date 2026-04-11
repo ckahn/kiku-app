@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { Play, Square } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
@@ -200,9 +201,10 @@ export default function StudyScreen({
             <button
               type="button"
               onClick={isPlaying ? stopPlayback : playFromChunkStart}
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
+              aria-label={isPlaying ? 'Stop audio' : 'Play audio'}
+              className="p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
             >
-              {isPlaying ? 'Stop audio' : 'Play audio'}
+              {isPlaying ? <Square size={18} /> : <Play size={18} />}
             </button>
           </div>
         </div>

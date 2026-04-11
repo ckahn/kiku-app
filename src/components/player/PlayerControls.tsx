@@ -1,5 +1,7 @@
 'use client';
 
+import { Play, Pause, Rewind, FastForward, SkipBack, Repeat } from 'lucide-react';
+
 interface PlayerControlsProps {
   readonly isPlaying: boolean;
   readonly isLooping: boolean;
@@ -29,7 +31,7 @@ export default function PlayerControls({
         aria-label="Restart"
         className="p-1.5 rounded hover:bg-canvas-subtle text-muted hover:text-ink transition-colors"
       >
-        ⏮
+        <SkipBack size={18} />
       </button>
       <button
         type="button"
@@ -37,7 +39,7 @@ export default function PlayerControls({
         aria-label="Rewind 5 seconds"
         className="p-1.5 rounded hover:bg-canvas-subtle text-muted hover:text-ink transition-colors"
       >
-        ⏪
+        <Rewind size={18} />
       </button>
       <button
         type="button"
@@ -45,7 +47,7 @@ export default function PlayerControls({
         aria-label={isPlaying ? 'Pause' : 'Play'}
         className="p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
       >
-        {isPlaying ? '⏸' : '▶'}
+        {isPlaying ? <Pause size={18} /> : <Play size={18} />}
       </button>
       <button
         type="button"
@@ -53,7 +55,7 @@ export default function PlayerControls({
         aria-label="Forward 5 seconds"
         className="p-1.5 rounded hover:bg-canvas-subtle text-muted hover:text-ink transition-colors"
       >
-        ⏩
+        <FastForward size={18} />
       </button>
       <button
         type="button"
@@ -66,7 +68,7 @@ export default function PlayerControls({
             : 'text-muted hover:bg-canvas-subtle hover:text-ink'
         }`}
       >
-        🔁
+        <Repeat size={18} />
       </button>
     </div>
   );
