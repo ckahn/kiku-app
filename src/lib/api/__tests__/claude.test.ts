@@ -416,6 +416,25 @@ describe('addFurigana() — real API', () => {
     expect(result[0].furigana_status).toBe('ok');
   });
 
+  it('accepts kanji iteration marks like 時々 as part of a valid ruby base', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: {
+        annotated_chunks: [
+          { index: 0, spans: [{ surface: '時々', reading: 'ときどき' }] },
+        ],
+      },
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { addFurigana } = await import('../claude');
+    const result = await addFurigana([{ text: '時々', first_word_index: 0, last_word_index: 0 }]);
+
+    expect(result[0].text_furigana).toBe('<ruby>時々<rt>ときどき</rt></ruby>');
+    expect(result[0].furigana_status).toBe('ok');
+    expect(result[0].furigana_warning).toBeNull();
+  });
+
   it('accepts full-width digit+kanji date compounds', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');

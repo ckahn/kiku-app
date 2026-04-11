@@ -39,7 +39,7 @@ const furiganaResultSchema = z.object({
 const KANJI_RE = /[\u4e00-\u9fff]/;
 const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
 // Ruby base must contain only kanji — no kana, Latin, digits, or other scripts.
-const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf]+$/;
+const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf々]+$/;
 // 1–2 digit prefix (ASCII or full-width) followed immediately by kanji — calendar date/counter
 // compounds like 4月, １日, 20日, ２０日. Capped at 2 digits to avoid generating absurd furigana
 // for large numbers (e.g. 355432円). Full-width digits (１–９, ０) are U+FF11–FF19, U+FF10.
