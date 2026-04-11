@@ -2,7 +2,7 @@
 
 A Japanese podcast study app. Upload an MP3, get a furigana-annotated transcript chunked into study segments, with on-demand translations and grammar drill-downs. Includes a spaced repetition review queue.
 
-**Stack:** Next.js 14 (App Router) · TypeScript · Tailwind · Drizzle ORM · Vercel Postgres (Neon) · Vercel Blob · ElevenLabs Scribe v2 · Anthropic Claude
+**Stack:** Next.js 16 (App Router) · TypeScript · Tailwind · Drizzle ORM · Vercel Postgres (Neon) · Vercel Blob · ElevenLabs Scribe v2 · Anthropic Claude
 
 ---
 
@@ -96,7 +96,7 @@ Drizzle Kit reads `.env.local` automatically (via `drizzle.config.ts`) and conne
 | `episodes` | Individual episodes; tracks `status` and `study_status` |
 | `raw_transcripts` | Raw ElevenLabs JSONB payload (stored to avoid re-calling API) |
 | `chunks` | Study segments with furigana HTML (`<ruby>` tags) |
-| `drilldowns` | Lazy-generated per-chunk translations + grammar analysis |
+| `study_guides` | Lazy-generated per-chunk translations + grammar analysis |
 | `review_log` | Spaced repetition history |
 
 Episode statuses: `uploaded → transcribing → chunking → ready | error`
