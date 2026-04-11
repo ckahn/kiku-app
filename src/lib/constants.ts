@@ -4,6 +4,8 @@
 // Worst case: one Sonnet batch call + one retry per failing chunk. Monitor cost at scale.
 export const CLAUDE_CHUNK_MODEL = 'claude-sonnet-4-20250514';
 export const CLAUDE_FURIGANA_MODEL = 'claude-sonnet-4-20250514';
+export const TRANSCRIPT_SEGMENTATION_STRATEGY = 'deterministic';
+export const MINIMUM_CHUNK_CHARACTERS = 30;
 
 export const STATUS_COLORS: Record<string, string> = {
   uploaded:     'bg-info-subtle text-info-on-subtle',

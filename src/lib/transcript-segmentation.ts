@@ -110,3 +110,11 @@ export function chunkSentencesByCharacterCount(
     createChunk(mergedSentences),
   ];
 }
+
+export function segmentTranscriptDeterministically(
+  words: readonly ElevenLabsWord[],
+  minimumCharacterCount: number
+): readonly DeterministicTranscriptChunk[] {
+  const sentences = splitTranscriptIntoSentences(words);
+  return chunkSentencesByCharacterCount(sentences, minimumCharacterCount);
+}

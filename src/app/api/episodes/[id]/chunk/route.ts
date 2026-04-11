@@ -4,6 +4,11 @@ import { episodes } from '@/db/schema';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { chunkTranscript, addFurigana } from '@/lib/api/claude';
+import {
+  MINIMUM_CHUNK_CHARACTERS,
+  TRANSCRIPT_SEGMENTATION_STRATEGY,
+} from '@/lib/constants';
+import { segmentTranscriptDeterministically } from '@/lib/transcript-segmentation';
 import { getRawTranscript, setEpisodeReady, setEpisodeError } from '@/db/episodes';
 import { insertChunks } from '@/db/chunks';
 
@@ -19,6 +24,19 @@ async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
     console.error(`[chunk] ${label} failed after ${Date.now() - start}ms`);
     throw err;
   }
+}
+
+async function segmentTranscript(
+  text: string,
+  segments: Parameters<typeof chunkTranscript>[1]
+) {
+  // TODO: remove the Claude chunking branch entirely or move it to a better async job flow
+  // before we consider enabling it again.
+  if (TRANSCRIPT_SEGMENTATION_STRATEGY === 'deterministic') {
+    return segmentTranscriptDeterministically(segments, MINIMUM_CHUNK_CHARACTERS);
+  }
+
+  return chunkTranscript(text, segments);
 }
 
 export async function POST(
@@ -37,8 +55,8 @@ export async function POST(
 
   try {
     const rawTranscript = await getRawTranscript(episodeId);
-    const transcriptChunks = await timed('claude chunk', () =>
-      chunkTranscript(rawTranscript.text, rawTranscript.segments)
+    const transcriptChunks = await timed(`${TRANSCRIPT_SEGMENTATION_STRATEGY} segmentation`, () =>
+      segmentTranscript(rawTranscript.text, rawTranscript.segments)
     );
     const chunksWithFurigana = await timed('claude furigana', () =>
       addFurigana(transcriptChunks)
