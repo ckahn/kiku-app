@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**KIKU (聴く)** — a Japanese podcast study app. Users upload MP3s, the app transcribes them via ElevenLabs, chunks the transcript into study segments and add furigana annotations using Claude, adds furigana annotations, and provides a drill-down view with translations and grammar explanations (also via Claude). Includes a spaced repetition review system.
+**KIKU (聴く)** — a Japanese podcast study app. Users upload MP3s, the app transcribes them via ElevenLabs, chunks the transcript into study segments and add furigana annotations using Claude, adds furigana annotations, and provides a study guide with translations and grammar explanations (also via Claude). Includes a spaced repetition review system.
 
 ## Tech Stack
 
@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Hosting:** Vercel (Hobby plan — 60s function timeout; may need Pro for long audio files)
 - **Database:** Vercel Postgres (Neon) via Drizzle ORM
 - **File storage:** Vercel Blob (audio files)
-- **External APIs:** ElevenLabs Scribe v2 (transcription), Anthropic Claude (chunking, furigana, drill-downs)
+- **External APIs:** ElevenLabs Scribe v2 (transcription), Anthropic Claude (chunking, furigana, study guides)
 
 ## Common Commands
 
@@ -35,17 +35,17 @@ npx create-next-app@latest kiku-app --typescript --tailwind --app
 Audio (MP3) → Vercel Blob
     → ElevenLabs STT → raw_transcripts
     → Claude (chunking) → Claude (furigana) → chunks
-    → Claude (on demand) → drilldowns
+    → Claude (on demand) → study_guides
 ```
 
 ### Database Schema
 
-Five core tables: `podcasts`, `episodes`, `raw_transcripts`, `chunks`, `drilldowns`, plus `review_log`.
+Five core tables: `podcasts`, `episodes`, `raw_transcripts`, `chunks`, `study_guides`, plus `review_log`.
 
 - `episodes.status`: `uploaded | transcribing | chunking | ready | error`
 - `episodes.study_status`: `new | studying | learned`
 - `chunks.sentences`: JSONB array of `{ text, start_ms, end_ms }`
-- `drilldowns.content`: JSONB — `{ sentences: [{ japanese, english, structures: [{ pattern, explanation, example }] }] }`
+- `study_guides.content`: JSONB — `{ version, vocabulary, structures, breakdown, translation }`
 
 ### API Routes
 
@@ -56,8 +56,8 @@ POST             /api/podcasts/[id]/episodes   — upload + kick off pipeline
 GET/DELETE       /api/episodes/[id]
 PATCH            /api/episodes/[id]/study      — update study_status, compute next_review
 GET              /api/episodes/[id]/chunks
-GET              /api/chunks/[id]/drilldown    — lazy-generates if missing
-POST             /api/chunks/[id]/drilldown/regenerate
+GET              /api/chunks/[id]/study-guide  — lazy-generates if missing
+POST             /api/chunks/[id]/study-guide/regenerate
 GET              /api/reviews/due
 POST             /api/reviews
 ```
@@ -104,13 +104,13 @@ To avoid API costs during development, set `USE_MOCKS=true` in `.env.local`. Fix
 - `elevenlabs-transcript.json` — real ElevenLabs response captured once
 - `chunks.json` — hand-written Claude chunking output
 - `furigana.json` — hand-written furigana annotations
-- `drilldown.json` — hand-written drill-down content
+- `study-guide.json` — hand-written study guide content
 
 API wrappers (e.g., `src/lib/api/elevenlabs.ts`) check `process.env.USE_MOCKS` and return fixtures instead of making real calls.
 
 ## Prompt Templates
 
-The Claude prompts are in `docs/kiku-app-plan.md` under "Prompt Templates". The chunking prompt returns `[{ text, first_word_index, last_word_index }]`. The furigana prompt uses `<ruby>` HTML tags (kanji only, not kana). The drill-down prompt returns structured JSON per sentence.
+The Claude prompts are in `docs/kiku-app-plan.md` under "Prompt Templates". The chunking prompt returns `[{ text, first_word_index, last_word_index }]`. The furigana prompt uses `<ruby>` HTML tags (kanji only, not kana). The study-guide prompt returns structured JSON for vocabulary, structure, breakdown, and translation.
 
 ## Spaced Repetition Intervals
 
@@ -119,6 +119,6 @@ The Claude prompts are in `docs/kiku-app-plan.md` under "Prompt Templates". The 
 ## Key Design Decisions
 
 - Drizzle ORM (not Prisma) — lightweight, type-safe, good Vercel Postgres support
-- Drilldowns are lazy-generated and stored; regenerate = `UPDATE` in place (one row per chunk, `UNIQUE(chunk_id)`)
+- Study guides are lazy-generated and stored; regenerate = `UPDATE` in place (one row per chunk, `UNIQUE(chunk_id)`)
 - Raw ElevenLabs transcript stored in `raw_transcripts.payload` (JSONB) to allow reprocessing without re-calling the API
 - Furigana stored as HTML (`<ruby>` tags) in `chunks.text_furigana`, not computed client-side
