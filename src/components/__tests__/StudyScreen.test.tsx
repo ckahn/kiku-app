@@ -286,6 +286,61 @@ describe('StudyScreen', () => {
     expect(screen.getByText('きれい')).toBeInTheDocument();
   });
 
+  it('hides the reading for a structure item when it matches the pattern text', async () => {
+    const guideWithKanaStructure = {
+      ...studyGuideFixture,
+      structures: [
+        { id: 'struct-kana', pattern: 'てみる', reading: 'てみる', meaning: 'try doing' },
+      ],
+    };
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: guideWithKanaStructure }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    const structureToggle = await screen.findByRole('button', { name: 'Structure' });
+    fireEvent.click(structureToggle);
+    const items = screen.getAllByText('てみる');
+    // Only the pattern text should appear — not duplicated as a reading
+    expect(items).toHaveLength(1);
+  });
+
+  it('shows the reading for a structure item when it differs from the pattern text', async () => {
+    const guideWithKanjiStructure = {
+      ...studyGuideFixture,
+      structures: [
+        { id: 'struct-kanji', pattern: '〜て見る', reading: 'てみる', meaning: 'try doing' },
+      ],
+    };
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: guideWithKanjiStructure }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    const structureToggle = await screen.findByRole('button', { name: 'Structure' });
+    fireEvent.click(structureToggle);
+    expect(screen.getByText('〜て見る')).toBeInTheDocument();
+    expect(screen.getByText('てみる')).toBeInTheDocument();
+  });
+
   it('shows the furigana suspect warning when furiganaStatus is suspect', () => {
     vi.spyOn(global, 'fetch').mockImplementation(
       () => new Promise(() => undefined) as Promise<Response>
