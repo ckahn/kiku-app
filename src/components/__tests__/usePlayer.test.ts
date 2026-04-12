@@ -229,7 +229,7 @@ describe('usePlayer', () => {
     });
 
     it('does not seek back when looping is off', () => {
-      const { result, audioMock } = setup();
+      const { audioMock } = setup();
 
       // Position inside chunk 2, then advance past it — no loop active
       audioMock.currentTime = 6;
