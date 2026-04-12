@@ -31,7 +31,7 @@ export default function PlayerControls({
         aria-label="Restart"
         className="p-3 sm:p-1.5 rounded hover:bg-canvas-subtle text-muted hover:text-ink transition-colors"
       >
-        <SkipBack size={20} className="sm:w-[18px] sm:h-[18px]" />
+        <SkipBack className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
       <button
         type="button"
@@ -39,7 +39,7 @@ export default function PlayerControls({
         aria-label="Rewind 5 seconds"
         className="p-3 sm:p-1.5 rounded hover:bg-canvas-subtle text-muted hover:text-ink transition-colors"
       >
-        <Rewind size={20} className="sm:w-[18px] sm:h-[18px]" />
+        <Rewind className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
       <button
         type="button"
@@ -48,9 +48,9 @@ export default function PlayerControls({
         className="p-3 sm:p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
       >
         {isPlaying ? (
-          <Pause size={20} className="sm:w-[18px] sm:h-[18px]" />
+          <Pause className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
         ) : (
-          <Play size={20} className="sm:w-[18px] sm:h-[18px]" />
+          <Play className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
         )}
       </button>
       <button
@@ -59,7 +59,7 @@ export default function PlayerControls({
         aria-label="Forward 5 seconds"
         className="p-3 sm:p-1.5 rounded hover:bg-canvas-subtle text-muted hover:text-ink transition-colors"
       >
-        <FastForward size={20} className="sm:w-[18px] sm:h-[18px]" />
+        <FastForward className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
       <button
         type="button"
@@ -72,7 +72,7 @@ export default function PlayerControls({
             : 'text-muted hover:bg-canvas-subtle hover:text-ink'
         }`}
       >
-        <Repeat size={20} className="sm:w-[18px] sm:h-[18px]" />
+        <Repeat className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
     </div>
   );
