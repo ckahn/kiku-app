@@ -7,6 +7,11 @@ import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
 
+// LLM sometimes echoes kana words as their own reading — skip when redundant
+function hasDistinctReading(reading: string | undefined, text: string): boolean {
+  return !!reading && reading !== text;
+}
+
 interface StudyScreenProps {
   readonly chunk: Pick<
     Chunk,
@@ -236,7 +241,7 @@ export default function StudyScreen({
               {studyGuide.vocabulary.map((item) => (
                 <li key={item.id} className="space-y-1">
                   <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
-                  {item.reading && <p className="text-sm text-muted">{item.reading}</p>}
+                  {hasDistinctReading(item.reading ?? undefined, item.japanese) && <p className="text-sm text-muted">{item.reading}</p>}
                   <p className="text-sm text-ink">{item.meaning}</p>
                 </li>
               ))}
@@ -256,7 +261,7 @@ export default function StudyScreen({
               {studyGuide.structures.map((item) => (
                 <li key={item.id} className="space-y-1">
                   <p className="text-sm font-semibold text-ink font-jp">{item.pattern}</p>
-                  {item.reading && <p className="text-sm text-muted">{item.reading}</p>}
+                  {hasDistinctReading(item.reading ?? undefined, item.pattern) && <p className="text-sm text-muted">{item.reading}</p>}
                   <p className="text-sm text-ink">{item.meaning}</p>
                   {item.note && <p className="text-sm text-muted">{item.note}</p>}
                 </li>

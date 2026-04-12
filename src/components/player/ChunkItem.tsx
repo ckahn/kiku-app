@@ -42,7 +42,7 @@ export default function ChunkItem({
       onClick={handleClick}
       className={`relative rounded-lg border transition-all p-4 cursor-pointer ${
         isActive
-          ? 'border-primary/40 bg-primary/5 hover:bg-primary/10'
+          ? 'border-primary/60 bg-primary-subtle hover:bg-primary/10'
           : 'border-border bg-surface hover:border-primary/30 hover:bg-canvas-subtle'
       }`}
     >

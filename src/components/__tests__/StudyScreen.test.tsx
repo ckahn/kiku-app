@@ -233,6 +233,114 @@ describe('StudyScreen', () => {
     });
   });
 
+  it('hides the reading for a vocabulary item when it matches the japanese text', async () => {
+    const guideWithKanaVocab = {
+      ...studyGuideFixture,
+      vocabulary: [
+        { id: 'vocab-kana', japanese: 'きれい', reading: 'きれい', meaning: 'beautiful' },
+      ],
+    };
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: guideWithKanaVocab }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    const items = screen.getAllByText('きれい');
+    // Only the japanese text should appear — not duplicated as a reading
+    expect(items).toHaveLength(1);
+  });
+
+  it('shows the reading for a vocabulary item when it differs from the japanese text', async () => {
+    const guideWithKanjiVocab = {
+      ...studyGuideFixture,
+      vocabulary: [
+        { id: 'vocab-kanji', japanese: '綺麗', reading: 'きれい', meaning: 'beautiful' },
+      ],
+    };
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: guideWithKanjiVocab }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    expect(screen.getByText('綺麗')).toBeInTheDocument();
+    expect(screen.getByText('きれい')).toBeInTheDocument();
+  });
+
+  it('hides the reading for a structure item when it matches the pattern text', async () => {
+    const guideWithKanaStructure = {
+      ...studyGuideFixture,
+      structures: [
+        { id: 'struct-kana', pattern: 'てみる', reading: 'てみる', meaning: 'try doing' },
+      ],
+    };
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: guideWithKanaStructure }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    const structureToggle = await screen.findByRole('button', { name: 'Structure' });
+    fireEvent.click(structureToggle);
+    const items = screen.getAllByText('てみる');
+    // Only the pattern text should appear — not duplicated as a reading
+    expect(items).toHaveLength(1);
+  });
+
+  it('shows the reading for a structure item when it differs from the pattern text', async () => {
+    const guideWithKanjiStructure = {
+      ...studyGuideFixture,
+      structures: [
+        { id: 'struct-kanji', pattern: '〜て見る', reading: 'てみる', meaning: 'try doing' },
+      ],
+    };
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: guideWithKanjiStructure }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    const structureToggle = await screen.findByRole('button', { name: 'Structure' });
+    fireEvent.click(structureToggle);
+    expect(screen.getByText('〜て見る')).toBeInTheDocument();
+    expect(screen.getByText('てみる')).toBeInTheDocument();
+  });
+
   it('shows the furigana suspect warning when furiganaStatus is suspect', () => {
     vi.spyOn(global, 'fetch').mockImplementation(
       () => new Promise(() => undefined) as Promise<Response>
