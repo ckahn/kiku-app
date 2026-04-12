@@ -241,7 +241,7 @@ export default function StudyScreen({
               {studyGuide.vocabulary.map((item) => (
                 <li key={item.id} className="space-y-1">
                   <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
-                  {hasDistinctReading(item.reading, item.japanese) && <p className="text-sm text-muted">{item.reading}</p>}
+                  {hasDistinctReading(item.reading ?? undefined, item.japanese) && <p className="text-sm text-muted">{item.reading}</p>}
                   <p className="text-sm text-ink">{item.meaning}</p>
                 </li>
               ))}
@@ -261,7 +261,7 @@ export default function StudyScreen({
               {studyGuide.structures.map((item) => (
                 <li key={item.id} className="space-y-1">
                   <p className="text-sm font-semibold text-ink font-jp">{item.pattern}</p>
-                  {hasDistinctReading(item.reading, item.pattern) && <p className="text-sm text-muted">{item.reading}</p>}
+                  {hasDistinctReading(item.reading ?? undefined, item.pattern) && <p className="text-sm text-muted">{item.reading}</p>}
                   <p className="text-sm text-ink">{item.meaning}</p>
                   {item.note && <p className="text-sm text-muted">{item.note}</p>}
                 </li>
