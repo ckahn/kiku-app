@@ -67,7 +67,7 @@ export default async function EpisodePage({
           </div>
         )}
         <div className="flex gap-6">
-          <dt className="text-muted w-20 shrink-0">Created</dt>
+          <dt className="text-muted w-20 shrink-0">Added</dt>
           <dd className="text-ink">
             {episode.createdAt && <LocalDateTime iso={episode.createdAt.toISOString()} />}
           </dd>
