@@ -16,7 +16,7 @@ export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlaye
   const [audioDurationSec, setAudioDurationSec] = useState(durationMs > 0 ? durationMs / 1000 : 0);
 
   return (
-    <div className="sticky bottom-0 z-10 bg-surface border-t border-border px-4 py-3 shadow-sm">
+    <div className="sticky bottom-0 z-10 bg-surface border-t border-border px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-sm">
       {/* Hidden audio element — the single source of truth for playback */}
       <audio
         ref={setAudioEl}

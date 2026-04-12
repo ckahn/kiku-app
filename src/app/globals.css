@@ -3,6 +3,7 @@
 :root {
   /* Washi paper canvas, shoji screen surface */
   --canvas: #f5f0e8;
+  --canvas-subtle: #ede8de;
   --surface: #fdfaf5;
   --border: #d8cfc3;
   --border-subtle: #ede6db;
@@ -32,6 +33,7 @@
   :root {
     /* Dark lacquerware and charcoal roof tones */
     --canvas: #161412;
+    --canvas-subtle: #201d1a;
     --surface: #1f1c19;
     --border: #322d29;
     --border-subtle: #272320;
@@ -58,6 +60,7 @@
   --font-jp: var(--font-noto-jp), ui-sans-serif, system-ui, sans-serif;
 
   --color-canvas: var(--canvas);
+  --color-canvas-subtle: var(--canvas-subtle);
   --color-surface: var(--surface);
   --color-border: var(--border);
   --color-border-subtle: var(--border-subtle);
