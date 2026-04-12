@@ -7,6 +7,7 @@ import { PageShell } from '@/components/layout';
 import EpisodeStatusPoller from '@/components/EpisodeStatusPoller';
 import EpisodePlayer from '@/components/player/EpisodePlayer';
 import { getChunksByEpisodeId } from '@/db/chunks';
+import LocalDateTime from '@/components/LocalDateTime';
 
 type BadgeVariant = 'info' | 'warning' | 'success' | 'error' | 'neutral';
 
@@ -67,7 +68,9 @@ export default async function EpisodePage({
         )}
         <div className="flex gap-6">
           <dt className="text-muted w-20 shrink-0">Created</dt>
-          <dd className="text-ink">{episode.createdAt?.toLocaleString()}</dd>
+          <dd className="text-ink">
+            {episode.createdAt && <LocalDateTime iso={episode.createdAt.toISOString()} />}
+          </dd>
         </div>
       </dl>
 
