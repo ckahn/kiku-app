@@ -43,6 +43,12 @@ export async function GET(
     }
 
     const episodeChunks = await getChunksByEpisodeId(chunk.episodeId);
+    // We always take the last N chunks of the episode regardless of which chunk
+    // is being studied. This guarantees the model has some episode context (for
+    // pronoun/topic-drop resolution), without requiring the context window to
+    // centre on the studied chunk. For early chunks the context will be from
+    // later in the episode — that is intentional; the prompt labels this as
+    // "episode context" rather than "preceding context".
     const contextText = episodeChunks
       .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
       .map((c) => c.textRaw)

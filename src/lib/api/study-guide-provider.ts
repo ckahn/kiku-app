@@ -32,17 +32,20 @@ export function parseStudyGuideProviderRequest(request: unknown): StudyGuideProv
 }
 
 function buildStudyGuidePrompt(request: StudyGuideProviderRequest): string {
-  // We send the last N chunks as context so the model can resolve pronouns and
-  // topic-dropped subjects that only make sense in context, without paying the
-  // token cost of the full transcript.
+  // We send the last N chunks of the episode as background context so the model
+  // can resolve pronouns and topic-dropped subjects, without paying the token
+  // cost of the full transcript. This context may come from later in the episode
+  // than the studied chunk; the prompt labels it as "episode context" rather than
+  // "preceding context" so the model treats it as background, not as immediately
+  // preceding speech.
   return `You are a Japanese teacher creating a concise mobile study guide for one Japanese podcast chunk.
 
 Return structured JSON only.
 
-Recent transcript context:
+Episode context (sample segments from this episode, for background reference only):
 ${request.contextText}
 
-Chunk text:
+Chunk to study:
 ${request.chunkText}
 
 Output requirements:

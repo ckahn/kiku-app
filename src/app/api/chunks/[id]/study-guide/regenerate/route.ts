@@ -34,6 +34,8 @@ export async function POST(
     }
 
     const episodeChunks = await getChunksByEpisodeId(chunk.episodeId);
+    // Always take the last N chunks of the episode — see GET handler for the
+    // rationale behind this intentional choice.
     const contextText = episodeChunks
       .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
       .map((candidate) => candidate.textRaw)
