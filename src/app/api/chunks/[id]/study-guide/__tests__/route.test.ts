@@ -81,17 +81,61 @@ describe('GET /api/chunks/[id]/study-guide', () => {
   });
 
   it('generates and persists the study guide on a cache miss', async () => {
+    mockGenerateStudyGuideFromProvider.mockResolvedValueOnce({
+      ...studyGuideFixture,
+      vocabulary: [
+        {
+          id: 'vocab-kaigi',
+          japanese: 'かいぎ',
+          reading: 'かいぎ',
+          dictionaryForm: '会議',
+          meaning: 'meeting',
+        },
+      ],
+    });
+
     const response = await callRoute('12');
     const json = await response.json();
 
     expect(response.status).toBe(200);
-    expect(json.data).toEqual(studyGuideFixture);
+    expect(json.data).toMatchObject({
+      version: 2,
+      vocabulary: [
+        {
+          id: 'vocab-kaigi',
+          japanese: '会議',
+          reading: 'かいぎ',
+          dictionaryForm: '会議',
+          meaning: 'meeting',
+        },
+      ],
+      translation: {
+        fullEnglish: studyGuideFixture.translation.fullEnglish,
+      },
+    });
     expect(mockGetChunksByEpisodeId).toHaveBeenCalledWith(5);
     expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledWith(
       '日本語の文です。',
       '前後の文もあります。\n日本語の文です。'
     );
-    expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(12, studyGuideFixture);
+    expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({
+        version: 2,
+        vocabulary: [
+          {
+            id: 'vocab-kaigi',
+            japanese: '会議',
+            reading: 'かいぎ',
+            dictionaryForm: '会議',
+            meaning: 'meeting',
+          },
+        ],
+        translation: {
+          fullEnglish: studyGuideFixture.translation.fullEnglish,
+        },
+      })
+    );
   });
 
   it('returns 500 when cached study guide content is invalid', async () => {

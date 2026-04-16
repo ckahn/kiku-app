@@ -264,7 +264,14 @@ describe('StudyScreen', () => {
     const guideWithKanjiVocab = {
       ...studyGuideFixture,
       vocabulary: [
-        { id: 'vocab-kanji', japanese: '綺麗', reading: 'きれい', meaning: 'beautiful' },
+        {
+          id: 'vocab-kanji',
+          japanese: '綺麗',
+          reading: 'きれい',
+          partOfSpeech: 'na-adj',
+          dictionaryForm: '綺麗',
+          meaning: 'beautiful',
+        },
       ],
     };
     vi.spyOn(global, 'fetch').mockResolvedValue({
@@ -284,6 +291,38 @@ describe('StudyScreen', () => {
     await screen.findByRole('button', { name: 'Vocabulary' });
     expect(screen.getByText('綺麗')).toBeInTheDocument();
     expect(screen.getByText('きれい')).toBeInTheDocument();
+  });
+
+  it('shows the part of speech for a vocabulary item when present', async () => {
+    const guideWithPartOfSpeech = {
+      ...studyGuideFixture,
+      vocabulary: [
+        {
+          id: 'vocab-kanji',
+          japanese: '綺麗',
+          reading: 'きれい',
+          partOfSpeech: 'na-adj',
+          dictionaryForm: '綺麗',
+          meaning: 'beautiful',
+        },
+      ],
+    };
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: guideWithPartOfSpeech }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    expect(screen.getByText('na-adj')).toBeInTheDocument();
   });
 
   it('hides the reading for a structure item when it matches the pattern text', async () => {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getChunkById, getChunksByEpisodeId } from '@/db/chunks';
 import { getStudyGuideByChunkId, saveStudyGuideForChunkId } from '@/db/study-guides';
 import { parseStudyGuideContent } from '@/lib/api/study-guide';
+import { normalizeStudyGuideVocabularySurfaces } from '@/lib/api/study-guide-normalization';
 import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
 import { apiErr, apiOk } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
@@ -36,7 +37,9 @@ export async function GET(
     if (cachedStudyGuide) {
       // TODO: If cached content fails validation, consider regenerating once
       // instead of returning a 500 so corrupted rows can self-heal.
-      return apiOk(parseStudyGuideContent(cachedStudyGuide.content));
+      return apiOk(
+        normalizeStudyGuideVocabularySurfaces(parseStudyGuideContent(cachedStudyGuide.content))
+      );
     }
 
     const episodeChunks = await getChunksByEpisodeId(chunk.episodeId);
@@ -45,8 +48,8 @@ export async function GET(
       .map((c) => c.textRaw)
       .join('\n');
 
-    const generatedStudyGuide = parseStudyGuideContent(
-      await generateStudyGuideFromProvider(chunk.textRaw, contextText)
+    const generatedStudyGuide = normalizeStudyGuideVocabularySurfaces(
+      parseStudyGuideContent(await generateStudyGuideFromProvider(chunk.textRaw, contextText))
     );
 
     await saveStudyGuideForChunkId(chunkId, generatedStudyGuide);

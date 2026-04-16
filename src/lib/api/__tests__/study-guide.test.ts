@@ -35,4 +35,52 @@ describe('study guide parser', () => {
       })
     ).toThrow(/study guide/i);
   });
+
+  it('filters English-only study items and renumbers breakdown order', async () => {
+    const { parseStudyGuideContent } = await import('../study-guide');
+
+    const parsed = parseStudyGuideContent({
+      ...studyGuideFixture,
+      vocabulary: [
+        {
+          id: 'vocab-english',
+          japanese: 'meeting',
+          reading: null,
+          dictionaryForm: 'meeting',
+          meaning: 'meeting',
+        },
+        studyGuideFixture.vocabulary[0],
+      ],
+      structures: [
+        {
+          id: 'structure-english',
+          pattern: 'noun',
+          reading: null,
+          meaning: 'noun',
+        },
+        studyGuideFixture.structures[0],
+      ],
+      breakdown: [
+        {
+          id: 'breakdown-english',
+          japanese: 'This is a meeting note.',
+          cue: 'English material that should be ignored.',
+          order: 0,
+        },
+        {
+          ...studyGuideFixture.breakdown[0],
+          order: 7,
+        },
+      ],
+    });
+
+    expect(parsed.vocabulary).toEqual([studyGuideFixture.vocabulary[0]]);
+    expect(parsed.structures).toEqual([studyGuideFixture.structures[0]]);
+    expect(parsed.breakdown).toEqual([
+      {
+        ...studyGuideFixture.breakdown[0],
+        order: 0,
+      },
+    ]);
+  });
 });

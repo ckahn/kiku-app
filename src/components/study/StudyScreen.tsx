@@ -229,84 +229,91 @@ export default function StudyScreen({
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
         </div>
       ) : (
-      <div className="space-y-3">
-        <StudySection
-          title="Vocabulary"
-          isOpen={openSections.vocabulary}
-          onToggle={() => toggleSection('vocabulary')}
-        >
-          {!studyGuide ? (
-            <p className="text-sm text-muted">Vocabulary will appear here.</p>
-          ) : (
-            <ul className="space-y-3">
-              {studyGuide.vocabulary.map((item) => (
-                <li key={item.id} className="space-y-1">
-                  <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
-                  {hasDistinctReading(item.reading ?? undefined, item.japanese) && <p className="text-sm text-muted">{item.reading}</p>}
-                  {item.dictionaryForm !== item.japanese && (
-                    <p className="text-sm text-muted font-jp">{item.dictionaryForm}</p>
-                  )}
-                  <p className="text-sm text-ink">{item.meaning}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </StudySection>
-
-        <StudySection
-          title="Structure"
-          isOpen={openSections.structure}
-          onToggle={() => toggleSection('structure')}
-        >
-          {!studyGuide ? (
-            <p className="text-sm text-muted">Structure notes will appear here.</p>
-          ) : (
-            <ul className="space-y-3">
-              {studyGuide.structures.map((item) => (
-                <li key={item.id} className="space-y-1">
-                  <p className="text-sm font-semibold text-ink font-jp">{item.pattern}</p>
-                  {hasDistinctReading(item.reading ?? undefined, item.pattern) && <p className="text-sm text-muted">{item.reading}</p>}
-                  <p className="text-sm text-ink">{item.meaning}</p>
-                  {item.note && <p className="text-sm text-muted">{item.note}</p>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </StudySection>
-
-        <StudySection
-          title="Breakdown"
-          isOpen={openSections.breakdown}
-          onToggle={() => toggleSection('breakdown')}
-        >
-          {!studyGuide ? (
-            <p className="text-sm text-muted">Breakdown notes will appear here.</p>
-          ) : (
-            <ol className="space-y-3">
-              {studyGuide.breakdown
-                .slice()
-                .sort((left, right) => left.order - right.order)
-                .map((item) => (
+        <div className="space-y-3">
+          <StudySection
+            title="Vocabulary"
+            isOpen={openSections.vocabulary}
+            onToggle={() => toggleSection('vocabulary')}
+          >
+            {!studyGuide ? (
+              <p className="text-sm text-muted">Vocabulary will appear here.</p>
+            ) : (
+              <ul className="space-y-3">
+                {studyGuide.vocabulary.map((item) => (
                   <li key={item.id} className="space-y-1">
                     <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
-                    <p className="text-sm text-ink">{item.cue}</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
+                      {hasDistinctReading(item.reading ?? undefined, item.japanese) && (
+                        <span>{item.reading}</span>
+                      )}
+                      {item.partOfSpeech && <span>{item.partOfSpeech}</span>}
+                    </div>
+                    {item.dictionaryForm !== item.japanese && (
+                      <p className="text-sm text-muted font-jp">{item.dictionaryForm}</p>
+                    )}
+                    <p className="text-sm text-ink">{item.meaning}</p>
                   </li>
                 ))}
-            </ol>
-          )}
-        </StudySection>
-        <StudySection
-          title="English translation"
-          isOpen={openSections.translation}
-          onToggle={() => toggleSection('translation')}
-        >
-          {!studyGuide ? (
-            <p className="text-sm text-muted">Translation will appear here.</p>
-          ) : (
-            <p className="text-sm leading-6 text-ink">{studyGuide.translation.fullEnglish}</p>
-          )}
-        </StudySection>
-      </div>
+              </ul>
+            )}
+          </StudySection>
+
+          <StudySection
+            title="Structure"
+            isOpen={openSections.structure}
+            onToggle={() => toggleSection('structure')}
+          >
+            {!studyGuide ? (
+              <p className="text-sm text-muted">Structure notes will appear here.</p>
+            ) : (
+              <ul className="space-y-3">
+                {studyGuide.structures.map((item) => (
+                  <li key={item.id} className="space-y-1">
+                    <p className="text-sm font-semibold text-ink font-jp">{item.pattern}</p>
+                    {hasDistinctReading(item.reading ?? undefined, item.pattern) && (
+                      <p className="text-sm text-muted">{item.reading}</p>
+                    )}
+                    <p className="text-sm text-ink">{item.meaning}</p>
+                    {item.note && <p className="text-sm text-muted">{item.note}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </StudySection>
+
+          <StudySection
+            title="Breakdown"
+            isOpen={openSections.breakdown}
+            onToggle={() => toggleSection('breakdown')}
+          >
+            {!studyGuide ? (
+              <p className="text-sm text-muted">Breakdown notes will appear here.</p>
+            ) : (
+              <ol className="space-y-3">
+                {studyGuide.breakdown
+                  .slice()
+                  .sort((left, right) => left.order - right.order)
+                  .map((item) => (
+                    <li key={item.id} className="space-y-1">
+                      <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
+                      <p className="text-sm text-ink">{item.cue}</p>
+                    </li>
+                  ))}
+              </ol>
+            )}
+          </StudySection>
+          <StudySection
+            title="English translation"
+            isOpen={openSections.translation}
+            onToggle={() => toggleSection('translation')}
+          >
+            {!studyGuide ? (
+              <p className="text-sm text-muted">Translation will appear here.</p>
+            ) : (
+              <p className="text-sm leading-6 text-ink">{studyGuide.translation.fullEnglish}</p>
+            )}
+          </StudySection>
+        </div>
       )}
 
     </div>

@@ -119,6 +119,7 @@ describe('study-guide.json', () => {
     for (const item of studyGuide.vocabulary) {
       expect(item.id.length).toBeGreaterThan(0);
       expect(item.japanese.length).toBeGreaterThan(0);
+      expect(item.partOfSpeech?.length ?? 0).toBeGreaterThan(0);
       expect(item.meaning.length).toBeGreaterThan(0);
     }
   });
