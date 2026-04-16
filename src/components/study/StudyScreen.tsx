@@ -243,6 +243,9 @@ export default function StudyScreen({
                 <li key={item.id} className="space-y-1">
                   <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
                   {hasDistinctReading(item.reading ?? undefined, item.japanese) && <p className="text-sm text-muted">{item.reading}</p>}
+                  {item.dictionaryForm !== item.japanese && (
+                    <p className="text-sm text-muted font-jp">{item.dictionaryForm}</p>
+                  )}
                   <p className="text-sm text-ink">{item.meaning}</p>
                 </li>
               ))}

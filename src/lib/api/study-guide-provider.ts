@@ -47,7 +47,7 @@ ${request.chunkText}
 
 Output requirements:
 - version must be 2
-- vocabulary: a curated list of the most useful words or short expressions only
+- vocabulary: a curated list of the most useful words or short expressions only; every item must include a dictionaryForm field (the plain dictionary/citation form of the word, e.g. 走る not 走った)
 - structures: a short list of key grammar patterns or sentence structures
 - breakdown: guided interpretation steps in natural study order
 - translation.fullEnglish: one complete fallback English translation
