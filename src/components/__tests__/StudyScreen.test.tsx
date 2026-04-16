@@ -110,6 +110,87 @@ describe('StudyScreen', () => {
     });
   });
 
+  it('always shows a regenerate button even when loading the study guide fails', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      json: async () => ({ success: false, error: 'Invalid study guide content' }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/invalid study guide content/i);
+    });
+    expect(screen.getByRole('button', { name: /regenerate study guide/i })).toBeInTheDocument();
+  });
+
+  it('regenerates the study guide after a load error', async () => {
+    vi.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ success: false, error: 'Invalid study guide content' }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: studyGuideFixture }),
+      } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: /regenerate study guide/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenLastCalledWith('/api/chunks/12/study-guide/regenerate', {
+        method: 'POST',
+      });
+    });
+    expect(await screen.findByText(studyGuideFixture.vocabulary[0].japanese)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows an error when regenerating the study guide fails', async () => {
+    vi.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: studyGuideFixture }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ success: false, error: 'regeneration unavailable' }),
+      } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/chunks/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    fireEvent.click(screen.getByRole('button', { name: /regenerate study guide/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/regeneration unavailable/i);
+    });
+  });
+
   it('reveals the translation only after the user opens its accordion', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,

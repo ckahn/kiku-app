@@ -66,6 +66,19 @@ async function loadStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent>
   return payload.data;
 }
 
+async function regenerateStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent> {
+  const response = await fetch(`${studyGuideUrl}/regenerate`, {
+    method: 'POST',
+  });
+  const payload = await response.json() as ApiResponse<StudyGuideContent>;
+
+  if (!response.ok || !payload.success || !payload.data) {
+    throw new Error(payload.error ?? 'Could not regenerate the study guide.');
+  }
+
+  return payload.data;
+}
+
 export default function StudyScreen({
   chunk,
   audioUrl,
@@ -83,6 +96,7 @@ export default function StudyScreen({
   });
   const [studyGuide, setStudyGuide] = useState<StudyGuideContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -161,6 +175,20 @@ export default function StudyScreen({
     router.push(backHref);
   }
 
+  async function handleRegenerateStudyGuide() {
+    try {
+      setIsRegenerating(true);
+      setErrorMessage(null);
+      const nextStudyGuide = await regenerateStudyGuide(studyGuideUrl);
+      setStudyGuide(nextStudyGuide);
+    } catch (error: unknown) {
+      setErrorMessage(getClientErrorMessage(error));
+    } finally {
+      setIsRegenerating(false);
+      setIsLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <audio
@@ -183,7 +211,17 @@ export default function StudyScreen({
 
       <header className="space-y-1">
         <p className="text-sm text-muted">Chunk {chunk.chunkIndex + 1}</p>
-        <h1 className="text-2xl font-bold text-ink">Study</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-ink">Study</h1>
+          <button
+            type="button"
+            onClick={handleRegenerateStudyGuide}
+            disabled={isLoading || isRegenerating}
+            className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isRegenerating ? 'Regenerating…' : 'Regenerate study guide'}
+          </button>
+        </div>
       </header>
 
       <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
