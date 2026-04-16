@@ -144,4 +144,22 @@ describe('study guide provider adapter', () => {
     expect(typeof prompt).toBe('string');
     expect(prompt).toContain('original kanji spelling');
   });
+
+  it('tells Claude to keep vocabulary in dictionary form and move conjugations to grammar', async () => {
+    vi.stubEnv('USE_MOCKS', 'false');
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    const { generateObject } = await import('ai');
+    vi.mocked(generateObject).mockResolvedValueOnce({
+      object: studyGuideFixture,
+    } as Awaited<ReturnType<typeof generateObject>>);
+
+    const { generateStudyGuideFromProvider } = await import('../study-guide-provider');
+
+    await generateStudyGuideFromProvider('食べたりする。', '前後の文もあります。');
+
+    const prompt = vi.mocked(generateObject).mock.calls[0]?.[0].prompt;
+    expect(typeof prompt).toBe('string');
+    expect(prompt).toContain('do not include conjugated surface forms like 食べたり in vocabulary');
+    expect(prompt).toContain('Put conjugations and usage notes for inflected forms like 食べたり in structures instead of vocabulary');
+  });
 });

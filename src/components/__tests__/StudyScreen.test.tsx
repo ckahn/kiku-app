@@ -84,7 +84,7 @@ describe('StudyScreen', () => {
     );
 
     expect(await screen.findByRole('button', { name: 'Vocabulary' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: 'Structure' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Grammar' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'Breakdown' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'English translation' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText(studyGuideFixture.translation.fullEnglish)).toBeNull();
@@ -427,7 +427,7 @@ describe('StudyScreen', () => {
       />
     );
 
-    const structureToggle = await screen.findByRole('button', { name: 'Structure' });
+    const structureToggle = await screen.findByRole('button', { name: 'Grammar' });
     fireEvent.click(structureToggle);
     const items = screen.getAllByText('てみる');
     // Only the pattern text should appear — not duplicated as a reading
@@ -455,7 +455,7 @@ describe('StudyScreen', () => {
       />
     );
 
-    const structureToggle = await screen.findByRole('button', { name: 'Structure' });
+    const structureToggle = await screen.findByRole('button', { name: 'Grammar' });
     fireEvent.click(structureToggle);
     expect(screen.getByText('〜て見る')).toBeInTheDocument();
     expect(screen.getByText('てみる')).toBeInTheDocument();

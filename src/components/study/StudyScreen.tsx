@@ -90,7 +90,7 @@ export default function StudyScreen({
   const [isPlaying, setIsPlaying] = useState(false);
   const [openSections, setOpenSections] = useState({
     vocabulary: true,
-    structure: false,
+    grammar: false,
     breakdown: false,
     translation: false,
   });
@@ -297,12 +297,12 @@ export default function StudyScreen({
           </StudySection>
 
           <StudySection
-            title="Structure"
-            isOpen={openSections.structure}
-            onToggle={() => toggleSection('structure')}
+            title="Grammar"
+            isOpen={openSections.grammar}
+            onToggle={() => toggleSection('grammar')}
           >
             {!studyGuide ? (
-              <p className="text-sm text-muted">Structure notes will appear here.</p>
+              <p className="text-sm text-muted">Grammar notes will appear here.</p>
             ) : (
               <ul className="space-y-3">
                 {studyGuide.structures.map((item) => (

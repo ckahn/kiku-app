@@ -48,7 +48,7 @@ ${request.chunkText}
 Output requirements:
 - version must be 2
 - vocabulary: a curated list of the most useful words or short expressions only; every item must include a dictionaryForm field (the plain dictionary/citation form of the word, e.g. 走る not 走った) and a partOfSpeech field (for example: noun, verb, い-adj, な-adj)
-- structures: a short list of key grammar patterns or sentence structures
+- structures: a short list of key grammar points, conjugations, or sentence patterns
 - breakdown: guided interpretation steps in natural study order
 - translation.fullEnglish: one complete fallback English translation
 
@@ -56,6 +56,9 @@ Content rules:
 - Do not be exhaustive
 - Prefer clarity over completeness
 - Keep explanations concise and learner-friendly
+- Vocabulary items must use dictionary/citation forms as the japanese field itself; do not include conjugated surface forms like 食べたり in vocabulary
+- Put conjugations and usage notes for inflected forms like 食べたり in structures instead of vocabulary
+- Prefer one vocabulary item per underlying word; do not list both a conjugated surface form and its dictionary form
 - Ignore English-language material in the transcript/context. Do not turn English sentences, phrases, or quoted translations into vocabulary, structures, or breakdown items.
 - Only derive study items from Japanese text; if a chunk is mostly English, leave vocabulary/structures/breakdown empty and rely on translation.fullEnglish
 - Reading fields: provide a hiragana reading ONLY when the text contains at least one kanji character; otherwise return null

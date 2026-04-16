@@ -83,4 +83,41 @@ describe('study guide parser', () => {
       },
     ]);
   });
+
+  it('keeps only the dictionary-form vocabulary entry when both forms are present', async () => {
+    const { parseStudyGuideContent } = await import('../study-guide');
+
+    const parsed = parseStudyGuideContent({
+      ...studyGuideFixture,
+      vocabulary: [
+        {
+          id: 'vocab-tabetari',
+          japanese: '食べたり',
+          reading: 'たべたり',
+          partOfSpeech: 'verb',
+          dictionaryForm: '食べる',
+          meaning: 'to eat',
+        },
+        {
+          id: 'vocab-taberu',
+          japanese: '食べる',
+          reading: 'たべる',
+          partOfSpeech: 'verb',
+          dictionaryForm: '食べる',
+          meaning: 'to eat',
+        },
+      ],
+    });
+
+    expect(parsed.vocabulary).toEqual([
+      {
+        id: 'vocab-taberu',
+        japanese: '食べる',
+        reading: 'たべる',
+        partOfSpeech: 'verb',
+        dictionaryForm: '食べる',
+        meaning: 'to eat',
+      },
+    ]);
+  });
 });

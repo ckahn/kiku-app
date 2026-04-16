@@ -58,9 +58,36 @@ function isJapaneseStudyText(value: string): boolean {
   return japaneseCount >= latinCount;
 }
 
+function dedupeVocabularyItems(
+  vocabulary: readonly StudyGuideVocabularyItem[]
+): StudyGuideVocabularyItem[] {
+  const deduped = new Map<string, StudyGuideVocabularyItem>();
+
+  for (const item of vocabulary) {
+    const key = item.dictionaryForm.trim();
+    const existing = deduped.get(key);
+
+    if (!existing) {
+      deduped.set(key, item);
+      continue;
+    }
+
+    const currentIsDictionaryForm = item.japanese === item.dictionaryForm;
+    const existingIsDictionaryForm = existing.japanese === existing.dictionaryForm;
+
+    if (currentIsDictionaryForm && !existingIsDictionaryForm) {
+      deduped.set(key, item);
+    }
+  }
+
+  return [...deduped.values()];
+}
+
 function sanitizeStudyGuideContent(content: StudyGuideContent): StudyGuideContent {
-  const vocabulary = content.vocabulary.filter(
-    (item) => isJapaneseStudyText(item.japanese) && isJapaneseStudyText(item.dictionaryForm)
+  const vocabulary = dedupeVocabularyItems(
+    content.vocabulary.filter(
+      (item) => isJapaneseStudyText(item.japanese) && isJapaneseStudyText(item.dictionaryForm)
+    )
   );
 
   const structures = content.structures.filter((item) => isJapaneseStudyText(item.pattern));
