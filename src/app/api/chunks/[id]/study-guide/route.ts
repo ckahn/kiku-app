@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { getChunkById, getChunksByEpisodeId } from '@/db/chunks';
-import { getStudyGuideByChunkId, saveStudyGuideForChunkId } from '@/db/study-guides';
+import { getChunkById } from '@/db/chunks';
+import { getStudyGuideByChunkId } from '@/db/study-guides';
 import { parseStudyGuideContent } from '@/lib/api/study-guide';
 import { normalizeStudyGuideVocabularySurfaces } from '@/lib/api/study-guide-normalization';
-import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
+import { generateAndSaveStudyGuide } from '@/lib/api/study-guide-service';
 import { apiErr, apiOk } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
-import { STUDY_GUIDE_CONTEXT_CHUNKS, STUDY_GUIDE_CURRENT_VERSION } from '@/lib/constants';
+import { STUDY_GUIDE_CURRENT_VERSION } from '@/lib/constants';
 
 export const maxDuration = 60;
 
@@ -50,25 +50,13 @@ export async function GET(
       }
     }
 
-    const episodeChunks = await getChunksByEpisodeId(chunk.episodeId);
     // We always take the last N chunks of the episode regardless of which chunk
     // is being studied. This guarantees the model has some episode context (for
     // pronoun/topic-drop resolution), without requiring the context window to
     // centre on the studied chunk. For early chunks the context will be from
     // later in the episode — that is intentional; the prompt labels this as
     // "episode context" rather than "preceding context".
-    const contextText = episodeChunks
-      .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
-      .map((c) => c.textRaw)
-      .join('\n');
-
-    const generatedStudyGuide = normalizeStudyGuideVocabularySurfaces(
-      parseStudyGuideContent(await generateStudyGuideFromProvider(chunk.textRaw, contextText))
-    );
-
-    await saveStudyGuideForChunkId(chunkId, generatedStudyGuide);
-
-    return apiOk(generatedStudyGuide);
+    return apiOk(await generateAndSaveStudyGuide(chunk));
   } catch (error: unknown) {
     console.error(`[study-guide] chunk ${chunkId} failed`, error);
     return apiErr(getErrorMessage(error), 500);

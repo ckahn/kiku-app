@@ -1,11 +1,7 @@
 import { z } from 'zod';
-import { getChunkById, getChunksByEpisodeId } from '@/db/chunks';
-import { saveStudyGuideForChunkId } from '@/db/study-guides';
-import { parseStudyGuideContent } from '@/lib/api/study-guide';
-import { normalizeStudyGuideVocabularySurfaces } from '@/lib/api/study-guide-normalization';
-import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
+import { getChunkById } from '@/db/chunks';
+import { generateAndSaveStudyGuide } from '@/lib/api/study-guide-service';
 import { apiErr, apiOk } from '@/lib/api-response';
-import { STUDY_GUIDE_CONTEXT_CHUNKS } from '@/lib/constants';
 import { getErrorMessage } from '@/lib/utils';
 
 export const maxDuration = 60;
@@ -33,21 +29,7 @@ export async function POST(
       return apiErr('not found', 404);
     }
 
-    const episodeChunks = await getChunksByEpisodeId(chunk.episodeId);
-    // Always take the last N chunks of the episode — see GET handler for the
-    // rationale behind this intentional choice.
-    const contextText = episodeChunks
-      .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
-      .map((candidate) => candidate.textRaw)
-      .join('\n');
-
-    const generatedStudyGuide = normalizeStudyGuideVocabularySurfaces(
-      parseStudyGuideContent(await generateStudyGuideFromProvider(chunk.textRaw, contextText))
-    );
-
-    await saveStudyGuideForChunkId(chunkId, generatedStudyGuide);
-
-    return apiOk(generatedStudyGuide);
+    return apiOk(await generateAndSaveStudyGuide(chunk));
   } catch (error: unknown) {
     console.error(`[study-guide:regenerate] chunk ${chunkId} failed`, error);
     return apiErr(getErrorMessage(error), 500);
