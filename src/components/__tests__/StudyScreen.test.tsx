@@ -62,7 +62,7 @@ describe('StudyScreen', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Study' })).toBeInTheDocument();
-    expect(screen.getByText(/loading study guide/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/loading study guide/i)).toBeInTheDocument();
     expect(screen.getByText('にほんご')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /furigana/i })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Restart chunk' })).toBeNull();

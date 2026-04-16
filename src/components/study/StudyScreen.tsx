@@ -215,10 +215,6 @@ export default function StudyScreen({
         </div>
       </section>
 
-      {isLoading && (
-        <p className="text-sm text-muted">Loading study guide...</p>
-      )}
-
       {errorMessage && (
         <div
           role="alert"
@@ -228,6 +224,11 @@ export default function StudyScreen({
         </div>
       )}
 
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12" aria-label="Loading study guide">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        </div>
+      ) : (
       <div className="space-y-3">
         <StudySection
           title="Vocabulary"
@@ -303,6 +304,7 @@ export default function StudyScreen({
           )}
         </StudySection>
       </div>
+      )}
 
     </div>
   );
