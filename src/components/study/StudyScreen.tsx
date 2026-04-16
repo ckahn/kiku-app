@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Play, Square } from 'lucide-react';
+import { Play, RefreshCw, Square } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
@@ -66,6 +66,19 @@ async function loadStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent>
   return payload.data;
 }
 
+async function regenerateStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent> {
+  const response = await fetch(`${studyGuideUrl}/regenerate`, {
+    method: 'POST',
+  });
+  const payload = await response.json() as ApiResponse<StudyGuideContent>;
+
+  if (!response.ok || !payload.success || !payload.data) {
+    throw new Error(payload.error ?? 'Could not regenerate the study guide.');
+  }
+
+  return payload.data;
+}
+
 export default function StudyScreen({
   chunk,
   audioUrl,
@@ -77,12 +90,14 @@ export default function StudyScreen({
   const [isPlaying, setIsPlaying] = useState(false);
   const [openSections, setOpenSections] = useState({
     vocabulary: true,
-    structure: false,
+    grammar: false,
     breakdown: false,
     translation: false,
   });
   const [studyGuide, setStudyGuide] = useState<StudyGuideContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const isRegeneratingRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,7 +109,8 @@ export default function StudyScreen({
         setErrorMessage(null);
         const nextStudyGuide = await loadStudyGuide(studyGuideUrl);
 
-        if (!isCancelled) {
+        // Don't overwrite a regeneration result that resolved while we were loading.
+        if (!isCancelled && !isRegeneratingRef.current) {
           setStudyGuide(nextStudyGuide);
         }
       } catch (error: unknown) {
@@ -161,6 +177,21 @@ export default function StudyScreen({
     router.push(backHref);
   }
 
+  async function handleRegenerateStudyGuide() {
+    try {
+      isRegeneratingRef.current = true;
+      setIsRegenerating(true);
+      setErrorMessage(null);
+      const nextStudyGuide = await regenerateStudyGuide(studyGuideUrl);
+      setStudyGuide(nextStudyGuide);
+    } catch (error: unknown) {
+      setErrorMessage(getClientErrorMessage(error));
+    } finally {
+      isRegeneratingRef.current = false;
+      setIsRegenerating(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <audio
@@ -182,8 +213,19 @@ export default function StudyScreen({
       </div>
 
       <header className="space-y-1">
-        <p className="text-sm text-muted">Chunk {chunk.chunkIndex + 1}</p>
-        <h1 className="text-2xl font-bold text-ink">Study</h1>
+        <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-ink">Study</h1>
+          <button
+            type="button"
+            onClick={handleRegenerateStudyGuide}
+            disabled={isLoading || isRegenerating}
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Regenerate
+          </button>
+        </div>
       </header>
 
       <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
@@ -215,10 +257,6 @@ export default function StudyScreen({
         </div>
       </section>
 
-      {isLoading && (
-        <p className="text-sm text-muted">Loading study guide...</p>
-      )}
-
       {errorMessage && (
         <div
           role="alert"
@@ -228,81 +266,97 @@ export default function StudyScreen({
         </div>
       )}
 
-      <div className="space-y-3">
-        <StudySection
-          title="Vocabulary"
-          isOpen={openSections.vocabulary}
-          onToggle={() => toggleSection('vocabulary')}
-        >
-          {!studyGuide ? (
-            <p className="text-sm text-muted">Vocabulary will appear here.</p>
-          ) : (
-            <ul className="space-y-3">
-              {studyGuide.vocabulary.map((item) => (
-                <li key={item.id} className="space-y-1">
-                  <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
-                  {hasDistinctReading(item.reading ?? undefined, item.japanese) && <p className="text-sm text-muted">{item.reading}</p>}
-                  <p className="text-sm text-ink">{item.meaning}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </StudySection>
-
-        <StudySection
-          title="Structure"
-          isOpen={openSections.structure}
-          onToggle={() => toggleSection('structure')}
-        >
-          {!studyGuide ? (
-            <p className="text-sm text-muted">Structure notes will appear here.</p>
-          ) : (
-            <ul className="space-y-3">
-              {studyGuide.structures.map((item) => (
-                <li key={item.id} className="space-y-1">
-                  <p className="text-sm font-semibold text-ink font-jp">{item.pattern}</p>
-                  {hasDistinctReading(item.reading ?? undefined, item.pattern) && <p className="text-sm text-muted">{item.reading}</p>}
-                  <p className="text-sm text-ink">{item.meaning}</p>
-                  {item.note && <p className="text-sm text-muted">{item.note}</p>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </StudySection>
-
-        <StudySection
-          title="Breakdown"
-          isOpen={openSections.breakdown}
-          onToggle={() => toggleSection('breakdown')}
-        >
-          {!studyGuide ? (
-            <p className="text-sm text-muted">Breakdown notes will appear here.</p>
-          ) : (
-            <ol className="space-y-3">
-              {studyGuide.breakdown
-                .slice()
-                .sort((left, right) => left.order - right.order)
-                .map((item) => (
+      {isLoading || isRegenerating ? (
+        <div className="flex items-center justify-center py-12" aria-label="Loading study guide">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <StudySection
+            title="Vocabulary"
+            isOpen={openSections.vocabulary}
+            onToggle={() => toggleSection('vocabulary')}
+          >
+            {!studyGuide ? (
+              <p className="text-sm text-muted">Vocabulary will appear here.</p>
+            ) : (
+              <ul className="space-y-3">
+                {studyGuide.vocabulary.map((item) => (
                   <li key={item.id} className="space-y-1">
                     <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
-                    <p className="text-sm text-ink">{item.cue}</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
+                      {hasDistinctReading(item.reading ?? undefined, item.japanese) && (
+                        <span>{item.reading}</span>
+                      )}
+                      {item.partOfSpeech && <span>{item.partOfSpeech}</span>}
+                    </div>
+                    {item.dictionaryForm !== item.japanese && (
+                      <p className="text-sm text-muted font-jp">{item.dictionaryForm}</p>
+                    )}
+                    <p className="text-sm text-ink">{item.meaning}</p>
                   </li>
                 ))}
-            </ol>
-          )}
-        </StudySection>
-        <StudySection
-          title="English translation"
-          isOpen={openSections.translation}
-          onToggle={() => toggleSection('translation')}
-        >
-          {!studyGuide ? (
-            <p className="text-sm text-muted">Translation will appear here.</p>
-          ) : (
-            <p className="text-sm leading-6 text-ink">{studyGuide.translation.fullEnglish}</p>
-          )}
-        </StudySection>
-      </div>
+              </ul>
+            )}
+          </StudySection>
+
+          <StudySection
+            title="Grammar"
+            isOpen={openSections.grammar}
+            onToggle={() => toggleSection('grammar')}
+          >
+            {!studyGuide ? (
+              <p className="text-sm text-muted">Grammar notes will appear here.</p>
+            ) : (
+              <ul className="space-y-3">
+                {studyGuide.structures.map((item) => (
+                  <li key={item.id} className="space-y-1">
+                    <p className="text-sm font-semibold text-ink font-jp">{item.pattern}</p>
+                    {hasDistinctReading(item.reading ?? undefined, item.pattern) && (
+                      <p className="text-sm text-muted">{item.reading}</p>
+                    )}
+                    <p className="text-sm text-ink">{item.meaning}</p>
+                    {item.note && <p className="text-sm text-muted">{item.note}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </StudySection>
+
+          <StudySection
+            title="Breakdown"
+            isOpen={openSections.breakdown}
+            onToggle={() => toggleSection('breakdown')}
+          >
+            {!studyGuide ? (
+              <p className="text-sm text-muted">Breakdown notes will appear here.</p>
+            ) : (
+              <ol className="space-y-3">
+                {studyGuide.breakdown
+                  .slice()
+                  .sort((left, right) => left.order - right.order)
+                  .map((item) => (
+                    <li key={item.id} className="space-y-1">
+                      <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
+                      <p className="text-sm text-ink">{item.cue}</p>
+                    </li>
+                  ))}
+              </ol>
+            )}
+          </StudySection>
+          <StudySection
+            title="English translation"
+            isOpen={openSections.translation}
+            onToggle={() => toggleSection('translation')}
+          >
+            {!studyGuide ? (
+              <p className="text-sm text-muted">Translation will appear here.</p>
+            ) : (
+              <p className="text-sm leading-6 text-ink">{studyGuide.translation.fullEnglish}</p>
+            )}
+          </StudySection>
+        </div>
+      )}
 
     </div>
   );

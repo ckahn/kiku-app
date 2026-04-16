@@ -6,6 +6,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./src/test/setup.ts'],
+    exclude: ['node_modules', '.claude/worktrees/**'],
     coverage: {
       provider: 'v8',
       include: ['src/lib/api/**/*.ts', 'src/components/ui/**/*.tsx'],

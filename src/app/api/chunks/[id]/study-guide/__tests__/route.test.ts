@@ -2,17 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import studyGuideFixture from '@fixtures/study-guide.json';
 
 const mockGetChunkById = vi.fn();
-const mockGetRawTranscript = vi.fn();
+const mockGetChunksByEpisodeId = vi.fn();
 const mockGetStudyGuideByChunkId = vi.fn();
 const mockSaveStudyGuideForChunkId = vi.fn();
 const mockGenerateStudyGuideFromProvider = vi.fn();
 
 vi.mock('@/db/chunks', () => ({
   getChunkById: mockGetChunkById,
-}));
-
-vi.mock('@/db/episodes', () => ({
-  getRawTranscript: mockGetRawTranscript,
+  getChunksByEpisodeId: mockGetChunksByEpisodeId,
 }));
 
 vi.mock('@/db/study-guides', () => ({
@@ -28,7 +25,10 @@ describe('GET /api/chunks/[id]/study-guide', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetChunkById.mockResolvedValue({ id: 12, episodeId: 5, textRaw: '日本語の文です。' });
-    mockGetRawTranscript.mockResolvedValue({ text: '日本語の文です。前後の文もあります。' });
+    mockGetChunksByEpisodeId.mockResolvedValue([
+      { id: 11, episodeId: 5, textRaw: '前後の文もあります。' },
+      { id: 12, episodeId: 5, textRaw: '日本語の文です。' },
+    ]);
     mockGetStudyGuideByChunkId.mockResolvedValue(null);
     mockSaveStudyGuideForChunkId.mockResolvedValue({
       id: 4,
@@ -81,44 +81,111 @@ describe('GET /api/chunks/[id]/study-guide', () => {
   });
 
   it('generates and persists the study guide on a cache miss', async () => {
+    mockGenerateStudyGuideFromProvider.mockResolvedValueOnce({
+      ...studyGuideFixture,
+      vocabulary: [
+        {
+          id: 'vocab-kaigi',
+          japanese: 'かいぎ',
+          reading: 'かいぎ',
+          dictionaryForm: '会議',
+          meaning: 'meeting',
+        },
+      ],
+    });
+
     const response = await callRoute('12');
     const json = await response.json();
 
     expect(response.status).toBe(200);
-    expect(json.data).toEqual(studyGuideFixture);
-    expect(mockGetRawTranscript).toHaveBeenCalledWith(5);
+    expect(json.data).toMatchObject({
+      version: 2,
+      vocabulary: [
+        {
+          id: 'vocab-kaigi',
+          japanese: '会議',
+          reading: 'かいぎ',
+          dictionaryForm: '会議',
+          meaning: 'meeting',
+        },
+      ],
+      translation: {
+        fullEnglish: studyGuideFixture.translation.fullEnglish,
+      },
+    });
+    expect(mockGetChunksByEpisodeId).toHaveBeenCalledWith(5);
     expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledWith(
       '日本語の文です。',
-      '日本語の文です。前後の文もあります。'
+      '前後の文もあります。\n日本語の文です。'
     );
-    expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(12, studyGuideFixture);
+    expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({
+        version: 2,
+        vocabulary: [
+          {
+            id: 'vocab-kaigi',
+            japanese: '会議',
+            reading: 'かいぎ',
+            dictionaryForm: '会議',
+            meaning: 'meeting',
+          },
+        ],
+        translation: {
+          fullEnglish: studyGuideFixture.translation.fullEnglish,
+        },
+      })
+    );
   });
 
-  it('returns 500 when cached study guide content is invalid', async () => {
+  it('regenerates when the cached study guide has a stale version', async () => {
     mockGetStudyGuideByChunkId.mockResolvedValueOnce({
       id: 4,
       chunkId: 12,
-      version: 2,
+      version: 1,
       content: { ...studyGuideFixture, version: 1 },
     });
 
     const response = await callRoute('12');
     const json = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(json.error).toMatch(/study guide/i);
-    expect(mockGenerateStudyGuideFromProvider).not.toHaveBeenCalled();
-    expect(mockGetRawTranscript).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(json.data).toEqual(studyGuideFixture);
+    expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledTimes(1);
+    expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({ version: 2 })
+    );
   });
 
-  it('returns 404 when the episode transcript is missing', async () => {
-    mockGetRawTranscript.mockRejectedValueOnce(new Error('No raw transcript found for episode 5'));
+  it('regenerates when the cached study guide content fails validation', async () => {
+    mockGetStudyGuideByChunkId.mockResolvedValueOnce({
+      id: 4,
+      chunkId: 12,
+      version: 2,
+      content: { ...studyGuideFixture, vocabulary: [{ id: 'v1', japanese: '会議' }] },
+    });
 
     const response = await callRoute('12');
     const json = await response.json();
 
-    expect(response.status).toBe(404);
-    expect(json.error).toMatch(/transcript not available/i);
+    expect(response.status).toBe(200);
+    expect(json.data).toEqual(studyGuideFixture);
+    expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledTimes(1);
+    expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({ version: 2 })
+    );
+  });
+
+  it('returns 500 when fetching episode chunks fails', async () => {
+    mockGetChunksByEpisodeId.mockRejectedValueOnce(new Error('db connection lost'));
+
+    const response = await callRoute('12');
+    const json = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(json.error).toMatch(/db connection lost/i);
     expect(mockGenerateStudyGuideFromProvider).not.toHaveBeenCalled();
   });
 

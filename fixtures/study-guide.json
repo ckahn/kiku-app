@@ -5,12 +5,16 @@
       "id": "vocab-kaigi",
       "japanese": "会議",
       "reading": "かいぎ",
+      "partOfSpeech": "noun",
+      "dictionaryForm": "会議",
       "meaning": "meeting"
     },
     {
       "id": "vocab-junbi",
       "japanese": "準備",
       "reading": "じゅんび",
+      "partOfSpeech": "noun",
+      "dictionaryForm": "準備する",
       "meaning": "preparation"
     }
   ],

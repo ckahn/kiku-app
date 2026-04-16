@@ -32,7 +32,7 @@ export default function ChunkItem({
 
   const studyHref =
     podcastSlug && episodeNumber !== undefined
-      ? `/podcasts/${podcastSlug}/episodes/${episodeNumber}/chunks/${chunk.chunkIndex}/study`
+      ? `/podcasts/${podcastSlug}/episodes/${episodeNumber}/segments/${chunk.chunkIndex}/study`
       : null;
 
   return (
@@ -62,7 +62,7 @@ export default function ChunkItem({
             }
           }}
           className="absolute top-3 right-3 text-muted hover:text-primary transition-colors"
-          aria-label="Study this chunk"
+          aria-label="Study this segment"
         >
           <BookOpen size={16} />
         </Link>

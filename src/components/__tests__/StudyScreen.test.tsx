@@ -56,13 +56,13 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
     expect(screen.getByRole('heading', { name: 'Study' })).toBeInTheDocument();
-    expect(screen.getByText(/loading study guide/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/loading study guide/i)).toBeInTheDocument();
     expect(screen.getByText('にほんご')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /furigana/i })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Restart chunk' })).toBeNull();
@@ -78,13 +78,13 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
     expect(await screen.findByRole('button', { name: 'Vocabulary' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: 'Structure' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Grammar' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'Breakdown' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'English translation' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText(studyGuideFixture.translation.fullEnglish)).toBeNull();
@@ -100,13 +100,129 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/study guide unavailable/i);
+    });
+  });
+
+  it('always shows a regenerate button even when loading the study guide fails', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      json: async () => ({ success: false, error: 'Invalid study guide content' }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/segments/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/invalid study guide content/i);
+    });
+    expect(screen.getByRole('button', { name: /regenerate/i })).toBeInTheDocument();
+  });
+
+  it('shows the loading spinner while regenerating and hides guide content', async () => {
+    let resolveRegenerate!: (value: Response) => void;
+    vi.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: studyGuideFixture }),
+      } as Response)
+      .mockImplementationOnce(
+        () => new Promise<Response>((resolve) => { resolveRegenerate = resolve; })
+      );
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/segments/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    fireEvent.click(screen.getByRole('button', { name: /regenerate/i }));
+
+    expect(screen.getByLabelText(/loading study guide/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Vocabulary' })).toBeNull();
+
+    resolveRegenerate({
+      ok: true,
+      json: async () => ({ success: true, data: studyGuideFixture }),
+    } as Response);
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    expect(screen.queryByLabelText(/loading study guide/i)).toBeNull();
+  });
+
+  it('regenerates the study guide after a load error', async () => {
+    vi.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ success: false, error: 'Invalid study guide content' }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: studyGuideFixture }),
+      } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/segments/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: /regenerate/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenLastCalledWith('/api/segments/12/study-guide/regenerate', {
+        method: 'POST',
+      });
+    });
+    expect(await screen.findByText(studyGuideFixture.vocabulary[0].japanese)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows an error when regenerating the study guide fails', async () => {
+    vi.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: studyGuideFixture }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ success: false, error: 'regeneration unavailable' }),
+      } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/segments/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    fireEvent.click(screen.getByRole('button', { name: /regenerate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/regeneration unavailable/i);
     });
   });
 
@@ -120,7 +236,7 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
@@ -141,7 +257,7 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
@@ -166,7 +282,7 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
@@ -192,7 +308,7 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
@@ -221,7 +337,7 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
@@ -249,7 +365,7 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
@@ -264,7 +380,14 @@ describe('StudyScreen', () => {
     const guideWithKanjiVocab = {
       ...studyGuideFixture,
       vocabulary: [
-        { id: 'vocab-kanji', japanese: '綺麗', reading: 'きれい', meaning: 'beautiful' },
+        {
+          id: 'vocab-kanji',
+          japanese: '綺麗',
+          reading: 'きれい',
+          partOfSpeech: 'na-adj',
+          dictionaryForm: '綺麗',
+          meaning: 'beautiful',
+        },
       ],
     };
     vi.spyOn(global, 'fetch').mockResolvedValue({
@@ -276,7 +399,7 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
@@ -284,6 +407,38 @@ describe('StudyScreen', () => {
     await screen.findByRole('button', { name: 'Vocabulary' });
     expect(screen.getByText('綺麗')).toBeInTheDocument();
     expect(screen.getByText('きれい')).toBeInTheDocument();
+  });
+
+  it('shows the part of speech for a vocabulary item when present', async () => {
+    const guideWithPartOfSpeech = {
+      ...studyGuideFixture,
+      vocabulary: [
+        {
+          id: 'vocab-kanji',
+          japanese: '綺麗',
+          reading: 'きれい',
+          partOfSpeech: 'na-adj',
+          dictionaryForm: '綺麗',
+          meaning: 'beautiful',
+        },
+      ],
+    };
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: guideWithPartOfSpeech }),
+    } as Response);
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/segments/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    expect(screen.getByText('na-adj')).toBeInTheDocument();
   });
 
   it('hides the reading for a structure item when it matches the pattern text', async () => {
@@ -302,12 +457,12 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
-    const structureToggle = await screen.findByRole('button', { name: 'Structure' });
+    const structureToggle = await screen.findByRole('button', { name: 'Grammar' });
     fireEvent.click(structureToggle);
     const items = screen.getAllByText('てみる');
     // Only the pattern text should appear — not duplicated as a reading
@@ -330,12 +485,12 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk()}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );
 
-    const structureToggle = await screen.findByRole('button', { name: 'Structure' });
+    const structureToggle = await screen.findByRole('button', { name: 'Grammar' });
     fireEvent.click(structureToggle);
     expect(screen.getByText('〜て見る')).toBeInTheDocument();
     expect(screen.getByText('てみる')).toBeInTheDocument();
@@ -350,7 +505,7 @@ describe('StudyScreen', () => {
       <StudyScreen
         chunk={makeChunk({ furiganaStatus: 'suspect', furiganaWarning: 'Suspicious reading detected.' })}
         audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/chunks/12/study-guide"
+        studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
       />
     );

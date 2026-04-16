@@ -11,12 +11,12 @@ import type { StudyGuideContent } from './types';
 // handlers depend on app-shaped providers instead of vendor-specific modules.
 export interface StudyGuideProviderRequest {
   readonly chunkText: string;
-  readonly transcriptText: string;
+  readonly contextText: string;
 }
 
 export const studyGuideProviderRequestSchema = z.object({
   chunkText: z.string().min(1),
-  transcriptText: z.string().min(1),
+  contextText: z.string().min(1),
 }) satisfies z.ZodType<StudyGuideProviderRequest>;
 
 export function parseStudyGuideProviderRequest(request: unknown): StudyGuideProviderRequest {
@@ -32,28 +32,26 @@ export function parseStudyGuideProviderRequest(request: unknown): StudyGuideProv
 }
 
 function buildStudyGuidePrompt(request: StudyGuideProviderRequest): string {
-  // We send the full episode transcript so the model has enough context to
-  // produce accurate translations and grammar notes for the chunk (e.g. to
-  // resolve pronouns or topic-dropped subjects that only make sense in context).
-  //
-  // TODO: This multiplies token cost by the number of chunks per episode.
-  // Consider a more efficient approach — e.g. store a short episode summary
-  // and pass that instead, and/or include only the N segments immediately
-  // surrounding the chunk.
+  // We send the last N chunks of the episode as background context so the model
+  // can resolve pronouns and topic-dropped subjects, without paying the token
+  // cost of the full transcript. This context may come from later in the episode
+  // than the studied chunk; the prompt labels it as "episode context" rather than
+  // "preceding context" so the model treats it as background, not as immediately
+  // preceding speech.
   return `You are a Japanese teacher creating a concise mobile study guide for one Japanese podcast chunk.
 
 Return structured JSON only.
 
-Full transcript for context:
-${request.transcriptText}
+Episode context (sample segments from this episode, for background reference only):
+${request.contextText}
 
-Chunk text:
+Chunk to study:
 ${request.chunkText}
 
 Output requirements:
 - version must be 2
-- vocabulary: a curated list of the most useful words or short expressions only
-- structures: a short list of key grammar patterns or sentence structures
+- vocabulary: a curated list of the most useful words or short expressions only; every item must include a dictionaryForm field (the plain dictionary/citation form of the word, e.g. 走る not 走った) and a partOfSpeech field (for example: noun, verb, い-adj, な-adj)
+- structures: a short list of key grammar points, conjugations, or sentence patterns
 - breakdown: guided interpretation steps in natural study order
 - translation.fullEnglish: one complete fallback English translation
 
@@ -61,7 +59,13 @@ Content rules:
 - Do not be exhaustive
 - Prefer clarity over completeness
 - Keep explanations concise and learner-friendly
+- Vocabulary items must use dictionary/citation forms as the japanese field itself; do not include conjugated surface forms like 食べたり in vocabulary
+- Put conjugations and usage notes for inflected forms like 食べたり in structures instead of vocabulary
+- Prefer one vocabulary item per underlying word; do not list both a conjugated surface form and its dictionary form
+- Ignore English-language material in the transcript/context. Do not turn English sentences, phrases, or quoted translations into vocabulary, structures, or breakdown items.
+- Only derive study items from Japanese text; if a chunk is mostly English, leave vocabulary/structures/breakdown empty and rely on translation.fullEnglish
 - Reading fields: provide a hiragana reading ONLY when the text contains at least one kanji character; otherwise return null
+- For kanji-bearing vocabulary items, keep the japanese field in the original kanji spelling from the chunk; do not replace kanji with a kana-only reading.
 - breakdown.cue must be an instructive explanation of the segment's meaning or grammar — never a question or quiz prompt
 - breakdown.order must start at 0 and increase by 1
 - Every id must be a short stable string
@@ -89,9 +93,9 @@ async function generateStudyGuideWithClaude(
 
 export async function generateStudyGuideFromProvider(
   chunkText: string,
-  transcriptText: string
+  contextText: string
 ): Promise<StudyGuideContent> {
-  const request = parseStudyGuideProviderRequest({ chunkText, transcriptText });
+  const request = parseStudyGuideProviderRequest({ chunkText, contextText });
 
   if (process.env.USE_MOCKS === 'true') {
     return studyGuideFixture as StudyGuideContent;
