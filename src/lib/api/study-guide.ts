@@ -10,6 +10,7 @@ const studyGuideVocabularyItemSchema = z.object({
   id: z.string().min(1),
   japanese: z.string().min(1),
   reading: z.string().min(1).nullable(),
+  dictionaryForm: z.string().min(1),
   meaning: z.string().min(1),
 }) satisfies z.ZodType<StudyGuideVocabularyItem>;
 

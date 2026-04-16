@@ -55,6 +55,7 @@ export interface StudyGuideVocabularyItem {
   readonly id: string;
   readonly japanese: string;
   readonly reading: string | null;
+  readonly dictionaryForm: string;
   readonly meaning: string;
 }
 
