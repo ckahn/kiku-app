@@ -6,7 +6,7 @@ import { normalizeStudyGuideVocabularySurfaces } from '@/lib/api/study-guide-nor
 import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
 import { apiErr, apiOk } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
-import { STUDY_GUIDE_CONTEXT_CHUNKS } from '@/lib/constants';
+import { STUDY_GUIDE_CONTEXT_CHUNKS, STUDY_GUIDE_CURRENT_VERSION } from '@/lib/constants';
 
 export const maxDuration = 60;
 
@@ -35,10 +35,13 @@ export async function GET(
 
     const cachedStudyGuide = await getStudyGuideByChunkId(chunkId);
     if (cachedStudyGuide) {
-      // TODO: If cached content fails validation, consider regenerating once
-      // instead of returning a 500 so corrupted rows can self-heal.
-      return apiOk(
-        normalizeStudyGuideVocabularySurfaces(parseStudyGuideContent(cachedStudyGuide.content))
+      if (cachedStudyGuide.version === STUDY_GUIDE_CURRENT_VERSION) {
+        return apiOk(
+          normalizeStudyGuideVocabularySurfaces(parseStudyGuideContent(cachedStudyGuide.content))
+        );
+      }
+      console.warn(
+        `[study-guide] chunk ${chunkId} has stale version ${cachedStudyGuide.version}, regenerating`
       );
     }
 

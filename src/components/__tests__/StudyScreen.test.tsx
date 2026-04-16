@@ -128,7 +128,42 @@ describe('StudyScreen', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/invalid study guide content/i);
     });
-    expect(screen.getByRole('button', { name: /regenerate study guide/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /regenerate/i })).toBeInTheDocument();
+  });
+
+  it('shows the loading spinner while regenerating and hides guide content', async () => {
+    let resolveRegenerate!: (value: Response) => void;
+    vi.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: studyGuideFixture }),
+      } as Response)
+      .mockImplementationOnce(
+        () => new Promise<Response>((resolve) => { resolveRegenerate = resolve; })
+      );
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/segments/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    fireEvent.click(screen.getByRole('button', { name: /regenerate/i }));
+
+    expect(screen.getByLabelText(/loading study guide/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Vocabulary' })).toBeNull();
+
+    resolveRegenerate({
+      ok: true,
+      json: async () => ({ success: true, data: studyGuideFixture }),
+    } as Response);
+
+    await screen.findByRole('button', { name: 'Vocabulary' });
+    expect(screen.queryByLabelText(/loading study guide/i)).toBeNull();
   });
 
   it('regenerates the study guide after a load error', async () => {
@@ -152,7 +187,7 @@ describe('StudyScreen', () => {
     );
 
     await screen.findByRole('alert');
-    fireEvent.click(screen.getByRole('button', { name: /regenerate study guide/i }));
+    fireEvent.click(screen.getByRole('button', { name: /regenerate/i }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenLastCalledWith('/api/segments/12/study-guide/regenerate', {
@@ -184,7 +219,7 @@ describe('StudyScreen', () => {
     );
 
     await screen.findByRole('button', { name: 'Vocabulary' });
-    fireEvent.click(screen.getByRole('button', { name: /regenerate study guide/i }));
+    fireEvent.click(screen.getByRole('button', { name: /regenerate/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/regeneration unavailable/i);

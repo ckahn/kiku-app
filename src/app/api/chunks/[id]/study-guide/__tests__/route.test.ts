@@ -138,21 +138,24 @@ describe('GET /api/chunks/[id]/study-guide', () => {
     );
   });
 
-  it('returns 500 when cached study guide content is invalid', async () => {
+  it('regenerates when the cached study guide has a stale version', async () => {
     mockGetStudyGuideByChunkId.mockResolvedValueOnce({
       id: 4,
       chunkId: 12,
-      version: 2,
+      version: 1,
       content: { ...studyGuideFixture, version: 1 },
     });
 
     const response = await callRoute('12');
     const json = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(json.error).toMatch(/study guide/i);
-    expect(mockGenerateStudyGuideFromProvider).not.toHaveBeenCalled();
-    expect(mockGetChunksByEpisodeId).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(json.data).toEqual(studyGuideFixture);
+    expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledTimes(1);
+    expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({ version: 2 })
+    );
   });
 
   it('returns 500 when fetching episode chunks fails', async () => {
