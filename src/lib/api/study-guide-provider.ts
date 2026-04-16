@@ -11,12 +11,12 @@ import type { StudyGuideContent } from './types';
 // handlers depend on app-shaped providers instead of vendor-specific modules.
 export interface StudyGuideProviderRequest {
   readonly chunkText: string;
-  readonly transcriptText: string;
+  readonly contextText: string;
 }
 
 export const studyGuideProviderRequestSchema = z.object({
   chunkText: z.string().min(1),
-  transcriptText: z.string().min(1),
+  contextText: z.string().min(1),
 }) satisfies z.ZodType<StudyGuideProviderRequest>;
 
 export function parseStudyGuideProviderRequest(request: unknown): StudyGuideProviderRequest {
@@ -32,20 +32,15 @@ export function parseStudyGuideProviderRequest(request: unknown): StudyGuideProv
 }
 
 function buildStudyGuidePrompt(request: StudyGuideProviderRequest): string {
-  // We send the full episode transcript so the model has enough context to
-  // produce accurate translations and grammar notes for the chunk (e.g. to
-  // resolve pronouns or topic-dropped subjects that only make sense in context).
-  //
-  // TODO: This multiplies token cost by the number of chunks per episode.
-  // Consider a more efficient approach — e.g. store a short episode summary
-  // and pass that instead, and/or include only the N segments immediately
-  // surrounding the chunk.
+  // We send the last N chunks as context so the model can resolve pronouns and
+  // topic-dropped subjects that only make sense in context, without paying the
+  // token cost of the full transcript.
   return `You are a Japanese teacher creating a concise mobile study guide for one Japanese podcast chunk.
 
 Return structured JSON only.
 
-Full transcript for context:
-${request.transcriptText}
+Recent transcript context:
+${request.contextText}
 
 Chunk text:
 ${request.chunkText}
@@ -89,9 +84,9 @@ async function generateStudyGuideWithClaude(
 
 export async function generateStudyGuideFromProvider(
   chunkText: string,
-  transcriptText: string
+  contextText: string
 ): Promise<StudyGuideContent> {
-  const request = parseStudyGuideProviderRequest({ chunkText, transcriptText });
+  const request = parseStudyGuideProviderRequest({ chunkText, contextText });
 
   if (process.env.USE_MOCKS === 'true') {
     return studyGuideFixture as StudyGuideContent;

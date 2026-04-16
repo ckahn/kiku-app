@@ -25,18 +25,18 @@ describe('study guide provider adapter', () => {
     expect(() =>
       parseStudyGuideProviderRequest({
         chunkText: '',
-        transcriptText: '文脈です。',
+        contextText: '文脈です。',
       })
     ).toThrow(/provider request/i);
   });
 
-  it('requires transcript context in provider requests', async () => {
+  it('requires context text in provider requests', async () => {
     const { parseStudyGuideProviderRequest } = await import('../study-guide-provider');
 
     expect(() =>
       parseStudyGuideProviderRequest({
         chunkText: '日本語の文です。',
-        transcriptText: '',
+        contextText: '',
       })
     ).toThrow(/provider request/i);
   });

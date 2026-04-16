@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { getChunkById } from '@/db/chunks';
-import { getRawTranscript } from '@/db/episodes';
+import { getChunkById, getChunksByEpisodeId } from '@/db/chunks';
 import { getStudyGuideByChunkId, saveStudyGuideForChunkId } from '@/db/study-guides';
 import { parseStudyGuideContent } from '@/lib/api/study-guide';
 import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
 import { apiErr, apiOk } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
+import { STUDY_GUIDE_CONTEXT_CHUNKS } from '@/lib/constants';
 
 export const maxDuration = 60;
 
@@ -39,15 +39,14 @@ export async function GET(
       return apiOk(parseStudyGuideContent(cachedStudyGuide.content));
     }
 
-    let transcript;
-    try {
-      transcript = await getRawTranscript(chunk.episodeId);
-    } catch {
-      return apiErr('transcript not available for this episode', 404);
-    }
+    const episodeChunks = await getChunksByEpisodeId(chunk.episodeId);
+    const contextText = episodeChunks
+      .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
+      .map((c) => c.textRaw)
+      .join('\n');
 
     const generatedStudyGuide = parseStudyGuideContent(
-      await generateStudyGuideFromProvider(chunk.textRaw, transcript.text)
+      await generateStudyGuideFromProvider(chunk.textRaw, contextText)
     );
 
     await saveStudyGuideForChunkId(chunkId, generatedStudyGuide);
