@@ -99,4 +99,24 @@ describe('ChunkList', () => {
     expect(items[0]).not.toHaveAttribute('data-active');
     expect(items[1]).toHaveAttribute('data-active');
   });
+
+  it('links to the study page using the segment route', () => {
+    const chunks = [makeChunk({ id: 1, chunkIndex: 2 })];
+
+    render(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState()}
+        controls={makeControls()}
+        podcastSlug="slow-japanese"
+        episodeNumber={7}
+        episodeHref="/podcasts/slow-japanese/episodes/7"
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Study this segment' })).toHaveAttribute(
+      'href',
+      '/podcasts/slow-japanese/episodes/7/segments/2/study',
+    );
+  });
 });

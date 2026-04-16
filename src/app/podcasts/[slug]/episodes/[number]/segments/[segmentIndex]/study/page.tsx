@@ -9,7 +9,7 @@ import { episodes, podcasts } from '@/db/schema';
 interface StudyPageParams {
   readonly slug: string;
   readonly number: string;
-  readonly chunkIndex: string;
+  readonly segmentIndex: string;
 }
 
 export default async function StudyPage({
@@ -17,11 +17,16 @@ export default async function StudyPage({
 }: {
   params: Promise<StudyPageParams>;
 }) {
-  const { slug, number, chunkIndex } = await params;
+  const { slug, number, segmentIndex } = await params;
   const parsedEpisodeNumber = Number(number);
-  const parsedChunkIndex = Number(chunkIndex);
+  const parsedSegmentIndex = Number(segmentIndex);
 
-  if (!Number.isInteger(parsedEpisodeNumber) || parsedEpisodeNumber < 1 || !Number.isInteger(parsedChunkIndex) || parsedChunkIndex < 0) {
+  if (
+    !Number.isInteger(parsedEpisodeNumber) ||
+    parsedEpisodeNumber < 1 ||
+    !Number.isInteger(parsedSegmentIndex) ||
+    parsedSegmentIndex < 0
+  ) {
     notFound();
   }
 
@@ -33,15 +38,12 @@ export default async function StudyPage({
   const [episode] = await db
     .select()
     .from(episodes)
-    .where(and(
-      eq(episodes.podcastId, podcast.id),
-      eq(episodes.episodeNumber, parsedEpisodeNumber)
-    ));
+    .where(and(eq(episodes.podcastId, podcast.id), eq(episodes.episodeNumber, parsedEpisodeNumber)));
   if (!episode) {
     notFound();
   }
 
-  const chunk = await getChunkByEpisodeIdAndIndex(episode.id, parsedChunkIndex);
+  const chunk = await getChunkByEpisodeIdAndIndex(episode.id, parsedSegmentIndex);
   if (!chunk) {
     notFound();
   }

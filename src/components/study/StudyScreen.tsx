@@ -210,7 +210,7 @@ export default function StudyScreen({
       </div>
 
       <header className="space-y-1">
-        <p className="text-sm text-muted">Chunk {chunk.chunkIndex + 1}</p>
+        <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1}</p>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-ink">Study</h1>
           <button
