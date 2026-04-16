@@ -97,6 +97,7 @@ export default function StudyScreen({
   const [studyGuide, setStudyGuide] = useState<StudyGuideContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const isRegeneratingRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,7 +109,8 @@ export default function StudyScreen({
         setErrorMessage(null);
         const nextStudyGuide = await loadStudyGuide(studyGuideUrl);
 
-        if (!isCancelled) {
+        // Don't overwrite a regeneration result that resolved while we were loading.
+        if (!isCancelled && !isRegeneratingRef.current) {
           setStudyGuide(nextStudyGuide);
         }
       } catch (error: unknown) {
@@ -177,6 +179,7 @@ export default function StudyScreen({
 
   async function handleRegenerateStudyGuide() {
     try {
+      isRegeneratingRef.current = true;
       setIsRegenerating(true);
       setErrorMessage(null);
       const nextStudyGuide = await regenerateStudyGuide(studyGuideUrl);
@@ -184,8 +187,8 @@ export default function StudyScreen({
     } catch (error: unknown) {
       setErrorMessage(getClientErrorMessage(error));
     } finally {
+      isRegeneratingRef.current = false;
       setIsRegenerating(false);
-      setIsLoading(false);
     }
   }
 
