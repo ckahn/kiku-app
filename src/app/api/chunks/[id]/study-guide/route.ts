@@ -36,13 +36,18 @@ export async function GET(
     const cachedStudyGuide = await getStudyGuideByChunkId(chunkId);
     if (cachedStudyGuide) {
       if (cachedStudyGuide.version === STUDY_GUIDE_CURRENT_VERSION) {
-        return apiOk(
-          normalizeStudyGuideVocabularySurfaces(parseStudyGuideContent(cachedStudyGuide.content))
+        try {
+          return apiOk(
+            normalizeStudyGuideVocabularySurfaces(parseStudyGuideContent(cachedStudyGuide.content))
+          );
+        } catch {
+          console.warn(`[study-guide] chunk ${chunkId} cached content failed validation, regenerating`);
+        }
+      } else {
+        console.warn(
+          `[study-guide] chunk ${chunkId} has stale version ${cachedStudyGuide.version}, regenerating`
         );
       }
-      console.warn(
-        `[study-guide] chunk ${chunkId} has stale version ${cachedStudyGuide.version}, regenerating`
-      );
     }
 
     const episodeChunks = await getChunksByEpisodeId(chunk.episodeId);

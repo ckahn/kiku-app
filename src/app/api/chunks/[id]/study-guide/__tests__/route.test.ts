@@ -158,6 +158,26 @@ describe('GET /api/chunks/[id]/study-guide', () => {
     );
   });
 
+  it('regenerates when the cached study guide content fails validation', async () => {
+    mockGetStudyGuideByChunkId.mockResolvedValueOnce({
+      id: 4,
+      chunkId: 12,
+      version: 2,
+      content: { ...studyGuideFixture, vocabulary: [{ id: 'v1', japanese: '会議' }] },
+    });
+
+    const response = await callRoute('12');
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.data).toEqual(studyGuideFixture);
+    expect(mockGenerateStudyGuideFromProvider).toHaveBeenCalledTimes(1);
+    expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({ version: 2 })
+    );
+  });
+
   it('returns 500 when fetching episode chunks fails', async () => {
     mockGetChunksByEpisodeId.mockRejectedValueOnce(new Error('db connection lost'));
 
