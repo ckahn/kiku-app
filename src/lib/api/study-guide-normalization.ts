@@ -1,6 +1,6 @@
 import type { StudyGuideContent, StudyGuideVocabularyItem } from './types';
 
-const KANJI_RE = /[\u4e00-\u9fff]/;
+const KANJI_RE = /\p{Script=Han}/u;
 
 function hasKanji(value: string): boolean {
   return KANJI_RE.test(value);
