@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Play, Square } from 'lucide-react';
+import { Play, RefreshCw, Square } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
@@ -220,9 +220,10 @@ export default function StudyScreen({
             type="button"
             onClick={handleRegenerateStudyGuide}
             disabled={isLoading || isRegenerating}
-            className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isRegenerating ? 'Regenerating…' : 'Regenerate study guide'}
+            <RefreshCw className="h-3.5 w-3.5" />
+            Regenerate
           </button>
         </div>
       </header>
@@ -265,7 +266,7 @@ export default function StudyScreen({
         </div>
       )}
 
-      {isLoading ? (
+      {isLoading || isRegenerating ? (
         <div className="flex items-center justify-center py-12" aria-label="Loading study guide">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
         </div>
