@@ -5,6 +5,7 @@ import type { Chunk } from '@/db/schema';
 import type { PlayerState } from './player/types';
 import type { PlayerControls } from './player/usePlayer';
 import { findActiveChunkId } from './player/chunkUtils';
+import { scrollChunkIntoView } from './player/scrollChunk';
 import ChunkItem from './player/ChunkItem';
 
 interface ChunkListProps {
@@ -38,12 +39,7 @@ export default function ChunkList({
       return;
     }
 
-    requestAnimationFrame(() => {
-      const element = document.querySelector<HTMLElement>(
-        `[data-chunk-id="${activeChunkId}"]`,
-      );
-      element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    });
+    scrollChunkIntoView(activeChunkId, { block: 'nearest', behavior: 'smooth' });
   }, [activeChunkId]);
 
   return (
