@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import type { Chunk } from '@/db/schema';
 import type { PlayerState } from './player/types';
 import type { PlayerControls } from './player/usePlayer';
@@ -24,6 +25,26 @@ export default function ChunkList({
   episodeHref,
 }: ChunkListProps) {
   const activeChunkId = findActiveChunkId(chunks, playerState.currentTime);
+  const hasScrolledOnceRef = useRef(false);
+
+  useEffect(() => {
+    // Skip the first run so we don't fight EpisodePlayer's mount-time scroll restore.
+    if (!hasScrolledOnceRef.current) {
+      hasScrolledOnceRef.current = true;
+      return;
+    }
+
+    if (activeChunkId === null) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const element = document.querySelector<HTMLElement>(
+        `[data-chunk-id="${activeChunkId}"]`,
+      );
+      element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }, [activeChunkId]);
 
   return (
     <ol className="space-y-4 pb-4">

@@ -1,11 +1,23 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import ChunkList from '../ChunkList';
 import { initialPlayerState } from '../player/playerReducer';
 import type { Chunk } from '@/db/schema';
 import type { PlayerState } from '../player/types';
 import type { PlayerControls } from '../player/usePlayer';
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+});
 
 function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
   return {
@@ -98,6 +110,101 @@ describe('ChunkList', () => {
     const items = screen.getAllByRole('listitem');
     expect(items[0]).not.toHaveAttribute('data-active');
     expect(items[1]).toHaveAttribute('data-active');
+  });
+
+  it('does not scroll on the initial render', () => {
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+    const chunks = [
+      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
+      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
+    ];
+    render(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ currentTime: 0 })}
+        controls={makeControls()}
+      />,
+    );
+    expect(scrollSpy).not.toHaveBeenCalled();
+  });
+
+  it('scrolls the new active chunk into view when currentTime advances', () => {
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+    const chunks = [
+      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
+      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
+    ];
+    const controls = makeControls();
+    const { rerender } = render(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ currentTime: 1 })}
+        controls={controls}
+      />,
+    );
+    expect(scrollSpy).not.toHaveBeenCalled();
+
+    rerender(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ currentTime: 6 })}
+        controls={controls}
+      />,
+    );
+
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+    expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+    // The scroll target should be the element for chunk 2.
+    const activeItem = screen.getAllByRole('listitem')[1];
+    expect(scrollSpy.mock.contexts[0]).toBe(activeItem);
+  });
+
+  it('does not scroll when the active chunk is unchanged across re-renders', () => {
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+    const chunks = [makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 })];
+    const controls = makeControls();
+    const { rerender } = render(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ currentTime: 1 })}
+        controls={controls}
+      />,
+    );
+    rerender(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ currentTime: 2 })}
+        controls={controls}
+      />,
+    );
+    expect(scrollSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not scroll when activeChunkId becomes null', () => {
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+    const chunks = [
+      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
+      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
+    ];
+    const controls = makeControls();
+    const { rerender } = render(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ currentTime: 1 })}
+        controls={controls}
+      />,
+    );
+
+    // currentTime past the final chunk → no active chunk
+    rerender(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ currentTime: 99 })}
+        controls={controls}
+      />,
+    );
+
+    expect(scrollSpy).not.toHaveBeenCalled();
   });
 
   it('links to the study page using the segment route', () => {
