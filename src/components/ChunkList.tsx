@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Chunk } from '@/db/schema';
 import type { PlayerState } from './player/types';
 import type { PlayerControls } from './player/usePlayer';
@@ -27,12 +27,6 @@ export default function ChunkList({
 }: ChunkListProps) {
   const activeChunkId = findActiveChunkId(chunks, playerState.currentTime);
   const hasScrolledOnceRef = useRef(false);
-  // Mirror chunks in a ref so the scroll effect can read them without
-  // depending on the chunks reference (which would re-fire the scroll).
-  const chunksRef = useRef(chunks);
-  useLayoutEffect(() => {
-    chunksRef.current = chunks;
-  });
 
   useEffect(() => {
     // Skip the first run so we don't fight EpisodePlayer's mount-time scroll restore.
@@ -45,13 +39,7 @@ export default function ChunkList({
       return;
     }
 
-    // Target the chunk AFTER the active one so both stay visible; `nearest` alone
-    // on the active chunk leaves tall segments half off-screen.
-    const activeIndex = chunksRef.current.findIndex((c) => c.id === activeChunkId);
-    const nextChunk = chunksRef.current[activeIndex + 1];
-    const targetId = nextChunk?.id ?? activeChunkId;
-
-    scrollChunkIntoView(targetId, { block: 'nearest', behavior: 'smooth' });
+    scrollChunkIntoView(activeChunkId, { block: 'nearest', behavior: 'smooth' });
   }, [activeChunkId]);
 
   return (

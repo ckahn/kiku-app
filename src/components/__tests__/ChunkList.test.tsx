@@ -128,12 +128,11 @@ describe('ChunkList', () => {
     expect(scrollSpy).not.toHaveBeenCalled();
   });
 
-  it('scrolls the chunk after the active one into view when currentTime advances', () => {
+  it('scrolls the active chunk into view when currentTime advances', () => {
     const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
     const chunks = [
       makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
       makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
-      makeChunk({ id: 3, chunkIndex: 2, startMs: 10000, endMs: 15000 }),
     ];
     const controls = makeControls();
     const { rerender } = render(
@@ -155,37 +154,7 @@ describe('ChunkList', () => {
 
     expect(scrollSpy).toHaveBeenCalledTimes(1);
     expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
-    // Active chunk is 2; target for scrolling should be chunk 3 (the next one).
-    const nextItem = screen.getAllByRole('listitem')[2];
-    expect(scrollSpy.mock.contexts[0]).toBe(nextItem);
-  });
-
-  it('scrolls the active chunk itself when there is no next chunk', () => {
-    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
-    const chunks = [
-      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
-      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
-    ];
-    const controls = makeControls();
-    const { rerender } = render(
-      <ChunkList
-        chunks={chunks}
-        playerState={playerState({ currentTime: 1 })}
-        controls={controls}
-      />,
-    );
-
-    rerender(
-      <ChunkList
-        chunks={chunks}
-        playerState={playerState({ currentTime: 6 })}
-        controls={controls}
-      />,
-    );
-
-    // Active chunk is 2 (the last); target falls back to chunk 2 itself.
     const activeItem = screen.getAllByRole('listitem')[1];
-    expect(scrollSpy).toHaveBeenCalledTimes(1);
     expect(scrollSpy.mock.contexts[0]).toBe(activeItem);
   });
 
