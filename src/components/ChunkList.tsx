@@ -39,7 +39,10 @@ export default function ChunkList({
       return;
     }
 
-    scrollChunkIntoView(activeChunkId, { block: 'nearest', behavior: 'smooth' });
+    // `block: 'end'` + scroll-padding-bottom on html keeps the chunk's bottom
+    // above the sticky AudioPlayer. `'nearest'` alone stops scrolling as soon
+    // as any part of the chunk is on-screen, leaving it pinned behind the player.
+    scrollChunkIntoView(activeChunkId, { block: 'end', behavior: 'smooth' });
   }, [activeChunkId]);
 
   return (

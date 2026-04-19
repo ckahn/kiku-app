@@ -153,7 +153,7 @@ describe('ChunkList', () => {
     );
 
     expect(scrollSpy).toHaveBeenCalledTimes(1);
-    expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+    expect(scrollSpy).toHaveBeenCalledWith({ block: 'end', behavior: 'smooth' });
     const activeItem = screen.getAllByRole('listitem')[1];
     expect(scrollSpy.mock.contexts[0]).toBe(activeItem);
   });
