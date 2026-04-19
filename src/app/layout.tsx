@@ -33,7 +33,10 @@ export default function RootLayout({
       className={`${inter.variable} ${notoSansJP.variable} h-full`}
     >
       <body className="min-h-full flex flex-col font-sans antialiased">
-        <header className="sticky top-0 z-10 border-b border-border bg-surface/90 backdrop-blur-sm">
+        <header
+          data-sticky-header
+          className="sticky top-0 z-10 border-b border-border bg-surface/90 backdrop-blur-sm"
+        >
           <div className="h-1 bg-primary" />
           <div className="max-w-2xl mx-auto px-4 sm:px-6 h-12 flex items-center justify-between">
             <Link href="/" className="text-sm font-semibold tracking-wide hover:opacity-80 transition-opacity">

@@ -26,6 +26,16 @@ beforeEach(() => {
     configurable: true,
     value: vi.fn(),
   });
+  Object.defineProperty(window, 'scrollTo', {
+    configurable: true,
+    writable: true,
+    value: vi.fn(),
+  });
+  Object.defineProperty(window, 'scrollY', {
+    configurable: true,
+    writable: true,
+    value: 0,
+  });
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
@@ -127,7 +137,7 @@ describe('EpisodePlayer (integration)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/could not play this episode audio/i);
   });
 
-  it('restores the previously studied chunk by scrolling it into view', async () => {
+  it('restores the previously studied chunk by scrolling it to the top', async () => {
     vi.spyOn(studyNavigation, 'consumeTranscriptRestoreState')
       .mockReturnValueOnce({
         episodeHref: '/podcasts/slow-japanese/episodes/7',
@@ -148,6 +158,8 @@ describe('EpisodePlayer (integration)', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+    expect(window.scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: 'auto' }),
+    );
   });
 });

@@ -7,7 +7,7 @@ import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import AudioPlayer from './AudioPlayer';
 import ChunkList from '@/components/ChunkList';
 import { consumeTranscriptRestoreState } from './studyNavigation';
-import { scrollChunkIntoView } from './scrollChunk';
+import { scrollChunkToTop } from './scrollChunk';
 
 interface EpisodePlayerProps {
   readonly chunks: readonly Chunk[];
@@ -48,7 +48,7 @@ export default function EpisodePlayer({
     }
 
     seekToChunk(matchingChunk.id);
-    scrollChunkIntoView(matchingChunk.id, { block: 'start', behavior: 'auto' });
+    scrollChunkToTop(matchingChunk.id);
   }, [chunks, episodeHref, seekToChunk]);
 
   return (

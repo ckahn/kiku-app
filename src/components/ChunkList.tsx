@@ -5,7 +5,7 @@ import type { Chunk } from '@/db/schema';
 import type { PlayerState } from './player/types';
 import type { PlayerControls } from './player/usePlayer';
 import { findActiveChunkId } from './player/chunkUtils';
-import { scrollChunkAboveStickyPlayer } from './player/scrollChunk';
+import { scrollChunkIntoVisibleArea } from './player/scrollChunk';
 import ChunkItem from './player/ChunkItem';
 
 interface ChunkListProps {
@@ -39,7 +39,7 @@ export default function ChunkList({
       return;
     }
 
-    scrollChunkAboveStickyPlayer(activeChunkId);
+    scrollChunkIntoVisibleArea(activeChunkId);
   }, [activeChunkId]);
 
   return (
