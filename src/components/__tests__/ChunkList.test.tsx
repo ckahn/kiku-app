@@ -9,9 +9,20 @@ import type { PlayerControls } from '../player/usePlayer';
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+  Object.defineProperty(window, 'scrollTo', {
     configurable: true,
+    writable: true,
     value: vi.fn(),
+  });
+  Object.defineProperty(window, 'scrollY', {
+    configurable: true,
+    writable: true,
+    value: 0,
+  });
+  Object.defineProperty(window, 'innerHeight', {
+    configurable: true,
+    writable: true,
+    value: 800,
   });
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     callback(0);
@@ -113,7 +124,6 @@ describe('ChunkList', () => {
   });
 
   it('does not scroll on the initial render', () => {
-    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
     const chunks = [
       makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
       makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
@@ -125,11 +135,10 @@ describe('ChunkList', () => {
         controls={makeControls()}
       />,
     );
-    expect(scrollSpy).not.toHaveBeenCalled();
+    expect(window.scrollTo).not.toHaveBeenCalled();
   });
 
-  it('scrolls the active chunk into view when currentTime advances', () => {
-    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+  it('scrolls to bring the active chunk above the player when currentTime advances', () => {
     const chunks = [
       makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
       makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
@@ -142,7 +151,22 @@ describe('ChunkList', () => {
         controls={controls}
       />,
     );
-    expect(scrollSpy).not.toHaveBeenCalled();
+
+    // Chunk 2's rect: below the viewport's usable area (ceiling = 800 - 160 = 640).
+    const chunk2 = screen.getAllByRole('listitem')[1];
+    vi.spyOn(chunk2, 'getBoundingClientRect').mockReturnValue({
+      top: 700,
+      bottom: 900,
+      left: 0,
+      right: 0,
+      width: 0,
+      height: 200,
+      x: 0,
+      y: 700,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    expect(window.scrollTo).not.toHaveBeenCalled();
 
     rerender(
       <ChunkList
@@ -152,14 +176,11 @@ describe('ChunkList', () => {
       />,
     );
 
-    expect(scrollSpy).toHaveBeenCalledTimes(1);
-    expect(scrollSpy).toHaveBeenCalledWith({ block: 'end', behavior: 'smooth' });
-    const activeItem = screen.getAllByRole('listitem')[1];
-    expect(scrollSpy.mock.contexts[0]).toBe(activeItem);
+    // delta = chunkBottom(900) - ceiling(640) = 260; window.scrollY is 0.
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 260, behavior: 'smooth' });
   });
 
   it('does not scroll when the active chunk is unchanged across re-renders', () => {
-    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
     const chunks = [makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 })];
     const controls = makeControls();
     const { rerender } = render(
@@ -176,11 +197,10 @@ describe('ChunkList', () => {
         controls={controls}
       />,
     );
-    expect(scrollSpy).not.toHaveBeenCalled();
+    expect(window.scrollTo).not.toHaveBeenCalled();
   });
 
   it('does not scroll when activeChunkId becomes null', () => {
-    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
     const chunks = [
       makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
       makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
@@ -203,7 +223,46 @@ describe('ChunkList', () => {
       />,
     );
 
-    expect(scrollSpy).not.toHaveBeenCalled();
+    expect(window.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('does not scroll when the active chunk is already comfortably visible', () => {
+    const chunks = [
+      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
+      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
+    ];
+    const controls = makeControls();
+    const { rerender } = render(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ currentTime: 1 })}
+        controls={controls}
+      />,
+    );
+
+    // Chunk 2's rect fits comfortably above the 640px ceiling.
+    const chunk2 = screen.getAllByRole('listitem')[1];
+    vi.spyOn(chunk2, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      bottom: 300,
+      left: 0,
+      right: 0,
+      width: 0,
+      height: 200,
+      x: 0,
+      y: 100,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    rerender(
+      <ChunkList
+        chunks={chunks}
+        playerState={playerState({ currentTime: 6 })}
+        controls={controls}
+      />,
+    );
+
+    expect(window.scrollTo).not.toHaveBeenCalled();
   });
 
   it('links to the study page using the segment route', () => {

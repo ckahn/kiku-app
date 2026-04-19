@@ -1,10 +1,5 @@
 @import "tailwindcss";
 
-html {
-  /* Clear the sticky AudioPlayer so scrollIntoView lands chunks above it. */
-  scroll-padding-bottom: 10rem;
-}
-
 :root {
   /* Washi paper canvas, shoji screen surface */
   --canvas: #f5f0e8;

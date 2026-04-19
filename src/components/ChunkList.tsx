@@ -5,7 +5,7 @@ import type { Chunk } from '@/db/schema';
 import type { PlayerState } from './player/types';
 import type { PlayerControls } from './player/usePlayer';
 import { findActiveChunkId } from './player/chunkUtils';
-import { scrollChunkIntoView } from './player/scrollChunk';
+import { scrollChunkAboveStickyPlayer } from './player/scrollChunk';
 import ChunkItem from './player/ChunkItem';
 
 interface ChunkListProps {
@@ -39,10 +39,7 @@ export default function ChunkList({
       return;
     }
 
-    // `block: 'end'` + scroll-padding-bottom on html keeps the chunk's bottom
-    // above the sticky AudioPlayer. `'nearest'` alone stops scrolling as soon
-    // as any part of the chunk is on-screen, leaving it pinned behind the player.
-    scrollChunkIntoView(activeChunkId, { block: 'end', behavior: 'smooth' });
+    scrollChunkAboveStickyPlayer(activeChunkId);
   }, [activeChunkId]);
 
   return (
