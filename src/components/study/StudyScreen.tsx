@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Play, RefreshCw, Square } from 'lucide-react';
+import { Check, Copy, Play, RefreshCw, Repeat, Square } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
@@ -88,6 +88,7 @@ export default function StudyScreen({
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
   const [openSections, setOpenSections] = useState({
     vocabulary: true,
     grammar: false,
@@ -163,7 +164,11 @@ export default function StudyScreen({
 
     const chunkEndTime = chunk.endMs / 1000;
     if (audioRef.current.currentTime >= chunkEndTime) {
-      stopPlayback();
+      if (isLooping) {
+        audioRef.current.currentTime = chunk.startMs / 1000;
+      } else {
+        stopPlayback();
+      }
     }
   }
 
@@ -254,6 +259,15 @@ export default function StudyScreen({
                 className="p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
               >
                 {isPlaying ? <Square size={18} /> : <Play size={18} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsLooping((prev) => !prev)}
+                aria-label="Toggle loop"
+                aria-pressed={isLooping}
+                className={`rounded-md p-1.5 transition-colors ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+              >
+                <Repeat size={16} />
               </button>
             </div>
             <button
