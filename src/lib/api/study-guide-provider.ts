@@ -50,7 +50,7 @@ ${request.chunkText}
 
 Output requirements:
 - version must be 2
-- vocabulary: a curated list of the most useful words or short expressions only; every item must include a dictionaryForm field (the plain dictionary/citation form of the word, e.g. 走る not 走った) and a partOfSpeech field (for example: noun, verb, い-adj, な-adj)
+- vocabulary: a curated list of the most useful words or short expressions only; every item must include a dictionaryForm field (the plain dictionary/citation form of the word, e.g. 走る not 走った) and a partOfSpeech field (for example: noun, verb, い-adj, な-adj); include connective and demonstrative phrases (e.g. そういうもの, そんなふうに, こういうわけで) even when their component words are individually simple — learners often struggle with these as set expressions
 - structures: a short list of key grammar points, conjugations, or sentence patterns
 - breakdown: guided interpretation steps in natural study order
 - translation.fullEnglish: one complete fallback English translation
