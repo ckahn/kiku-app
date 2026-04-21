@@ -47,7 +47,7 @@ export default function ChunkItem({
       }`}
     >
       <p
-        className="text-sm text-ink font-jp leading-loose pr-7"
+        className="text-lg text-ink font-jp leading-loose pr-7"
         // textFurigana is Claude-generated HTML containing only <ruby>/<rt> tags.
         // It is not user-supplied input.
         dangerouslySetInnerHTML={{ __html: displayHtml }}

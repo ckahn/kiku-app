@@ -237,7 +237,7 @@ export default function StudyScreen({
       <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
         <div className="space-y-3">
           <div
-            className="text-base text-ink font-jp leading-loose"
+            className="text-xl text-ink font-jp leading-loose"
             dangerouslySetInnerHTML={{ __html: chunk.textFurigana }}
           />
 
@@ -313,7 +313,7 @@ export default function StudyScreen({
               <ul className="space-y-3">
                 {studyGuide.vocabulary.map((item) => (
                   <li key={item.id} className="space-y-1">
-                    <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
+                    <p className="text-base font-semibold text-ink font-jp">{item.japanese}</p>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
                       {hasDistinctReading(item.reading ?? undefined, item.japanese) && (
                         <span>{item.reading}</span>
@@ -341,7 +341,7 @@ export default function StudyScreen({
               <ul className="space-y-3">
                 {studyGuide.structures.map((item) => (
                   <li key={item.id} className="space-y-1">
-                    <p className="text-sm font-semibold text-ink font-jp">{item.pattern}</p>
+                    <p className="text-base font-semibold text-ink font-jp">{item.pattern}</p>
                     {hasDistinctReading(item.reading ?? undefined, item.pattern) && (
                       <p className="text-sm text-muted">{item.reading}</p>
                     )}
@@ -367,7 +367,7 @@ export default function StudyScreen({
                   .sort((left, right) => left.order - right.order)
                   .map((item) => (
                     <li key={item.id} className="space-y-1">
-                      <p className="text-sm font-semibold text-ink font-jp">{item.japanese}</p>
+                      <p className="text-base font-semibold text-ink font-jp">{item.japanese}</p>
                       <p className="text-sm text-ink">{item.cue}</p>
                     </li>
                   ))}
