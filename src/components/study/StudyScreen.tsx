@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Play, RefreshCw, Square } from 'lucide-react';
+import { Check, Copy, Play, RefreshCw, Square } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
@@ -99,6 +99,7 @@ export default function StudyScreen({
   const [isRegenerating, setIsRegenerating] = useState(false);
   const isRegeneratingRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let isCancelled = false;
@@ -244,14 +245,29 @@ export default function StudyScreen({
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={isPlaying ? stopPlayback : playFromChunkStart}
+                aria-label={isPlaying ? 'Stop audio' : 'Play audio'}
+                className="p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
+              >
+                {isPlaying ? <Square size={18} /> : <Play size={18} />}
+              </button>
+            </div>
             <button
               type="button"
-              onClick={isPlaying ? stopPlayback : playFromChunkStart}
-              aria-label={isPlaying ? 'Stop audio' : 'Play audio'}
-              className="p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
+              aria-label={copied ? 'Copied!' : 'Copy segment text'}
+              onClick={() => {
+                void navigator.clipboard.writeText(chunk.textRaw).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                });
+              }}
+              className={`rounded-md p-1.5 transition-colors hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
             >
-              {isPlaying ? <Square size={18} /> : <Play size={18} />}
+              {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
           </div>
         </div>
