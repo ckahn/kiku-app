@@ -9,7 +9,7 @@ const KEY = 'kiku:study-transcript-restore';
 const EPISODE_HREF = '/podcasts/slow-japanese/episodes/7';
 
 beforeEach(() => {
-  sessionStorage.clear();
+  localStorage.clear();
 });
 
 describe('saveTranscriptRestoreState + consumeTranscriptRestoreState', () => {
@@ -23,18 +23,18 @@ describe('saveTranscriptRestoreState + consumeTranscriptRestoreState', () => {
     saveTranscriptRestoreState({ episodeHref: EPISODE_HREF, chunkId: 42 });
     const result = consumeTranscriptRestoreState('/podcasts/other/episodes/1');
     expect(result).toBeNull();
-    expect(sessionStorage.getItem(KEY)).toBeNull();
+    expect(localStorage.getItem(KEY)).toBeNull();
   });
 
   it('returns null and removes the key when the stored JSON is malformed', () => {
-    sessionStorage.setItem(KEY, 'not valid json{{{');
+    localStorage.setItem(KEY, 'not valid json{{{');
     const result = consumeTranscriptRestoreState(EPISODE_HREF);
     expect(result).toBeNull();
-    expect(sessionStorage.getItem(KEY)).toBeNull();
+    expect(localStorage.getItem(KEY)).toBeNull();
   });
 
   it('returns null when chunkId is a string instead of a number', () => {
-    sessionStorage.setItem(KEY, JSON.stringify({ episodeHref: EPISODE_HREF, chunkId: '42' }));
+    localStorage.setItem(KEY, JSON.stringify({ episodeHref: EPISODE_HREF, chunkId: '42' }));
     const result = consumeTranscriptRestoreState(EPISODE_HREF);
     expect(result).toBeNull();
   });
