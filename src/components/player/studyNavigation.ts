@@ -7,29 +7,29 @@ interface TranscriptRestoreState {
   readonly chunkId: number;
 }
 
-function canUseSessionStorage(): boolean {
-  return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
+function canUseLocalStorage(): boolean {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
 export function saveTranscriptRestoreState(state: TranscriptRestoreState): void {
-  if (!canUseSessionStorage()) {
+  if (!canUseLocalStorage()) {
     return;
   }
 
-  window.sessionStorage.setItem(STUDY_TRANSCRIPT_RESTORE_KEY, JSON.stringify(state));
+  window.localStorage.setItem(STUDY_TRANSCRIPT_RESTORE_KEY, JSON.stringify(state));
 }
 
 export function consumeTranscriptRestoreState(episodeHref: string): TranscriptRestoreState | null {
-  if (!canUseSessionStorage()) {
+  if (!canUseLocalStorage()) {
     return null;
   }
 
-  const rawValue = window.sessionStorage.getItem(STUDY_TRANSCRIPT_RESTORE_KEY);
+  const rawValue = window.localStorage.getItem(STUDY_TRANSCRIPT_RESTORE_KEY);
   if (!rawValue) {
     return null;
   }
 
-  window.sessionStorage.removeItem(STUDY_TRANSCRIPT_RESTORE_KEY);
+  window.localStorage.removeItem(STUDY_TRANSCRIPT_RESTORE_KEY);
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<TranscriptRestoreState>;

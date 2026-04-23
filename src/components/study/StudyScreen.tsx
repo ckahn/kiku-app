@@ -17,6 +17,7 @@ interface StudyScreenProps {
     Chunk,
     'id' | 'chunkIndex' | 'textRaw' | 'textFurigana' | 'furiganaStatus' | 'furiganaWarning' | 'startMs' | 'endMs'
   >;
+  readonly totalSegments: number;
   readonly audioUrl: string;
   readonly studyGuideUrl: string;
   readonly backHref: string;
@@ -81,6 +82,7 @@ async function regenerateStudyGuide(studyGuideUrl: string): Promise<StudyGuideCo
 
 export default function StudyScreen({
   chunk,
+  totalSegments,
   audioUrl,
   studyGuideUrl,
   backHref,
@@ -219,7 +221,7 @@ export default function StudyScreen({
       </div>
 
       <header className="space-y-1">
-        <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1}</p>
+        <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1} of {totalSegments}</p>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-ink">Study</h1>
           <button

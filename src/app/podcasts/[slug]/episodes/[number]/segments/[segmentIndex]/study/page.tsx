@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { PageShell } from '@/components/layout';
 import StudyScreen from '@/components/study/StudyScreen';
 import { db } from '@/db';
-import { getChunkByEpisodeIdAndIndex } from '@/db/chunks';
+import { getChunkByEpisodeIdAndIndex, getChunksByEpisodeId } from '@/db/chunks';
 import { episodes, podcasts } from '@/db/schema';
 
 interface StudyPageParams {
@@ -43,7 +43,10 @@ export default async function StudyPage({
     notFound();
   }
 
-  const chunk = await getChunkByEpisodeIdAndIndex(episode.id, parsedSegmentIndex);
+  const [chunk, allChunks] = await Promise.all([
+    getChunkByEpisodeIdAndIndex(episode.id, parsedSegmentIndex),
+    getChunksByEpisodeId(episode.id),
+  ]);
   if (!chunk) {
     notFound();
   }
@@ -52,6 +55,7 @@ export default async function StudyPage({
     <PageShell>
       <StudyScreen
         chunk={chunk}
+        totalSegments={allChunks.length}
         audioUrl={`/api/episodes/${episode.id}/audio`}
         studyGuideUrl={`/api/segments/${chunk.id}/study-guide`}
         backHref={`/podcasts/${slug}/episodes/${episode.episodeNumber}`}

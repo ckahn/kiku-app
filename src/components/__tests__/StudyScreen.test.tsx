@@ -55,6 +55,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -62,6 +63,7 @@ describe('StudyScreen', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Study' })).toBeInTheDocument();
+    expect(screen.getByText('Segment 4 of 10')).toBeInTheDocument();
     expect(screen.getByLabelText(/loading study guide/i)).toBeInTheDocument();
     expect(screen.getByText('にほんご')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /furigana/i })).toBeNull();
@@ -77,6 +79,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -99,6 +102,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -119,6 +123,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -145,6 +150,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -180,6 +186,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -212,6 +219,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -235,6 +243,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -256,6 +265,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -281,6 +291,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -307,6 +318,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -336,6 +348,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -364,6 +377,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -398,6 +412,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -431,6 +446,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -456,6 +472,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -484,6 +501,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk()}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
@@ -504,6 +522,7 @@ describe('StudyScreen', () => {
     render(
       <StudyScreen
         chunk={makeChunk({ furiganaStatus: 'suspect', furiganaWarning: 'Suspicious reading detected.' })}
+        totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
         backHref="/podcasts/slow-japanese/episodes/7"
