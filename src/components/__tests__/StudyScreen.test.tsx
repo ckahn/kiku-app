@@ -12,6 +12,13 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+vi.mock('next/link', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  default: ({ href, children, className }: { href: string; children: any; className?: string }) => (
+    <a href={href} className={className}>{children}</a>
+  ),
+}));
+
 function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
   return {
     id: 12,
@@ -44,6 +51,11 @@ describe('StudyScreen', () => {
       configurable: true,
       writable: true,
       value: 0,
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'playbackRate', {
+      configurable: true,
+      writable: true,
+      value: 1,
     });
   });
 
@@ -530,5 +542,140 @@ describe('StudyScreen', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent('Suspicious reading detected.');
+  });
+
+  describe('playback rate controls', () => {
+    beforeEach(() => {
+      vi.spyOn(global, 'fetch').mockImplementation(
+        () => new Promise(() => undefined) as Promise<Response>
+      );
+    });
+
+    it('renders the speed button showing 1× by default', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
+    });
+
+    it('cycles 1× → 0.75× → 0.5× → 1× on successive clicks', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      const audio = document.querySelector('audio') as HTMLAudioElement;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 1×' }));
+      expect(audio.playbackRate).toBe(0.75);
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.75×' })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 0.75×' }));
+      expect(audio.playbackRate).toBe(0.5);
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.5×' })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 0.5×' }));
+      expect(audio.playbackRate).toBe(1);
+      expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
+    });
+
+    it('retains selected speed across play/stop cycles within the same segment', async () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 1×' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Play audio' }));
+      await screen.findByRole('button', { name: 'Stop audio' });
+      fireEvent.click(screen.getByRole('button', { name: 'Stop audio' }));
+
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.75×' })).toBeInTheDocument();
+      expect(document.querySelector('audio')!.playbackRate).toBe(0.75);
+    });
+  });
+
+  describe('prev/next navigation', () => {
+    beforeEach(() => {
+      vi.spyOn(global, 'fetch').mockImplementation(
+        () => new Promise(() => undefined) as Promise<Response>
+      );
+    });
+
+    it('renders both links as anchors when both hrefs are provided (middle segment)', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk({ chunkIndex: 3 })}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+          prevHref="/podcasts/slow-japanese/episodes/7/segments/2/study"
+          nextHref="/podcasts/slow-japanese/episodes/7/segments/4/study"
+        />
+      );
+
+      const prevLink = screen.getByRole('link', { name: /previous/i });
+      const nextLink = screen.getByRole('link', { name: /next/i });
+      expect(prevLink).toHaveAttribute('href', '/podcasts/slow-japanese/episodes/7/segments/2/study');
+      expect(nextLink).toHaveAttribute('href', '/podcasts/slow-japanese/episodes/7/segments/4/study');
+    });
+
+    it('renders previous as a dimmed span (not a link) when on the first segment', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk({ chunkIndex: 0 })}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+          nextHref="/podcasts/slow-japanese/episodes/7/segments/1/study"
+        />
+      );
+
+      expect(screen.queryByRole('link', { name: /previous/i })).toBeNull();
+      expect(screen.getByText(/← previous/i)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /next/i })).toHaveAttribute(
+        'href',
+        '/podcasts/slow-japanese/episodes/7/segments/1/study'
+      );
+    });
+
+    it('renders next as a dimmed span (not a link) when on the last segment', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk({ chunkIndex: 9 })}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+          prevHref="/podcasts/slow-japanese/episodes/7/segments/8/study"
+        />
+      );
+
+      expect(screen.getByRole('link', { name: /previous/i })).toHaveAttribute(
+        'href',
+        '/podcasts/slow-japanese/episodes/7/segments/8/study'
+      );
+      expect(screen.queryByRole('link', { name: /next/i })).toBeNull();
+      expect(screen.getByText(/next →/i)).toBeInTheDocument();
+    });
   });
 });

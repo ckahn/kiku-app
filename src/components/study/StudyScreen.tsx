@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Play, RefreshCw, Repeat, Square } from 'lucide-react';
@@ -21,6 +22,8 @@ interface StudyScreenProps {
   readonly audioUrl: string;
   readonly studyGuideUrl: string;
   readonly backHref: string;
+  readonly prevHref?: string;
+  readonly nextHref?: string;
 }
 
 interface StudySectionProps {
@@ -80,17 +83,23 @@ async function regenerateStudyGuide(studyGuideUrl: string): Promise<StudyGuideCo
   return payload.data;
 }
 
+type PlaybackRate = 0.5 | 0.75 | 1;
+const PLAYBACK_RATES: PlaybackRate[] = [1, 0.75, 0.5];
+
 export default function StudyScreen({
   chunk,
   totalSegments,
   audioUrl,
   studyGuideUrl,
   backHref,
+  prevHref,
+  nextHref,
 }: StudyScreenProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState<PlaybackRate>(1);
   const [openSections, setOpenSections] = useState({
     vocabulary: true,
     grammar: false,
@@ -174,6 +183,14 @@ export default function StudyScreen({
     }
   }
 
+  function cyclePlaybackRate() {
+    const next = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(playbackRate) + 1) % PLAYBACK_RATES.length];
+    if (audioRef.current) {
+      audioRef.current.playbackRate = next;
+    }
+    setPlaybackRate(next);
+  }
+
   function toggleSection(section: keyof typeof openSections) {
     setOpenSections((current) => ({
       ...current,
@@ -221,7 +238,25 @@ export default function StudyScreen({
       </div>
 
       <header className="space-y-1">
-        <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1} of {totalSegments}</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1} of {totalSegments}</p>
+          <div className="flex items-center gap-3">
+            {prevHref ? (
+              <Link href={prevHref} className="text-sm text-muted transition-colors hover:text-ink">
+                ← Previous
+              </Link>
+            ) : (
+              <span className="text-sm text-muted/40 select-none">← Previous</span>
+            )}
+            {nextHref ? (
+              <Link href={nextHref} className="text-sm text-muted transition-colors hover:text-ink">
+                Next →
+              </Link>
+            ) : (
+              <span className="text-sm text-muted/40 select-none">Next →</span>
+            )}
+          </div>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-ink">Study</h1>
           <button
@@ -258,7 +293,7 @@ export default function StudyScreen({
                 type="button"
                 onClick={isPlaying ? stopPlayback : playFromChunkStart}
                 aria-label={isPlaying ? 'Stop audio' : 'Play audio'}
-                className="p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
+                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
               >
                 {isPlaying ? <Square size={18} /> : <Play size={18} />}
               </button>
@@ -267,9 +302,17 @@ export default function StudyScreen({
                 onClick={() => setIsLooping((prev) => !prev)}
                 aria-label="Toggle loop"
                 aria-pressed={isLooping}
-                className={`rounded-md p-1.5 transition-colors ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md transition-colors ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 <Repeat size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={cyclePlaybackRate}
+                aria-label={`Playback speed: ${playbackRate}×`}
+                className={`min-h-[44px] inline-flex items-center justify-center rounded-md px-3 text-xs font-medium transition-colors ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+              >
+                {playbackRate}×
               </button>
             </div>
             <button
@@ -281,7 +324,7 @@ export default function StudyScreen({
                   setTimeout(() => setCopied(false), 2000);
                 });
               }}
-              className={`rounded-md p-1.5 transition-colors hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
+              className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md transition-colors hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>

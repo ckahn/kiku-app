@@ -199,6 +199,12 @@ describe('usePlayer', () => {
       act(() => { result.current.controls.seekToChunk(999); });
       expect(audioMock.currentTime).toBe(5);
     });
+
+    it('seekToChunk updates state.currentTime synchronously without waiting for timeupdate', () => {
+      const { result } = setup();
+      act(() => { result.current.controls.seekToChunk(2); });
+      expect(result.current.state.currentTime).toBe(5); // 5000ms / 1000
+    });
   });
 
   describe('toggleLoop', () => {
