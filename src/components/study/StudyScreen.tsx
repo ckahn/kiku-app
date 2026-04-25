@@ -83,6 +83,9 @@ async function regenerateStudyGuide(studyGuideUrl: string): Promise<StudyGuideCo
   return payload.data;
 }
 
+type PlaybackRate = 0.5 | 0.75 | 1;
+const PLAYBACK_RATES: PlaybackRate[] = [1, 0.75, 0.5];
+
 export default function StudyScreen({
   chunk,
   totalSegments,
@@ -96,6 +99,7 @@ export default function StudyScreen({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState<PlaybackRate>(1);
   const [openSections, setOpenSections] = useState({
     vocabulary: true,
     grammar: false,
@@ -177,6 +181,14 @@ export default function StudyScreen({
         stopPlayback();
       }
     }
+  }
+
+  function cyclePlaybackRate() {
+    const next = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(playbackRate) + 1) % PLAYBACK_RATES.length];
+    if (audioRef.current) {
+      audioRef.current.playbackRate = next;
+    }
+    setPlaybackRate(next);
   }
 
   function toggleSection(section: keyof typeof openSections) {
@@ -293,6 +305,14 @@ export default function StudyScreen({
                 className={`rounded-md p-1.5 transition-colors ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 <Repeat size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={cyclePlaybackRate}
+                aria-label={`Playback speed: ${playbackRate}×`}
+                className={`rounded-md px-1.5 py-1 text-xs font-medium transition-colors ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+              >
+                {playbackRate}×
               </button>
             </div>
             <button

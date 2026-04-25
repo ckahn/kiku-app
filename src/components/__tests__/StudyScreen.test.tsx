@@ -52,6 +52,11 @@ describe('StudyScreen', () => {
       writable: true,
       value: 0,
     });
+    Object.defineProperty(HTMLMediaElement.prototype, 'playbackRate', {
+      configurable: true,
+      writable: true,
+      value: 1,
+    });
   });
 
   it('renders the anchor card immediately and shows a loading state while fetching', () => {
@@ -537,6 +542,74 @@ describe('StudyScreen', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent('Suspicious reading detected.');
+  });
+
+  describe('playback rate controls', () => {
+    beforeEach(() => {
+      vi.spyOn(global, 'fetch').mockImplementation(
+        () => new Promise(() => undefined) as Promise<Response>
+      );
+    });
+
+    it('renders the speed button showing 1× by default', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
+    });
+
+    it('cycles 1× → 0.75× → 0.5× → 1× on successive clicks', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      const audio = document.querySelector('audio') as HTMLAudioElement;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 1×' }));
+      expect(audio.playbackRate).toBe(0.75);
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.75×' })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 0.75×' }));
+      expect(audio.playbackRate).toBe(0.5);
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.5×' })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 0.5×' }));
+      expect(audio.playbackRate).toBe(1);
+      expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
+    });
+
+    it('retains selected speed across play/stop cycles within the same segment', async () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 1×' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Play audio' }));
+      await screen.findByRole('button', { name: 'Stop audio' });
+      fireEvent.click(screen.getByRole('button', { name: 'Stop audio' }));
+
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.75×' })).toBeInTheDocument();
+      expect(document.querySelector('audio')!.playbackRate).toBe(0.75);
+    });
   });
 
   describe('prev/next navigation', () => {
