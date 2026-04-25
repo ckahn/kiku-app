@@ -51,6 +51,10 @@ export default async function StudyPage({
     notFound();
   }
 
+  const segmentBase = `/podcasts/${slug}/episodes/${episode.episodeNumber}/segments`;
+  const prevHref = parsedSegmentIndex > 0 ? `${segmentBase}/${parsedSegmentIndex - 1}/study` : undefined;
+  const nextHref = parsedSegmentIndex < allChunks.length - 1 ? `${segmentBase}/${parsedSegmentIndex + 1}/study` : undefined;
+
   return (
     <PageShell>
       <StudyScreen
@@ -59,6 +63,8 @@ export default async function StudyPage({
         audioUrl={`/api/episodes/${episode.id}/audio`}
         studyGuideUrl={`/api/segments/${chunk.id}/study-guide`}
         backHref={`/podcasts/${slug}/episodes/${episode.episodeNumber}`}
+        prevHref={prevHref}
+        nextHref={nextHref}
       />
     </PageShell>
   );

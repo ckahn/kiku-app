@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Play, RefreshCw, Repeat, Square } from 'lucide-react';
@@ -21,6 +22,8 @@ interface StudyScreenProps {
   readonly audioUrl: string;
   readonly studyGuideUrl: string;
   readonly backHref: string;
+  readonly prevHref?: string;
+  readonly nextHref?: string;
 }
 
 interface StudySectionProps {
@@ -86,6 +89,8 @@ export default function StudyScreen({
   audioUrl,
   studyGuideUrl,
   backHref,
+  prevHref,
+  nextHref,
 }: StudyScreenProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -221,7 +226,25 @@ export default function StudyScreen({
       </div>
 
       <header className="space-y-1">
-        <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1} of {totalSegments}</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1} of {totalSegments}</p>
+          <div className="flex items-center gap-3">
+            {prevHref ? (
+              <Link href={prevHref} className="text-sm text-muted transition-colors hover:text-ink">
+                ← Previous
+              </Link>
+            ) : (
+              <span className="text-sm text-muted/40 select-none">← Previous</span>
+            )}
+            {nextHref ? (
+              <Link href={nextHref} className="text-sm text-muted transition-colors hover:text-ink">
+                Next →
+              </Link>
+            ) : (
+              <span className="text-sm text-muted/40 select-none">Next →</span>
+            )}
+          </div>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-ink">Study</h1>
           <button

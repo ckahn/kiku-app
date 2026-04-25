@@ -12,6 +12,13 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+vi.mock('next/link', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  default: ({ href, children, className }: { href: string; children: any; className?: string }) => (
+    <a href={href} className={className}>{children}</a>
+  ),
+}));
+
 function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
   return {
     id: 12,
@@ -530,5 +537,72 @@ describe('StudyScreen', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent('Suspicious reading detected.');
+  });
+
+  describe('prev/next navigation', () => {
+    beforeEach(() => {
+      vi.spyOn(global, 'fetch').mockImplementation(
+        () => new Promise(() => undefined) as Promise<Response>
+      );
+    });
+
+    it('renders both links as anchors when both hrefs are provided (middle segment)', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk({ chunkIndex: 3 })}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+          prevHref="/podcasts/slow-japanese/episodes/7/segments/2/study"
+          nextHref="/podcasts/slow-japanese/episodes/7/segments/4/study"
+        />
+      );
+
+      const prevLink = screen.getByRole('link', { name: /previous/i });
+      const nextLink = screen.getByRole('link', { name: /next/i });
+      expect(prevLink).toHaveAttribute('href', '/podcasts/slow-japanese/episodes/7/segments/2/study');
+      expect(nextLink).toHaveAttribute('href', '/podcasts/slow-japanese/episodes/7/segments/4/study');
+    });
+
+    it('renders previous as a dimmed span (not a link) when on the first segment', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk({ chunkIndex: 0 })}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+          nextHref="/podcasts/slow-japanese/episodes/7/segments/1/study"
+        />
+      );
+
+      expect(screen.queryByRole('link', { name: /previous/i })).toBeNull();
+      expect(screen.getByText(/← previous/i)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /next/i })).toHaveAttribute(
+        'href',
+        '/podcasts/slow-japanese/episodes/7/segments/1/study'
+      );
+    });
+
+    it('renders next as a dimmed span (not a link) when on the last segment', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk({ chunkIndex: 9 })}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+          prevHref="/podcasts/slow-japanese/episodes/7/segments/8/study"
+        />
+      );
+
+      expect(screen.getByRole('link', { name: /previous/i })).toHaveAttribute(
+        'href',
+        '/podcasts/slow-japanese/episodes/7/segments/8/study'
+      );
+      expect(screen.queryByRole('link', { name: /next/i })).toBeNull();
+      expect(screen.getByText(/next →/i)).toBeInTheDocument();
+    });
   });
 });
