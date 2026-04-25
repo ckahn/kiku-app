@@ -210,8 +210,14 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number): UsePlay
     seekToChunk: useCallback((chunkId: number) => {
       const chunk = chunks.find((c) => c.id === chunkId);
       if (chunk && audioRef.current) {
-        audioRef.current.currentTime = chunk.startMs / 1000;
+        const startSec = chunk.startMs / 1000;
+        audioRef.current.currentTime = startSec;
         loopChunkRef.current = chunk;
+        // Update state synchronously so the active-chunk highlight applies
+        // immediately. Otherwise we wait for the audio element's `timeupdate`
+        // event, which can stall for seconds while the browser fetches the
+        // buffer for the new position (preload="metadata" ships no audio data).
+        dispatch({ type: 'SET_TIME', payload: startSec });
       }
     }, [chunks]),
   };
