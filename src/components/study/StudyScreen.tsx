@@ -293,7 +293,7 @@ export default function StudyScreen({
                 type="button"
                 onClick={isPlaying ? stopPlayback : playFromChunkStart}
                 aria-label={isPlaying ? 'Stop audio' : 'Play audio'}
-                className="p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
+                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
               >
                 {isPlaying ? <Square size={18} /> : <Play size={18} />}
               </button>
@@ -302,7 +302,7 @@ export default function StudyScreen({
                 onClick={() => setIsLooping((prev) => !prev)}
                 aria-label="Toggle loop"
                 aria-pressed={isLooping}
-                className={`rounded-md p-1.5 transition-colors ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md transition-colors ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 <Repeat size={16} />
               </button>
@@ -310,7 +310,7 @@ export default function StudyScreen({
                 type="button"
                 onClick={cyclePlaybackRate}
                 aria-label={`Playback speed: ${playbackRate}×`}
-                className={`rounded-md px-1.5 py-1 text-xs font-medium transition-colors ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`min-h-[44px] inline-flex items-center justify-center rounded-md px-3 text-xs font-medium transition-colors ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 {playbackRate}×
               </button>
@@ -324,7 +324,7 @@ export default function StudyScreen({
                   setTimeout(() => setCopied(false), 2000);
                 });
               }}
-              className={`rounded-md p-1.5 transition-colors hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
+              className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md transition-colors hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
