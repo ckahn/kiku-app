@@ -35,7 +35,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --omit=optional
+        run: npm install --omit=optional
 
       - name: Run production database migrations
         run: npm run db:migrate
