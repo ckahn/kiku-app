@@ -85,8 +85,8 @@ describe('DELETE /api/podcasts/[id]', () => {
       { id: 11, audioUrl: 'https://blob.example.com/one.mp3' },
       { id: 12, audioUrl: 'https://blob.example.com/two.mp3' },
     ]);
-    mockDeletePrivateBlob.mockResolvedValueOnce('deleted');
-    mockDeletePrivateBlob.mockResolvedValueOnce('deleted');
+    mockDeletePrivateBlob.mockResolvedValueOnce(undefined);
+    mockDeletePrivateBlob.mockResolvedValueOnce(undefined);
     mockWhereDelete.mockResolvedValueOnce(undefined);
 
     const response = await callDelete();
@@ -105,7 +105,7 @@ describe('DELETE /api/podcasts/[id]', () => {
     mockEpisodeOrderBy.mockResolvedValueOnce([
       { id: 11, audioUrl: 'https://blob.example.com/missing.mp3' },
     ]);
-    mockDeletePrivateBlob.mockResolvedValueOnce('not_found');
+    mockDeletePrivateBlob.mockResolvedValueOnce(undefined);
     mockWhereDelete.mockResolvedValueOnce(undefined);
 
     const response = await callDelete();
@@ -120,7 +120,7 @@ describe('DELETE /api/podcasts/[id]', () => {
       { id: 11, audioUrl: 'https://blob.example.com/one.mp3' },
       { id: 12, audioUrl: 'https://blob.example.com/two.mp3' },
     ]);
-    mockDeletePrivateBlob.mockResolvedValueOnce('deleted');
+    mockDeletePrivateBlob.mockResolvedValueOnce(undefined);
     mockDeletePrivateBlob.mockRejectedValueOnce(new Error('blob service unavailable'));
 
     const response = await callDelete();

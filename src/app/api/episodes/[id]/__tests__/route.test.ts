@@ -56,7 +56,7 @@ describe('GET/DELETE /api/episodes/[id]', () => {
 
   it('deletes the audio blob and then the episode row', async () => {
     mockWhereSelect.mockResolvedValueOnce([{ id: 5, audioUrl: 'https://blob.example.com/ep.mp3' }]);
-    mockDeletePrivateBlob.mockResolvedValueOnce('deleted');
+    mockDeletePrivateBlob.mockResolvedValueOnce(undefined);
     mockWhereDelete.mockResolvedValueOnce(undefined);
 
     const response = await callDelete();
@@ -71,7 +71,7 @@ describe('GET/DELETE /api/episodes/[id]', () => {
 
   it('still deletes the episode row when the blob is already missing', async () => {
     mockWhereSelect.mockResolvedValueOnce([{ id: 5, audioUrl: 'https://blob.example.com/missing.mp3' }]);
-    mockDeletePrivateBlob.mockResolvedValueOnce('not_found');
+    mockDeletePrivateBlob.mockResolvedValueOnce(undefined);
     mockWhereDelete.mockResolvedValueOnce(undefined);
 
     const response = await callDelete();

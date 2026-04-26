@@ -24,13 +24,12 @@ export function isBlobNotFoundError(error: unknown): boolean {
   return error instanceof BlobNotFoundError;
 }
 
-export async function deletePrivateBlob(url: string): Promise<'deleted' | 'not_found'> {
+export async function deletePrivateBlob(url: string): Promise<void> {
   try {
     await del(url, { token: getBlobToken() });
-    return 'deleted';
   } catch (error: unknown) {
     if (isBlobNotFoundError(error)) {
-      return 'not_found';
+      return;
     }
 
     throw error;

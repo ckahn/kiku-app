@@ -92,9 +92,8 @@ describe('blob helpers', () => {
     mockDel.mockResolvedValueOnce(undefined);
 
     const { deletePrivateBlob } = await import('../blob');
-    const result = await deletePrivateBlob('https://blob.example.com/audio.mp3');
+    await expect(deletePrivateBlob('https://blob.example.com/audio.mp3')).resolves.toBeUndefined();
 
-    expect(result).toBe('deleted');
     expect(mockDel).toHaveBeenCalledWith('https://blob.example.com/audio.mp3', {
       token: 'blob-token',
     });
@@ -104,8 +103,7 @@ describe('blob helpers', () => {
     mockDel.mockRejectedValueOnce(new MockBlobNotFoundError('missing'));
 
     const { deletePrivateBlob } = await import('../blob');
-    const result = await deletePrivateBlob('https://blob.example.com/missing.mp3');
 
-    expect(result).toBe('not_found');
+    await expect(deletePrivateBlob('https://blob.example.com/missing.mp3')).resolves.toBeUndefined();
   });
 });
