@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Episode } from '@/db/schema';
 import { Badge } from '@/components/ui';
+import EpisodeDeleteButton from '@/components/EpisodeDeleteButton';
 
 type BadgeVariant = 'info' | 'warning' | 'success' | 'error' | 'neutral';
 
@@ -25,11 +26,11 @@ export default function EpisodeList({ episodes, podcastSlug }: EpisodeListProps)
     <ul className="space-y-2">
       {episodes.map((ep) => (
         <li key={ep.id}>
-          <Link
-            href={`/podcasts/${podcastSlug}/episodes/${ep.episodeNumber}`}
-            className="block border border-border rounded-lg p-4 hover:bg-canvas transition-colors"
-          >
-            <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+            <Link
+              href={`/podcasts/${podcastSlug}/episodes/${ep.episodeNumber}`}
+              className="flex min-w-0 flex-1 items-center justify-between gap-3 hover:text-ink"
+            >
               <div className="min-w-0">
                 {ep.episodeNumber && (
                   <p className="text-xs text-muted mb-0.5">Episode {ep.episodeNumber}</p>
@@ -39,8 +40,13 @@ export default function EpisodeList({ episodes, podcastSlug }: EpisodeListProps)
               <Badge variant={STATUS_VARIANT[ep.status] ?? 'neutral'}>
                 {ep.status}
               </Badge>
-            </div>
-          </Link>
+            </Link>
+            <EpisodeDeleteButton
+              episodeId={ep.id}
+              episodeTitle={ep.title}
+              className="text-error-on-subtle"
+            />
+          </div>
         </li>
       ))}
     </ul>

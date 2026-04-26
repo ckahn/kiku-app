@@ -2,14 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GetBlobResult } from '@vercel/blob';
 
 const mockGet = vi.fn();
+const mockDel = vi.fn();
+class MockBlobNotFoundError extends Error {}
 
 vi.mock('@vercel/blob', () => ({
+  BlobNotFoundError: MockBlobNotFoundError,
+  del: mockDel,
   get: mockGet,
 }));
 
 describe('blob helpers', () => {
   beforeEach(() => {
     mockGet.mockReset();
+    mockDel.mockReset();
     process.env.BLOB_READ_WRITE_TOKEN = 'blob-token';
   });
 
@@ -81,5 +86,26 @@ describe('blob helpers', () => {
     await expect(getPrivateBlob('https://blob.example.com/audio.mp3')).rejects.toThrow(
       'BLOB_READ_WRITE_TOKEN is not configured'
     );
+  });
+
+  it('deletes a private blob with the configured token', async () => {
+    mockDel.mockResolvedValueOnce(undefined);
+
+    const { deletePrivateBlob } = await import('../blob');
+    const result = await deletePrivateBlob('https://blob.example.com/audio.mp3');
+
+    expect(result).toBe('deleted');
+    expect(mockDel).toHaveBeenCalledWith('https://blob.example.com/audio.mp3', {
+      token: 'blob-token',
+    });
+  });
+
+  it('treats missing blobs as a non-fatal delete result', async () => {
+    mockDel.mockRejectedValueOnce(new MockBlobNotFoundError('missing'));
+
+    const { deletePrivateBlob } = await import('../blob');
+    const result = await deletePrivateBlob('https://blob.example.com/missing.mp3');
+
+    expect(result).toBe('not_found');
   });
 });

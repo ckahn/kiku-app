@@ -5,6 +5,7 @@ import { eq, desc } from 'drizzle-orm';
 import EpisodeList from '@/components/EpisodeList';
 import EpisodeUploadForm from '@/components/EpisodeUploadForm';
 import { PageShell } from '@/components/layout';
+import PodcastDeleteButton from '@/components/PodcastDeleteButton';
 
 export default async function PodcastPage({
   params,
@@ -23,11 +24,18 @@ export default async function PodcastPage({
 
   return (
     <PageShell backHref="/" backLabel="Library">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-ink">{podcast.name}</h1>
-        {podcast.description && (
-          <p className="text-muted mt-1">{podcast.description}</p>
-        )}
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-ink">{podcast.name}</h1>
+          {podcast.description && (
+            <p className="text-muted mt-1">{podcast.description}</p>
+          )}
+        </div>
+        <PodcastDeleteButton
+          podcastId={podcast.id}
+          podcastName={podcast.name}
+          className="text-error-on-subtle"
+        />
       </div>
 
       <div className="mb-8">

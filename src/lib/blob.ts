@@ -1,4 +1,4 @@
-import { get, type GetBlobResult } from '@vercel/blob';
+import { BlobNotFoundError, del, get, type GetBlobResult } from '@vercel/blob';
 
 function getBlobToken(): string {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -18,4 +18,21 @@ export async function getPrivateBlob(
     useCache: false,
     ...(extraHeaders ? { headers: extraHeaders } : {}),
   });
+}
+
+export function isBlobNotFoundError(error: unknown): boolean {
+  return error instanceof BlobNotFoundError;
+}
+
+export async function deletePrivateBlob(url: string): Promise<'deleted' | 'not_found'> {
+  try {
+    await del(url, { token: getBlobToken() });
+    return 'deleted';
+  } catch (error: unknown) {
+    if (isBlobNotFoundError(error)) {
+      return 'not_found';
+    }
+
+    throw error;
+  }
 }
