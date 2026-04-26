@@ -39,6 +39,7 @@ export async function DELETE(
       .where(eq(episodes.podcastId, podcastId))
       .orderBy(desc(episodes.createdAt));
 
+    // TODO: Batch-delete blob URLs when podcast libraries get large.
     for (const episode of episodeRows) {
       try {
         await deletePrivateBlob(episode.audioUrl);
