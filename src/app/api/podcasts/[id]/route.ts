@@ -1,9 +1,21 @@
 import { db } from '@/db';
 import { podcasts, episodes } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { deletePrivateBlob } from '@/lib/blob';
+
+async function isAudioUrlUsedOutsidePodcast(
+  audioUrl: string,
+  podcastId: number
+): Promise<boolean> {
+  const [referencingEpisode] = await db
+    .select({ id: episodes.id })
+    .from(episodes)
+    .where(and(eq(episodes.audioUrl, audioUrl), ne(episodes.podcastId, podcastId)));
+
+  return referencingEpisode !== undefined;
+}
 
 export async function GET(
   _request: Request,
@@ -39,13 +51,18 @@ export async function DELETE(
       .where(eq(episodes.podcastId, podcastId))
       .orderBy(desc(episodes.createdAt));
 
+    const audioUrls = [...new Set(episodeRows.map((episode) => episode.audioUrl))];
+
     // TODO: Batch-delete blob URLs when podcast libraries get large.
-    for (const episode of episodeRows) {
+    for (const audioUrl of audioUrls) {
+      const audioUrlInUse = await isAudioUrlUsedOutsidePodcast(audioUrl, podcastId);
+      if (audioUrlInUse) continue;
+
       try {
-        await deletePrivateBlob(episode.audioUrl);
+        await deletePrivateBlob(audioUrl);
       } catch (error: unknown) {
         console.error(
-          `[podcasts.delete] failed to delete blob for podcast ${podcastId}, episode ${episode.id}:`,
+          `[podcasts.delete] failed to delete blob for podcast ${podcastId}:`,
           error
         );
         return apiErr(getErrorMessage(error), 500);

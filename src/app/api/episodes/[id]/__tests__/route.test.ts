@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mockAnd = vi.fn(() => 'and-clause');
 const mockEq = vi.fn(() => 'eq-clause');
+const mockNe = vi.fn(() => 'ne-clause');
 const mockWhereSelect = vi.fn();
 const mockFrom = vi.fn(() => ({ where: mockWhereSelect }));
 const mockSelect = vi.fn(() => ({ from: mockFrom }));
@@ -19,11 +21,12 @@ vi.mock('@/db', () => ({
 vi.mock('@/db/schema', () => ({
   episodes: {
     _table: 'episodes_table',
+    audioUrl: 'episodes.audio_url',
     id: 'episodes.id',
   },
 }));
 vi.mock('@/lib/blob', () => ({ deletePrivateBlob: mockDeletePrivateBlob }));
-vi.mock('drizzle-orm', () => ({ eq: mockEq }));
+vi.mock('drizzle-orm', () => ({ and: mockAnd, eq: mockEq, ne: mockNe }));
 
 describe('GET/DELETE /api/episodes/[id]', () => {
   beforeEach(() => {
@@ -34,7 +37,9 @@ describe('GET/DELETE /api/episodes/[id]', () => {
     mockWhereDelete.mockReset();
     mockDeleteBuilder.mockReset().mockReturnValue({ where: mockWhereDelete });
     mockDeletePrivateBlob.mockReset();
+    mockAnd.mockReset().mockReturnValue('and-clause');
     mockEq.mockReset().mockReturnValue('eq-clause');
+    mockNe.mockReset().mockReturnValue('ne-clause');
   });
 
   async function callDelete(id = '5') {
@@ -56,6 +61,7 @@ describe('GET/DELETE /api/episodes/[id]', () => {
 
   it('deletes the audio blob and then the episode row', async () => {
     mockWhereSelect.mockResolvedValueOnce([{ id: 5, audioUrl: 'https://blob.example.com/ep.mp3' }]);
+    mockWhereSelect.mockResolvedValueOnce([]);
     mockDeletePrivateBlob.mockResolvedValueOnce(undefined);
     mockWhereDelete.mockResolvedValueOnce(undefined);
 
@@ -69,8 +75,21 @@ describe('GET/DELETE /api/episodes/[id]', () => {
     expect(mockWhereDelete).toHaveBeenCalledOnce();
   });
 
+  it('keeps the audio blob when another episode still references it', async () => {
+    mockWhereSelect.mockResolvedValueOnce([{ id: 5, audioUrl: 'https://blob.example.com/shared.mp3' }]);
+    mockWhereSelect.mockResolvedValueOnce([{ id: 8 }]);
+    mockWhereDelete.mockResolvedValueOnce(undefined);
+
+    const response = await callDelete();
+
+    expect(response.status).toBe(200);
+    expect(mockDeletePrivateBlob).not.toHaveBeenCalled();
+    expect(mockWhereDelete).toHaveBeenCalledOnce();
+  });
+
   it('still deletes the episode row when the blob is already missing', async () => {
     mockWhereSelect.mockResolvedValueOnce([{ id: 5, audioUrl: 'https://blob.example.com/missing.mp3' }]);
+    mockWhereSelect.mockResolvedValueOnce([]);
     mockDeletePrivateBlob.mockResolvedValueOnce(undefined);
     mockWhereDelete.mockResolvedValueOnce(undefined);
 
@@ -82,6 +101,7 @@ describe('GET/DELETE /api/episodes/[id]', () => {
 
   it('returns 500 when blob deletion fails and skips the database delete', async () => {
     mockWhereSelect.mockResolvedValueOnce([{ id: 5, audioUrl: 'https://blob.example.com/ep.mp3' }]);
+    mockWhereSelect.mockResolvedValueOnce([]);
     mockDeletePrivateBlob.mockRejectedValueOnce(new Error('blob service unavailable'));
 
     const response = await callDelete();
