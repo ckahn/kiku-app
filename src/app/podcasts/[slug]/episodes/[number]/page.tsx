@@ -8,7 +8,7 @@ import EpisodeStatusPoller from '@/components/EpisodeStatusPoller';
 import EpisodePlayer from '@/components/player/EpisodePlayer';
 import { getChunksByEpisodeId } from '@/db/chunks';
 import LocalDateTime from '@/components/LocalDateTime';
-import EpisodeDeleteButton from '@/components/EpisodeDeleteButton';
+import EpisodeActionMenu from '@/components/EpisodeActionMenu';
 
 type BadgeVariant = 'info' | 'warning' | 'success' | 'error' | 'neutral';
 
@@ -59,11 +59,10 @@ export default async function EpisodePage({
           <Badge variant={STATUS_VARIANT[episode.status] ?? 'neutral'} className="mt-1 shrink-0">
             {episode.status}
           </Badge>
-          <EpisodeDeleteButton
+          <EpisodeActionMenu
             episodeId={episode.id}
             episodeTitle={episode.title}
             redirectTo={`/podcasts/${slug}`}
-            className="text-error-on-subtle"
           />
         </div>
       </div>

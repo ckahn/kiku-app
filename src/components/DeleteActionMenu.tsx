@@ -1,50 +1,39 @@
 'use client';
 
-import type { MouseEvent } from 'react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui';
+import { Trash2 } from 'lucide-react';
+import ActionMenu from '@/components/ActionMenu';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost';
-type ButtonSize = 'sm' | 'md';
-
-interface DeleteButtonProps {
+interface DeleteActionMenuProps {
+  ariaLabel: string;
   deleteUrl: string;
   confirmMessage: string;
-  idleLabel: string;
+  menuLabel: string;
   loadingLabel: string;
   redirectTo?: string;
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  className?: string;
-  align?: 'start' | 'end';
 }
 
 interface DeleteResponse {
   error?: string;
 }
 
-export default function DeleteButton({
+export default function DeleteActionMenu({
+  ariaLabel,
   deleteUrl,
   confirmMessage,
-  idleLabel,
+  menuLabel,
   loadingLabel,
   redirectTo,
-  variant = 'ghost',
-  size = 'sm',
-  className = '',
-  align = 'end',
-}: DeleteButtonProps) {
+}: DeleteActionMenuProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleClick(event: MouseEvent<HTMLButtonElement>): Promise<void> {
-    event.preventDefault();
-    event.stopPropagation();
-
+  async function handleDelete(closeMenu: () => void): Promise<void> {
     setError(null);
     if (!window.confirm(confirmMessage)) {
+      closeMenu();
       return;
     }
 
@@ -58,6 +47,7 @@ export default function DeleteButton({
         throw new Error(data.error ?? `Delete failed (${response.status})`);
       }
 
+      closeMenu();
       if (redirectTo) {
         router.push(redirectTo);
         return;
@@ -71,25 +61,27 @@ export default function DeleteButton({
     }
   }
 
-  const alignmentClassName = align === 'start' ? 'items-start' : 'items-end';
-
   return (
-    <div className={`flex flex-col gap-1 ${alignmentClassName}`}>
-      <Button
-        type="button"
-        variant={variant}
-        size={size}
-        loading={loading}
-        onClick={handleClick}
-        className={className}
-      >
-        {loading ? loadingLabel : idleLabel}
-      </Button>
-      {error && (
-        <p className="max-w-56 text-xs text-error-on-subtle">
-          {error}
-        </p>
+    <ActionMenu ariaLabel={ariaLabel}>
+      {({ closeMenu }) => (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={loading}
+            onClick={() => void handleDelete(closeMenu)}
+            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-error-on-subtle transition-colors hover:bg-error-subtle disabled:opacity-50"
+          >
+            <Trash2 size={16} aria-hidden="true" />
+            <span>{loading ? loadingLabel : menuLabel}</span>
+          </button>
+          {error && (
+            <p className="px-3 pb-2 pt-1 text-xs text-error-on-subtle">
+              {error}
+            </p>
+          )}
+        </>
       )}
-    </div>
+    </ActionMenu>
   );
 }

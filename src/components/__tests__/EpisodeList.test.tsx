@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import EpisodeList from '../EpisodeList';
 
-vi.mock('../EpisodeDeleteButton', () => ({
-  default: ({ episodeTitle }: { episodeTitle: string }) => <button>{`Delete ${episodeTitle}`}</button>,
+vi.mock('../EpisodeActionMenu', () => ({
+  default: ({ episodeTitle }: { episodeTitle: string }) => <button>{`Actions for ${episodeTitle}`}</button>,
 }));
 
 describe('EpisodeList', () => {
-  it('renders a delete control for each episode row', () => {
+  it('renders an action menu for each episode row', () => {
     render(
       <EpisodeList
         podcastSlug="slow-japanese"
@@ -32,6 +32,6 @@ describe('EpisodeList', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Delete Episode One' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actions for Episode One' })).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import DeleteButton from '../DeleteButton';
+import DeleteActionMenu from '../DeleteActionMenu';
 
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
@@ -11,7 +11,20 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }));
 
-describe('DeleteButton', () => {
+function renderMenu(redirectTo?: string) {
+  render(
+    <DeleteActionMenu
+      ariaLabel="Actions for item"
+      deleteUrl="/api/episodes/5"
+      confirmMessage="Delete it?"
+      menuLabel="Delete episode"
+      loadingLabel="Deleting..."
+      redirectTo={redirectTo}
+    />
+  );
+}
+
+describe('DeleteActionMenu', () => {
   beforeEach(() => {
     mockPush.mockReset();
     mockRefresh.mockReset();
@@ -19,20 +32,22 @@ describe('DeleteButton', () => {
     vi.stubGlobal('confirm', vi.fn(() => true));
   });
 
+  it('opens the action menu from a compact trigger', async () => {
+    renderMenu();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for item' }));
+
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /delete episode/i })).toBeInTheDocument();
+  });
+
   it('does nothing when the confirmation is cancelled', async () => {
     vi.stubGlobal('confirm', vi.fn(() => false));
     const fetchSpy = vi.spyOn(global, 'fetch');
+    renderMenu();
 
-    render(
-      <DeleteButton
-        deleteUrl="/api/episodes/5"
-        confirmMessage="Delete it?"
-        idleLabel="Delete"
-        loadingLabel="Deleting…"
-      />
-    );
-
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for item' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /delete episode/i }));
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(mockRefresh).not.toHaveBeenCalled();
@@ -44,17 +59,10 @@ describe('DeleteButton', () => {
       ok: true,
       json: async () => ({ success: true, data: { deleted: true } }),
     } as Response);
+    renderMenu();
 
-    render(
-      <DeleteButton
-        deleteUrl="/api/episodes/5"
-        confirmMessage="Delete it?"
-        idleLabel="Delete"
-        loadingLabel="Deleting…"
-      />
-    );
-
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for item' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /delete episode/i }));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/episodes/5', { method: 'DELETE' }));
     expect(mockRefresh).toHaveBeenCalledOnce();
@@ -66,63 +74,45 @@ describe('DeleteButton', () => {
       ok: true,
       json: async () => ({ success: true, data: { deleted: true } }),
     } as Response);
+    renderMenu('/');
 
-    render(
-      <DeleteButton
-        deleteUrl="/api/podcasts/2"
-        confirmMessage="Delete it?"
-        idleLabel="Delete"
-        loadingLabel="Deleting…"
-        redirectTo="/"
-      />
-    );
-
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for item' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /delete episode/i }));
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/'));
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it('shows an inline error and re-enables the button on failure', async () => {
+  it('shows an inline error and re-enables the menu item on failure', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: false,
       json: async () => ({ error: 'Deletion failed' }),
     } as Response);
+    renderMenu();
 
-    render(
-      <DeleteButton
-        deleteUrl="/api/episodes/5"
-        confirmMessage="Delete it?"
-        idleLabel="Delete"
-        loadingLabel="Deleting…"
-      />
-    );
-
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for item' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /delete episode/i }));
 
     await waitFor(() => expect(screen.getByText('Deletion failed')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: /delete episode/i })).toBeEnabled();
   });
 
   it('stops click propagation so row-level navigation does not fire', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, data: { deleted: true } }),
-    } as Response);
     const parentClick = vi.fn();
 
     render(
       <div onClick={parentClick}>
-        <DeleteButton
+        <DeleteActionMenu
+          ariaLabel="Actions for item"
           deleteUrl="/api/episodes/5"
           confirmMessage="Delete it?"
-          idleLabel="Delete"
-          loadingLabel="Deleting…"
+          menuLabel="Delete episode"
+          loadingLabel="Deleting..."
         />
       </div>
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for item' }));
 
     expect(parentClick).not.toHaveBeenCalled();
   });

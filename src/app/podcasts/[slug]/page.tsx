@@ -5,7 +5,7 @@ import { eq, desc } from 'drizzle-orm';
 import EpisodeList from '@/components/EpisodeList';
 import EpisodeUploadForm from '@/components/EpisodeUploadForm';
 import { PageShell } from '@/components/layout';
-import PodcastDeleteButton from '@/components/PodcastDeleteButton';
+import PodcastActionMenu from '@/components/PodcastActionMenu';
 
 export default async function PodcastPage({
   params,
@@ -31,10 +31,9 @@ export default async function PodcastPage({
             <p className="text-muted mt-1">{podcast.description}</p>
           )}
         </div>
-        <PodcastDeleteButton
+        <PodcastActionMenu
           podcastId={podcast.id}
           podcastName={podcast.name}
-          className="text-error-on-subtle"
         />
       </div>
 
