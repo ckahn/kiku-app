@@ -1,0 +1,10 @@
+<svg viewBox="0 0 240 52" xmlns="http://www.w3.org/2000/svg">
+  <!-- Torii gate icon -->
+  <rect x="8" y="13" width="6" height="34" rx="1" fill="#c1412a"/>
+  <rect x="35" y="13" width="6" height="34" rx="1" fill="#c1412a"/>
+  <path d="M1,19 C4,9 10,7 15,13 L35,13 C40,7 46,9 49,19 L49,24 L1,24 Z" fill="#c1412a"/>
+  <rect x="9" y="27" width="31" height="4" rx="0.5" fill="#c1412a"/>
+  <!-- Wordmark -->
+  <text x="60" y="40" font-family="'Noto Sans JP', serif" font-size="26" font-weight="700" fill="#c1412a">聴く</text>
+  <text x="118" y="39" font-family="Inter, sans-serif" font-size="14" font-weight="500" letter-spacing="4" fill="#7a736d">KIKU</text>
+</svg>
