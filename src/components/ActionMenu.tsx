@@ -54,7 +54,7 @@ export default function ActionMenu({ ariaLabel, children }: ActionMenuProps) {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={handleTriggerClick}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-canvas-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-md text-muted transition-colors hover:bg-canvas-subtle hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         <MoreHorizontal size={18} aria-hidden="true" />
       </button>

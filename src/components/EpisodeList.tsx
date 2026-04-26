@@ -26,10 +26,10 @@ export default function EpisodeList({ episodes, podcastSlug }: EpisodeListProps)
     <ul className="space-y-2">
       {episodes.map((ep) => (
         <li key={ep.id}>
-          <div className="flex items-start justify-between gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-canvas">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 transition-colors hover:bg-canvas">
             <Link
               href={`/podcasts/${podcastSlug}/episodes/${ep.episodeNumber}`}
-              className="min-w-0 flex-1"
+              className="flex min-h-11 min-w-0 flex-1 items-center"
             >
               <div className="min-w-0">
                 {ep.episodeNumber && (
