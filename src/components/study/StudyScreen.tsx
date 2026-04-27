@@ -141,9 +141,11 @@ export default function StudyScreen({
 
     try {
       audioRef.current.currentTime = chunk.startMs / 1000;
-      await audioRef.current.play();
+      setErrorMessage(null);
       setIsPlaying(true);
+      await audioRef.current.play();
     } catch {
+      setIsPlaying(false);
       setErrorMessage('Could not play this chunk audio.');
     }
   }

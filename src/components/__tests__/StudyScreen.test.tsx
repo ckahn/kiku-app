@@ -178,6 +178,30 @@ describe('StudyScreen', () => {
     });
   });
 
+  it('changes the play control to stop immediately while audio playback is starting', async () => {
+    vi.spyOn(global, 'fetch').mockImplementation(
+      () => new Promise(() => undefined) as Promise<Response>
+    );
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      configurable: true,
+      value: vi.fn(() => new Promise(() => undefined)),
+    });
+
+    render(
+      <StudyScreen
+        chunk={makeChunk()}
+        totalSegments={10}
+        audioUrl="/api/episodes/5/audio"
+        studyGuideUrl="/api/segments/12/study-guide"
+        backHref="/podcasts/slow-japanese/episodes/7"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play audio' }));
+
+    expect(screen.getByRole('button', { name: 'Stop audio' })).toBeInTheDocument();
+  });
+
   it('stops playback when the chunk reaches its end time', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
