@@ -3,7 +3,7 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil } from 'lucide-react';
+import { BookOpen, BookOpenCheck, Pencil } from 'lucide-react';
 import ActionMenu from '@/components/ActionMenu';
 import { DeleteMenuItem } from '@/components/DeleteActionMenu';
 import { Button, Input, Modal } from '@/components/ui';
@@ -13,6 +13,7 @@ interface EpisodeActionMenuProps {
   episodeId: number;
   episodeTitle: string;
   episodeNumber: number;
+  studyStatus?: 'new' | 'studying' | 'learned';
   redirectTo?: string;
   podcastSlug?: string;
   redirectToEditedEpisode?: boolean;
@@ -29,6 +30,7 @@ export default function EpisodeActionMenu({
   episodeId,
   episodeTitle,
   episodeNumber,
+  studyStatus,
   redirectTo,
   podcastSlug,
   redirectToEditedEpisode = false,
@@ -38,9 +40,32 @@ export default function EpisodeActionMenu({
   const [title, setTitle] = useState(episodeTitle);
   const [number, setNumber] = useState(String(episodeNumber));
   const [saving, setSaving] = useState(false);
+  const [studyToggling, setStudyToggling] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [numberError, setNumberError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  async function handleStudyToggle(closeMenu: () => void): Promise<void> {
+    const nextStatus = studyStatus === 'studying' ? 'new' : 'studying';
+    closeMenu();
+    setStudyToggling(true);
+    try {
+      const response = await fetch(`/api/episodes/${episodeId}/study`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studyStatus: nextStatus }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? `Request failed (${response.status})`);
+      }
+      router.refresh();
+    } catch (error: unknown) {
+      alert(getErrorMessage(error));
+    } finally {
+      setStudyToggling(false);
+    }
+  }
 
   function openEdit(closeMenu: () => void): void {
     setTitle(episodeTitle);
@@ -109,6 +134,22 @@ export default function EpisodeActionMenu({
       <ActionMenu ariaLabel={`Actions for ${episodeTitle}`}>
         {({ closeMenu }) => (
           <>
+            {studyStatus !== 'learned' && studyStatus !== undefined && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleStudyToggle(closeMenu)}
+                disabled={studyToggling}
+                className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-canvas-subtle disabled:opacity-50"
+              >
+                {studyStatus === 'studying' ? (
+                  <BookOpenCheck size={16} aria-hidden="true" />
+                ) : (
+                  <BookOpen size={16} aria-hidden="true" />
+                )}
+                <span>{studyStatus === 'studying' ? 'Stop studying' : 'Start studying'}</span>
+              </button>
+            )}
             <button
               type="button"
               role="menuitem"

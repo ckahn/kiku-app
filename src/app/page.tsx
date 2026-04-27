@@ -1,14 +1,29 @@
 export const dynamic = 'force-dynamic';
 
 import { db } from '@/db';
-import { podcasts } from '@/db/schema';
-import { desc } from 'drizzle-orm';
+import { episodes, podcasts } from '@/db/schema';
+import { desc, eq } from 'drizzle-orm';
 import PodcastList from '@/components/PodcastList';
+import StudyingEpisodesList from '@/components/StudyingEpisodesList';
 import AddPodcastButton from '@/components/AddPodcastButton';
 import { PageShell } from '@/components/layout';
 
 export default async function HomePage() {
-  const podcastList = await db.select().from(podcasts).orderBy(desc(podcasts.createdAt));
+  const [podcastList, studyingEpisodes] = await Promise.all([
+    db.select().from(podcasts).orderBy(desc(podcasts.createdAt)),
+    db
+      .select({
+        id: episodes.id,
+        title: episodes.title,
+        episodeNumber: episodes.episodeNumber,
+        podcastSlug: podcasts.slug,
+        podcastName: podcasts.name,
+      })
+      .from(episodes)
+      .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))
+      .where(eq(episodes.studyStatus, 'studying'))
+      .orderBy(desc(episodes.updatedAt)),
+  ]);
   return (
     <PageShell>
       <div className="mb-8 flex items-start gap-4">
@@ -67,6 +82,12 @@ export default async function HomePage() {
           <p className="text-sm text-muted">Add a Japanese podcast to start studying.</p>
         </div>
       </div>
+      {studyingEpisodes.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">Currently studying</h2>
+          <StudyingEpisodesList episodes={studyingEpisodes} />
+        </div>
+      )}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-ink uppercase tracking-wider">Library</h2>

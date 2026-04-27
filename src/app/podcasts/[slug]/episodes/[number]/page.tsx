@@ -63,6 +63,7 @@ export default async function EpisodePage({
             episodeId={episode.id}
             episodeTitle={episode.title}
             episodeNumber={episode.episodeNumber}
+            studyStatus={episode.studyStatus}
             redirectTo={`/podcasts/${slug}`}
             podcastSlug={slug}
             redirectToEditedEpisode
