@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Play, RefreshCw, Repeat, Square } from 'lucide-react';
+import { Check, Copy, Play, Repeat, Square } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
@@ -71,19 +71,6 @@ async function loadStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent>
   return payload.data;
 }
 
-async function regenerateStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent> {
-  const response = await fetch(`${studyGuideUrl}/regenerate`, {
-    method: 'POST',
-  });
-  const payload = await response.json() as ApiResponse<StudyGuideContent>;
-
-  if (!response.ok || !payload.success || !payload.data) {
-    throw new Error(payload.error ?? 'Could not regenerate the study guide.');
-  }
-
-  return payload.data;
-}
-
 type PlaybackRate = 0.5 | 0.75 | 1;
 const PLAYBACK_RATES: PlaybackRate[] = [1, 0.75, 0.5];
 const SEGMENT_ACTION_BUTTON_CLASS = 'h-11 w-11 shrink-0 cursor-pointer inline-flex items-center justify-center transition-colors';
@@ -110,8 +97,6 @@ export default function StudyScreen({
   });
   const [studyGuide, setStudyGuide] = useState<StudyGuideContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const isRegeneratingRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -124,8 +109,7 @@ export default function StudyScreen({
         setErrorMessage(null);
         const nextStudyGuide = await loadStudyGuide(studyGuideUrl);
 
-        // Don't overwrite a regeneration result that resolved while we were loading.
-        if (!isCancelled && !isRegeneratingRef.current) {
+        if (!isCancelled) {
           setStudyGuide(nextStudyGuide);
         }
       } catch (error: unknown) {
@@ -205,21 +189,6 @@ export default function StudyScreen({
     router.push(backHref);
   }
 
-  async function handleRegenerateStudyGuide() {
-    try {
-      isRegeneratingRef.current = true;
-      setIsRegenerating(true);
-      setErrorMessage(null);
-      const nextStudyGuide = await regenerateStudyGuide(studyGuideUrl);
-      setStudyGuide(nextStudyGuide);
-    } catch (error: unknown) {
-      setErrorMessage(getClientErrorMessage(error));
-    } finally {
-      isRegeneratingRef.current = false;
-      setIsRegenerating(false);
-    }
-  }
-
   return (
     <div className="space-y-6">
       <audio
@@ -260,18 +229,7 @@ export default function StudyScreen({
             )}
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-ink">Study</h1>
-          <button
-            type="button"
-            onClick={handleRegenerateStudyGuide}
-            disabled={isLoading || isRegenerating}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Regenerate
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold text-ink">Study</h1>
       </header>
 
       <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
@@ -344,7 +302,7 @@ export default function StudyScreen({
         </div>
       )}
 
-      {isLoading || isRegenerating ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-12" aria-label="Loading study guide">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
         </div>
