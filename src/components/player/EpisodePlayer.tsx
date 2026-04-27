@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Chunk } from '@/db/schema';
 import { usePlayer } from './usePlayer';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import AudioPlayer from './AudioPlayer';
 import ChunkList from '@/components/ChunkList';
-import { consumeTranscriptRestoreState } from './studyNavigation';
+import { consumeTranscriptRestoreState, saveEpisodeFocusState, loadEpisodeFocusState } from './studyNavigation';
 import { scrollChunkToTop } from './scrollChunk';
+import { findActiveChunkId } from './chunkUtils';
 
 interface EpisodePlayerProps {
   readonly chunks: readonly Chunk[];
@@ -31,18 +32,23 @@ export default function EpisodePlayer({
   useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop });
 
   const { seekToChunk } = player.controls;
+  const activeChunkId = findActiveChunkId(chunks, player.state.currentTime);
 
+  // Restore scroll position on mount: prefer study-restore (coming back from
+  // the study screen), then fall back to the persisted episode focus state
+  // (coming back after a page refresh).
   useEffect(() => {
     if (!episodeHref || chunks.length === 0) {
       return;
     }
 
     const restoreState = consumeTranscriptRestoreState(episodeHref);
-    if (!restoreState) {
+    const focusState = restoreState ?? loadEpisodeFocusState(episodeHref);
+    if (!focusState) {
       return;
     }
 
-    const matchingChunk = chunks.find((chunk) => chunk.id === restoreState.chunkId);
+    const matchingChunk = chunks.find((chunk) => chunk.id === focusState.chunkId);
     if (!matchingChunk) {
       return;
     }
@@ -50,6 +56,20 @@ export default function EpisodePlayer({
     seekToChunk(matchingChunk.id);
     scrollChunkToTop(matchingChunk.id);
   }, [chunks, episodeHref, seekToChunk]);
+
+  // Persist the active chunk so a refresh can restore it. Skip the initial
+  // mount because currentTime starts at 0, so activeChunkId is the first
+  // chunk regardless of what was saved — saving it would corrupt the state.
+  const hasMountedRef = useRef(false);
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+    if (activeChunkId !== null && episodeHref) {
+      saveEpisodeFocusState({ episodeHref, chunkId: activeChunkId });
+    }
+  }, [activeChunkId, episodeHref]);
 
   return (
     <>

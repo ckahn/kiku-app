@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import studyGuideFixture from '@fixtures/study-guide.json';
 import type { Chunk } from '@/db/schema';
 import StudyScreen from '../study/StudyScreen';
+import * as studyNavigation from '../player/studyNavigation';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -609,6 +610,35 @@ describe('StudyScreen', () => {
 
       expect(screen.getByRole('button', { name: 'Playback speed: 0.75×' })).toBeInTheDocument();
       expect(document.querySelector('audio')!.playbackRate).toBe(0.75);
+    });
+  });
+
+  describe('back navigation', () => {
+    beforeEach(() => {
+      vi.spyOn(global, 'fetch').mockImplementation(
+        () => new Promise(() => undefined) as Promise<Response>
+      );
+    });
+
+    it('saves the current chunk id to localStorage when the back button is clicked', () => {
+      const saveSpy = vi.spyOn(studyNavigation, 'saveTranscriptRestoreState');
+
+      render(
+        <StudyScreen
+          chunk={makeChunk({ id: 99, chunkIndex: 5 })}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/99/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /transcript/i }));
+
+      expect(saveSpy).toHaveBeenCalledWith({
+        episodeHref: '/podcasts/slow-japanese/episodes/7',
+        chunkId: 99,
+      });
     });
   });
 

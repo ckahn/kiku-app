@@ -1,9 +1,22 @@
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { deletePrivateBlob } from '@/lib/blob';
+
+async function isAudioUrlUsedByAnotherEpisode(
+  audioUrl: string,
+  episodeId: number
+): Promise<boolean> {
+  const [referencingEpisode] = await db
+    .select({ id: episodes.id })
+    .from(episodes)
+    .where(and(eq(episodes.audioUrl, audioUrl), ne(episodes.id, episodeId)))
+    .limit(1);
+
+  return referencingEpisode !== undefined;
+}
 
 export async function GET(
   _request: Request,
@@ -26,11 +39,14 @@ export async function DELETE(
     const [episode] = await db.select().from(episodes).where(eq(episodes.id, episodeId));
     if (!episode) return apiErr('not found', 404);
 
-    try {
-      await deletePrivateBlob(episode.audioUrl);
-    } catch (error: unknown) {
-      console.error(`[episodes.delete] failed to delete blob for episode ${episodeId}:`, error);
-      return apiErr(getErrorMessage(error), 500);
+    const audioUrlInUse = await isAudioUrlUsedByAnotherEpisode(episode.audioUrl, episodeId);
+    if (!audioUrlInUse) {
+      try {
+        await deletePrivateBlob(episode.audioUrl);
+      } catch (error: unknown) {
+        console.error(`[episodes.delete] failed to delete blob for episode ${episodeId}:`, error);
+        return apiErr(getErrorMessage(error), 500);
+      }
     }
 
     await db.delete(episodes).where(eq(episodes.id, episodeId));

@@ -162,4 +162,56 @@ describe('EpisodePlayer (integration)', () => {
       expect.objectContaining({ behavior: 'auto' }),
     );
   });
+
+  it('restores the episode focus state on refresh when no study-restore is present', async () => {
+    vi.spyOn(studyNavigation, 'consumeTranscriptRestoreState').mockReturnValue(null);
+    vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue({
+      episodeHref: '/podcasts/slow-japanese/episodes/7',
+      chunkId: 3,
+    });
+
+    render(
+      <EpisodePlayer
+        chunks={CHUNKS}
+        audioUrl="/api/episodes/1/audio"
+        durationMs={20000}
+        episodeHref="/podcasts/slow-japanese/episodes/7"
+      />,
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(window.scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: 'auto' }),
+    );
+  });
+
+  it('saves the episode focus state when the active chunk changes', async () => {
+    vi.spyOn(studyNavigation, 'consumeTranscriptRestoreState').mockReturnValue(null);
+    vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue(null);
+    const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
+
+    render(
+      <EpisodePlayer
+        chunks={CHUNKS}
+        audioUrl="/api/episodes/1/audio"
+        durationMs={20000}
+        episodeHref="/podcasts/slow-japanese/episodes/7"
+      />,
+    );
+
+    // Simulate audio advancing into chunk 2 (startMs=5000, endMs=12000)
+    const audio = document.querySelector('audio') as HTMLAudioElement;
+    await act(async () => {
+      audio.currentTime = 6;
+      fireEvent(audio, new Event('timeupdate'));
+    });
+
+    expect(saveSpy).toHaveBeenCalledWith({
+      episodeHref: '/podcasts/slow-japanese/episodes/7',
+      chunkId: 2,
+    });
+  });
 });
