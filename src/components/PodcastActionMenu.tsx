@@ -145,10 +145,11 @@ export default function PodcastActionMenu({
               variant="secondary"
               onClick={() => setEditOpen(false)}
               disabled={saving}
+              className="min-h-11"
             >
               Cancel
             </Button>
-            <Button type="submit" loading={saving}>
+            <Button type="submit" loading={saving} className="min-h-11">
               {saving ? 'Saving...' : 'Save changes'}
             </Button>
           </div>

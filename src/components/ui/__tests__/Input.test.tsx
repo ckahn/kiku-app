@@ -41,6 +41,11 @@ describe('Input', () => {
     expect(screen.getByRole('textbox').className).toContain('border-border');
   });
 
+  it('uses a 44px minimum touch target height', () => {
+    render(<Input />);
+    expect(screen.getByRole('textbox')).toHaveClass('min-h-11');
+  });
+
   it('passes through input HTML props', () => {
     render(<Input placeholder="Type here" required />);
     const input = screen.getByRole('textbox');

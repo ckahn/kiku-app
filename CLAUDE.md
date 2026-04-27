@@ -35,6 +35,12 @@ To run a single test file: `npx vitest run src/path/to/file.test.ts`
 - `@/` → `src/`
 - `@fixtures/` → `fixtures/`
 
+## UI Requirements
+
+- All clickable regions must provide a touch target of at least 44px by 44px.
+- All clickable regions must show a pointer cursor on mouse hover.
+- When adding or changing interactive UI, include or update tests for touch target and cursor behavior where practical.
+
 ## Architecture
 
 ### Data Flow

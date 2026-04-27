@@ -35,6 +35,23 @@ describe('EpisodeActionMenu', () => {
     expect(screen.getByLabelText('Episode number')).toHaveValue(3);
   });
 
+  it('uses 44px touch targets for edit controls', async () => {
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    expect(screen.getByRole('menuitem', { name: /edit episode/i })).toHaveClass('min-h-11');
+
+    await userEvent.click(screen.getByRole('menuitem', { name: /edit episode/i }));
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveClass('min-h-11');
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveClass('min-h-11');
+  });
+
   it('saves edits with PATCH and refreshes the current view', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,
