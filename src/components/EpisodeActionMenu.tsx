@@ -46,6 +46,7 @@ export default function EpisodeActionMenu({
   const [formError, setFormError] = useState<string | null>(null);
 
   async function handleStudyToggle(closeMenu: () => void): Promise<void> {
+    if (!studyStatus || studyStatus === 'learned') return;
     const nextStatus = studyStatus === 'studying' ? 'new' : 'studying';
     closeMenu();
     setStudyToggling(true);
@@ -138,7 +139,7 @@ export default function EpisodeActionMenu({
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => handleStudyToggle(closeMenu)}
+                onClick={() => void handleStudyToggle(closeMenu)}
                 disabled={studyToggling}
                 className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-canvas-subtle disabled:opacity-50"
               >

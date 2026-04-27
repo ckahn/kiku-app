@@ -41,6 +41,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const episodeId = Number(id);
+    if (!Number.isInteger(episodeId) || episodeId < 1) return apiErr('invalid id', 400);
 
     const body: unknown = await request.json();
     const result = updateEpisodeSchema.safeParse(body);
