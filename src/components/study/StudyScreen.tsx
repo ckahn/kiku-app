@@ -86,6 +86,7 @@ async function regenerateStudyGuide(studyGuideUrl: string): Promise<StudyGuideCo
 
 type PlaybackRate = 0.5 | 0.75 | 1;
 const PLAYBACK_RATES: PlaybackRate[] = [1, 0.75, 0.5];
+const SEGMENT_ACTION_BUTTON_CLASS = 'h-11 w-11 shrink-0 inline-flex items-center justify-center transition-colors';
 
 export default function StudyScreen({
   chunk,
@@ -295,7 +296,7 @@ export default function StudyScreen({
                 type="button"
                 onClick={isPlaying ? stopPlayback : playFromChunkStart}
                 aria-label={isPlaying ? 'Stop audio' : 'Play audio'}
-                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
+                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-full bg-primary text-white hover:bg-primary-hover`}
               >
                 {isPlaying ? <Square size={18} /> : <Play size={18} />}
               </button>
@@ -304,7 +305,7 @@ export default function StudyScreen({
                 onClick={() => setIsLooping((prev) => !prev)}
                 aria-label="Toggle loop"
                 aria-pressed={isLooping}
-                className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md transition-colors ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 <Repeat size={16} />
               </button>
@@ -312,7 +313,7 @@ export default function StudyScreen({
                 type="button"
                 onClick={cyclePlaybackRate}
                 aria-label={`Playback speed: ${playbackRate}×`}
-                className={`min-h-[44px] min-w-[52px] w-[52px] inline-flex items-center justify-center rounded-md text-xs font-medium transition-colors ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md text-xs font-medium tabular-nums ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 {playbackRate}×
               </button>
@@ -326,7 +327,7 @@ export default function StudyScreen({
                   setTimeout(() => setCopied(false), 2000);
                 });
               }}
-              className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md transition-colors hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
+              className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>

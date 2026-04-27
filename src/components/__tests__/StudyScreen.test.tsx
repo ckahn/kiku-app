@@ -566,6 +566,40 @@ describe('StudyScreen', () => {
       expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
     });
 
+    it('keeps segment action controls as fixed same-size squares when speed changes', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      const expectedButtonSizeClass = 'h-11 w-11';
+      const actionButtons = [
+        screen.getByRole('button', { name: 'Play audio' }),
+        screen.getByRole('button', { name: 'Toggle loop' }),
+        screen.getByRole('button', { name: 'Playback speed: 1×' }),
+        screen.getByRole('button', { name: 'Copy segment text' }),
+      ];
+
+      actionButtons.forEach((button) => {
+        expect(button).toHaveClass(...expectedButtonSizeClass.split(' '));
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 1×' }));
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.75×' })).toHaveClass(
+        ...expectedButtonSizeClass.split(' ')
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 0.75×' }));
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.5×' })).toHaveClass(
+        ...expectedButtonSizeClass.split(' ')
+      );
+    });
+
     it('cycles 1× → 0.75× → 0.5× → 1× on successive clicks', () => {
       render(
         <StudyScreen
