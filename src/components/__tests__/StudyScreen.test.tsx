@@ -85,32 +85,6 @@ describe('StudyScreen', () => {
     expect(screen.queryByRole('button', { name: 'Restart chunk' })).toBeNull();
   });
 
-  it('renders study navigation controls with 44px pointer targets', () => {
-    vi.spyOn(global, 'fetch').mockImplementation(
-      () => new Promise(() => undefined) as Promise<Response>
-    );
-
-    render(
-      <StudyScreen
-        chunk={makeChunk()}
-        totalSegments={10}
-        audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/segments/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
-        prevHref="/podcasts/slow-japanese/episodes/7/segments/2/study"
-        nextHref="/podcasts/slow-japanese/episodes/7/segments/4/study"
-      />
-    );
-
-    [
-      screen.getByRole('button', { name: /transcript/i }),
-      screen.getByRole('link', { name: /previous/i }),
-      screen.getByRole('link', { name: /next/i }),
-    ].forEach((control) => {
-      expect(control).toHaveClass('min-h-11', 'min-w-11', 'cursor-pointer');
-    });
-  });
-
   it('opens vocabulary by default and keeps the other sections collapsed', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
@@ -131,7 +105,6 @@ describe('StudyScreen', () => {
     expect(screen.getByRole('button', { name: 'Grammar' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'Breakdown' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'English translation' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('button', { name: 'Vocabulary' })).toHaveClass('min-h-11', 'cursor-pointer');
     expect(screen.queryByText(studyGuideFixture.translation.fullEnglish)).toBeNull();
   });
 

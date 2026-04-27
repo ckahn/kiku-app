@@ -285,24 +285,4 @@ describe('ChunkList', () => {
     );
   });
 
-  it('renders the study link with a 44px pointer target', () => {
-    const chunks = [makeChunk({ id: 1, chunkIndex: 2 })];
-
-    render(
-      <ChunkList
-        chunks={chunks}
-        playerState={playerState()}
-        controls={makeControls()}
-        podcastSlug="slow-japanese"
-        episodeNumber={7}
-        episodeHref="/podcasts/slow-japanese/episodes/7"
-      />,
-    );
-
-    expect(screen.getByRole('link', { name: 'Study this segment' })).toHaveClass(
-      'h-11',
-      'w-11',
-      'cursor-pointer'
-    );
-  });
 });

@@ -39,7 +39,8 @@ To run a single test file: `npx vitest run src/path/to/file.test.ts`
 
 - All clickable regions must provide a touch target of at least 44px by 44px.
 - All clickable regions must show a pointer cursor on mouse hover.
-- When adding or changing interactive UI, include or update tests for touch target and cursor behavior where practical.
+- Do not add unit tests that assert specific CSS utility classes for these requirements.
+  If automated coverage is needed, use browser-level checks for computed size and cursor style.
 
 ## Architecture
 

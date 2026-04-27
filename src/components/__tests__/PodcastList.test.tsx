@@ -22,18 +22,4 @@ describe('PodcastList', () => {
     expect(screen.getByRole('button', { name: 'Actions for News' })).toBeInTheDocument();
   });
 
-  it('renders podcast links with 44px pointer targets', () => {
-    render(
-      <PodcastList
-        podcasts={[
-          { id: 1, name: 'Slow Japanese', slug: 'slow-japanese', description: 'desc', imageUrl: null, createdAt: null },
-        ]}
-      />
-    );
-
-    expect(screen.getByRole('link', { name: /slow japanese/i })).toHaveClass(
-      'min-h-12',
-      'cursor-pointer'
-    );
-  });
 });

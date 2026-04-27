@@ -114,16 +114,6 @@ describe('AudioPlayer', () => {
     expect(slider).toHaveAttribute('max', '120'); // 120000ms / 1000
   });
 
-  it('renders the playback slider with a 44px pointer target', () => {
-    const player = makePlayer();
-    render(<AudioPlayer audioUrl={AUDIO_URL} durationMs={DURATION_MS} player={player} />);
-
-    expect(screen.getByRole('slider', { name: 'Playback position' })).toHaveClass(
-      'h-11',
-      'cursor-pointer'
-    );
-  });
-
   it('updates slider max from audio loadedmetadata when durationMs is 0', () => {
     const player = makePlayer();
     render(<AudioPlayer audioUrl={AUDIO_URL} durationMs={0} player={player} />);

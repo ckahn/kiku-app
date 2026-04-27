@@ -29,12 +29,6 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('uses a 44px close button touch target', () => {
-    render(<Modal isOpen onClose={vi.fn()} title="T"><p>x</p></Modal>);
-
-    expect(screen.getByRole('button', { name: 'Close' })).toHaveClass('h-11', 'w-11');
-  });
-
   it('calls onClose when backdrop is clicked', async () => {
     const onClose = vi.fn();
     const { container } = render(<Modal isOpen onClose={onClose} title="T"><p>x</p></Modal>);

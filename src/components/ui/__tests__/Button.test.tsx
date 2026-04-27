@@ -45,11 +45,6 @@ describe('Button', () => {
     expect(screen.getByRole('button')).toHaveClass('disabled:cursor-not-allowed');
   });
 
-  it('uses a 44px minimum touch target height', () => {
-    render(<Button>Touch target</Button>);
-    expect(screen.getByRole('button')).toHaveClass('min-h-11', 'cursor-pointer');
-  });
-
   it('is disabled when loading is true', () => {
     render(<Button loading>Loading</Button>);
     expect(screen.getByRole('button')).toBeDisabled();
