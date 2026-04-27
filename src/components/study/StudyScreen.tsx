@@ -312,7 +312,7 @@ export default function StudyScreen({
                 type="button"
                 onClick={cyclePlaybackRate}
                 aria-label={`Playback speed: ${playbackRate}×`}
-                className={`min-h-[44px] inline-flex items-center justify-center rounded-md px-3 text-xs font-medium transition-colors ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`min-h-[44px] min-w-[52px] w-[52px] inline-flex items-center justify-center rounded-md text-xs font-medium transition-colors ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 {playbackRate}×
               </button>
