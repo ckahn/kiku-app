@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   saveTranscriptRestoreState,
   consumeTranscriptRestoreState,
+  saveEpisodeFocusState,
+  loadEpisodeFocusState,
 } from '../player/studyNavigation';
 
 const KEY = 'kiku:study-transcript-restore';
@@ -49,5 +51,43 @@ describe('saveTranscriptRestoreState + consumeTranscriptRestoreState', () => {
     consumeTranscriptRestoreState(EPISODE_HREF);
     const second = consumeTranscriptRestoreState(EPISODE_HREF);
     expect(second).toBeNull();
+  });
+});
+
+describe('saveEpisodeFocusState + loadEpisodeFocusState', () => {
+  it('round-trips the saved state when the episodeHref matches', () => {
+    saveEpisodeFocusState({ episodeHref: EPISODE_HREF, chunkId: 7 });
+    const result = loadEpisodeFocusState(EPISODE_HREF);
+    expect(result).toEqual({ episodeHref: EPISODE_HREF, chunkId: 7 });
+  });
+
+  it('returns null (but keeps the key) when episodeHref does not match', () => {
+    saveEpisodeFocusState({ episodeHref: EPISODE_HREF, chunkId: 7 });
+    const result = loadEpisodeFocusState('/podcasts/other/episodes/1');
+    expect(result).toBeNull();
+    // Key is not removed — it belongs to a different episode
+    expect(localStorage.getItem('kiku:episode-focus')).not.toBeNull();
+  });
+
+  it('returns null when nothing was saved', () => {
+    expect(loadEpisodeFocusState(EPISODE_HREF)).toBeNull();
+  });
+
+  it('returns the state on a second load — key is not consumed', () => {
+    saveEpisodeFocusState({ episodeHref: EPISODE_HREF, chunkId: 7 });
+    loadEpisodeFocusState(EPISODE_HREF);
+    const second = loadEpisodeFocusState(EPISODE_HREF);
+    expect(second).toEqual({ episodeHref: EPISODE_HREF, chunkId: 7 });
+  });
+
+  it('overwrites the previous value when saved again', () => {
+    saveEpisodeFocusState({ episodeHref: EPISODE_HREF, chunkId: 3 });
+    saveEpisodeFocusState({ episodeHref: EPISODE_HREF, chunkId: 9 });
+    expect(loadEpisodeFocusState(EPISODE_HREF)).toEqual({ episodeHref: EPISODE_HREF, chunkId: 9 });
+  });
+
+  it('returns null when the stored JSON is malformed', () => {
+    localStorage.setItem('kiku:episode-focus', 'not json{{{');
+    expect(loadEpisodeFocusState(EPISODE_HREF)).toBeNull();
   });
 });
