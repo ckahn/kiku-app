@@ -70,7 +70,7 @@ export default function DeleteActionMenu({
             role="menuitem"
             disabled={loading}
             onClick={() => void handleDelete(closeMenu)}
-            className="flex min-h-11 w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-error-on-subtle transition-colors hover:bg-error-subtle disabled:opacity-50"
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-error-on-subtle transition-colors hover:bg-error-subtle disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 size={16} aria-hidden="true" />
             <span>{loading ? loadingLabel : menuLabel}</span>

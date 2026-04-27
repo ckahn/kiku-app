@@ -37,6 +37,13 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('marks the clickable backdrop with a pointer cursor', () => {
+    const { container } = render(<Modal isOpen onClose={vi.fn()} title="T"><p>x</p></Modal>);
+    const backdrop = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+
+    expect(backdrop).toHaveClass('cursor-pointer');
+  });
+
   it('calls onClose when Escape is pressed', async () => {
     const onClose = vi.fn();
     render(<Modal isOpen onClose={onClose} title="T"><p>x</p></Modal>);

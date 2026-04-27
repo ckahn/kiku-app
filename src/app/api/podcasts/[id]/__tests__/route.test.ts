@@ -17,7 +17,11 @@ const episodesTable = {
   podcastId: 'episodes.podcast_id',
   createdAt: 'episodes.created_at',
 };
-const mockEpisodeWhere = vi.fn(() => ({ orderBy: mockEpisodeOrderBy }));
+type EpisodeWhereResult =
+  | { readonly orderBy: typeof mockEpisodeOrderBy; readonly limit?: never }
+  | { readonly limit: typeof mockLimit; readonly orderBy?: never };
+
+const mockEpisodeWhere = vi.fn<() => EpisodeWhereResult>(() => ({ orderBy: mockEpisodeOrderBy }));
 const mockFrom = vi.fn((table: { _table: string }) => {
   if (table._table === 'podcasts_table') {
     return { where: mockPodcastWhere };

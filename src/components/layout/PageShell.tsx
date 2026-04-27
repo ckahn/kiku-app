@@ -12,7 +12,7 @@ export default function PageShell({ children, backHref, backLabel = 'Back' }: Pa
       {backHref && (
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink transition-colors mb-6"
+          className="mb-6 inline-flex cursor-pointer items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
         >
           ← {backLabel}
         </Link>

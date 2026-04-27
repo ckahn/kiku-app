@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Play, RefreshCw, Repeat, Square } from 'lucide-react';
+import { Check, Copy, Play, Repeat, Square } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
-import { saveTranscriptRestoreState } from '@/components/player/studyNavigation';
+import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
 
 // LLM sometimes echoes kana words as their own reading — skip when redundant
 function hasDistinctReading(reading: string | undefined, text: string): boolean {
@@ -47,7 +47,7 @@ function StudySection({ title, isOpen, onToggle, children }: StudySectionProps) 
     <section className="rounded-lg border border-border bg-surface">
       <button
         type="button"
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-ink"
+        className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left text-sm font-semibold text-ink"
         aria-label={title}
         aria-expanded={isOpen}
         onClick={onToggle}
@@ -71,21 +71,9 @@ async function loadStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent>
   return payload.data;
 }
 
-async function regenerateStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent> {
-  const response = await fetch(`${studyGuideUrl}/regenerate`, {
-    method: 'POST',
-  });
-  const payload = await response.json() as ApiResponse<StudyGuideContent>;
-
-  if (!response.ok || !payload.success || !payload.data) {
-    throw new Error(payload.error ?? 'Could not regenerate the study guide.');
-  }
-
-  return payload.data;
-}
-
 type PlaybackRate = 0.5 | 0.75 | 1;
 const PLAYBACK_RATES: PlaybackRate[] = [1, 0.75, 0.5];
+const SEGMENT_ACTION_BUTTON_CLASS = 'h-11 w-11 shrink-0 cursor-pointer inline-flex items-center justify-center transition-colors';
 
 export default function StudyScreen({
   chunk,
@@ -109,10 +97,12 @@ export default function StudyScreen({
   });
   const [studyGuide, setStudyGuide] = useState<StudyGuideContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const isRegeneratingRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    saveEpisodeFocusState({ episodeHref: backHref, chunkId: chunk.id });
+  }, [backHref, chunk.id]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -123,8 +113,7 @@ export default function StudyScreen({
         setErrorMessage(null);
         const nextStudyGuide = await loadStudyGuide(studyGuideUrl);
 
-        // Don't overwrite a regeneration result that resolved while we were loading.
-        if (!isCancelled && !isRegeneratingRef.current) {
+        if (!isCancelled) {
           setStudyGuide(nextStudyGuide);
         }
       } catch (error: unknown) {
@@ -200,23 +189,8 @@ export default function StudyScreen({
   }
 
   function handleBack() {
-    saveTranscriptRestoreState({ episodeHref: backHref, chunkId: chunk.id });
+    saveEpisodeFocusState({ episodeHref: backHref, chunkId: chunk.id });
     router.push(backHref);
-  }
-
-  async function handleRegenerateStudyGuide() {
-    try {
-      isRegeneratingRef.current = true;
-      setIsRegenerating(true);
-      setErrorMessage(null);
-      const nextStudyGuide = await regenerateStudyGuide(studyGuideUrl);
-      setStudyGuide(nextStudyGuide);
-    } catch (error: unknown) {
-      setErrorMessage(getClientErrorMessage(error));
-    } finally {
-      isRegeneratingRef.current = false;
-      setIsRegenerating(false);
-    }
   }
 
   return (
@@ -233,7 +207,7 @@ export default function StudyScreen({
         <button
           type="button"
           onClick={handleBack}
-          className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
+          className="inline-flex cursor-pointer items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
         >
           ← Transcript
         </button>
@@ -244,14 +218,14 @@ export default function StudyScreen({
           <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1} of {totalSegments}</p>
           <div className="flex items-center gap-3">
             {prevHref ? (
-              <Link href={prevHref} className="text-sm text-muted transition-colors hover:text-ink">
+              <Link href={prevHref} className="cursor-pointer text-sm text-muted transition-colors hover:text-ink">
                 ← Previous
               </Link>
             ) : (
               <span className="text-sm text-muted/40 select-none">← Previous</span>
             )}
             {nextHref ? (
-              <Link href={nextHref} className="text-sm text-muted transition-colors hover:text-ink">
+              <Link href={nextHref} className="cursor-pointer text-sm text-muted transition-colors hover:text-ink">
                 Next →
               </Link>
             ) : (
@@ -259,18 +233,7 @@ export default function StudyScreen({
             )}
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-ink">Study</h1>
-          <button
-            type="button"
-            onClick={handleRegenerateStudyGuide}
-            disabled={isLoading || isRegenerating}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Regenerate
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold text-ink">Study</h1>
       </header>
 
       <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
@@ -295,7 +258,7 @@ export default function StudyScreen({
                 type="button"
                 onClick={isPlaying ? stopPlayback : playFromChunkStart}
                 aria-label={isPlaying ? 'Stop audio' : 'Play audio'}
-                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
+                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-full bg-primary text-white hover:bg-primary-hover`}
               >
                 {isPlaying ? <Square size={18} /> : <Play size={18} />}
               </button>
@@ -304,7 +267,7 @@ export default function StudyScreen({
                 onClick={() => setIsLooping((prev) => !prev)}
                 aria-label="Toggle loop"
                 aria-pressed={isLooping}
-                className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md transition-colors ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md ${isLooping ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 <Repeat size={16} />
               </button>
@@ -312,7 +275,7 @@ export default function StudyScreen({
                 type="button"
                 onClick={cyclePlaybackRate}
                 aria-label={`Playback speed: ${playbackRate}×`}
-                className={`min-h-[44px] min-w-[52px] w-[52px] inline-flex items-center justify-center rounded-md text-xs font-medium transition-colors ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md text-xs font-medium tabular-nums ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 {playbackRate}×
               </button>
@@ -326,7 +289,7 @@ export default function StudyScreen({
                   setTimeout(() => setCopied(false), 2000);
                 });
               }}
-              className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md transition-colors hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
+              className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
@@ -343,7 +306,7 @@ export default function StudyScreen({
         </div>
       )}
 
-      {isLoading || isRegenerating ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-12" aria-label="Loading study guide">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
         </div>

@@ -125,126 +125,7 @@ describe('StudyScreen', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/study guide unavailable/i);
     });
-  });
-
-  it('always shows a regenerate button even when loading the study guide fails', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: false,
-      json: async () => ({ success: false, error: 'Invalid study guide content' }),
-    } as Response);
-
-    render(
-      <StudyScreen
-        chunk={makeChunk()}
-        totalSegments={10}
-        audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/segments/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
-      />
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/invalid study guide content/i);
-    });
-    expect(screen.getByRole('button', { name: /regenerate/i })).toBeInTheDocument();
-  });
-
-  it('shows the loading spinner while regenerating and hides guide content', async () => {
-    let resolveRegenerate!: (value: Response) => void;
-    vi.spyOn(global, 'fetch')
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, data: studyGuideFixture }),
-      } as Response)
-      .mockImplementationOnce(
-        () => new Promise<Response>((resolve) => { resolveRegenerate = resolve; })
-      );
-
-    render(
-      <StudyScreen
-        chunk={makeChunk()}
-        totalSegments={10}
-        audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/segments/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
-      />
-    );
-
-    await screen.findByRole('button', { name: 'Vocabulary' });
-    fireEvent.click(screen.getByRole('button', { name: /regenerate/i }));
-
-    expect(screen.getByLabelText(/loading study guide/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Vocabulary' })).toBeNull();
-
-    resolveRegenerate({
-      ok: true,
-      json: async () => ({ success: true, data: studyGuideFixture }),
-    } as Response);
-
-    await screen.findByRole('button', { name: 'Vocabulary' });
-    expect(screen.queryByLabelText(/loading study guide/i)).toBeNull();
-  });
-
-  it('regenerates the study guide after a load error', async () => {
-    vi.spyOn(global, 'fetch')
-      .mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ success: false, error: 'Invalid study guide content' }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, data: studyGuideFixture }),
-      } as Response);
-
-    render(
-      <StudyScreen
-        chunk={makeChunk()}
-        totalSegments={10}
-        audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/segments/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
-      />
-    );
-
-    await screen.findByRole('alert');
-    fireEvent.click(screen.getByRole('button', { name: /regenerate/i }));
-
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenLastCalledWith('/api/segments/12/study-guide/regenerate', {
-        method: 'POST',
-      });
-    });
-    expect(await screen.findByText(studyGuideFixture.vocabulary[0].japanese)).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).toBeNull();
-  });
-
-  it('shows an error when regenerating the study guide fails', async () => {
-    vi.spyOn(global, 'fetch')
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, data: studyGuideFixture }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ success: false, error: 'regeneration unavailable' }),
-      } as Response);
-
-    render(
-      <StudyScreen
-        chunk={makeChunk()}
-        totalSegments={10}
-        audioUrl="/api/episodes/5/audio"
-        studyGuideUrl="/api/segments/12/study-guide"
-        backHref="/podcasts/slow-japanese/episodes/7"
-      />
-    );
-
-    await screen.findByRole('button', { name: 'Vocabulary' });
-    fireEvent.click(screen.getByRole('button', { name: /regenerate/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/regeneration unavailable/i);
-    });
+    expect(screen.queryByRole('button', { name: /regenerate/i })).toBeNull();
   });
 
   it('reveals the translation only after the user opens its accordion', async () => {
@@ -566,6 +447,40 @@ describe('StudyScreen', () => {
       expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
     });
 
+    it('keeps segment action controls as fixed same-size squares when speed changes', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      const expectedButtonSizeClass = 'h-11 w-11';
+      const actionButtons = [
+        screen.getByRole('button', { name: 'Play audio' }),
+        screen.getByRole('button', { name: 'Toggle loop' }),
+        screen.getByRole('button', { name: 'Playback speed: 1×' }),
+        screen.getByRole('button', { name: 'Copy segment text' }),
+      ];
+
+      actionButtons.forEach((button) => {
+        expect(button).toHaveClass(...expectedButtonSizeClass.split(' '));
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 1×' }));
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.75×' })).toHaveClass(
+        ...expectedButtonSizeClass.split(' ')
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 0.75×' }));
+      expect(screen.getByRole('button', { name: 'Playback speed: 0.5×' })).toHaveClass(
+        ...expectedButtonSizeClass.split(' ')
+      );
+    });
+
     it('cycles 1× → 0.75× → 0.5× → 1× on successive clicks', () => {
       render(
         <StudyScreen
@@ -620,8 +535,27 @@ describe('StudyScreen', () => {
       );
     });
 
-    it('saves the current chunk id to localStorage when the back button is clicked', () => {
-      const saveSpy = vi.spyOn(studyNavigation, 'saveTranscriptRestoreState');
+    it('saves the current chunk id when the study page renders', () => {
+      const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
+
+      render(
+        <StudyScreen
+          chunk={makeChunk({ id: 99, chunkIndex: 5 })}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/99/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      expect(saveSpy).toHaveBeenCalledWith({
+        episodeHref: '/podcasts/slow-japanese/episodes/7',
+        chunkId: 99,
+      });
+    });
+
+    it('saves the current chunk id when the back button is clicked', () => {
+      const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
 
       render(
         <StudyScreen
@@ -635,7 +569,7 @@ describe('StudyScreen', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /transcript/i }));
 
-      expect(saveSpy).toHaveBeenCalledWith({
+      expect(saveSpy).toHaveBeenLastCalledWith({
         episodeHref: '/podcasts/slow-japanese/episodes/7',
         chunkId: 99,
       });
