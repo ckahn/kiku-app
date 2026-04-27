@@ -47,7 +47,7 @@ function StudySection({ title, isOpen, onToggle, children }: StudySectionProps) 
     <section className="rounded-lg border border-border bg-surface">
       <button
         type="button"
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-ink"
+        className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left text-sm font-semibold text-ink"
         aria-label={title}
         aria-expanded={isOpen}
         onClick={onToggle}
@@ -86,7 +86,7 @@ async function regenerateStudyGuide(studyGuideUrl: string): Promise<StudyGuideCo
 
 type PlaybackRate = 0.5 | 0.75 | 1;
 const PLAYBACK_RATES: PlaybackRate[] = [1, 0.75, 0.5];
-const SEGMENT_ACTION_BUTTON_CLASS = 'h-11 w-11 shrink-0 inline-flex items-center justify-center transition-colors';
+const SEGMENT_ACTION_BUTTON_CLASS = 'h-11 w-11 shrink-0 cursor-pointer inline-flex items-center justify-center transition-colors';
 
 export default function StudyScreen({
   chunk,
@@ -234,7 +234,7 @@ export default function StudyScreen({
         <button
           type="button"
           onClick={handleBack}
-          className="inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
+          className="inline-flex cursor-pointer items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
         >
           ← Transcript
         </button>
@@ -245,14 +245,14 @@ export default function StudyScreen({
           <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1} of {totalSegments}</p>
           <div className="flex items-center gap-3">
             {prevHref ? (
-              <Link href={prevHref} className="text-sm text-muted transition-colors hover:text-ink">
+              <Link href={prevHref} className="cursor-pointer text-sm text-muted transition-colors hover:text-ink">
                 ← Previous
               </Link>
             ) : (
               <span className="text-sm text-muted/40 select-none">← Previous</span>
             )}
             {nextHref ? (
-              <Link href={nextHref} className="text-sm text-muted transition-colors hover:text-ink">
+              <Link href={nextHref} className="cursor-pointer text-sm text-muted transition-colors hover:text-ink">
                 Next →
               </Link>
             ) : (
@@ -266,7 +266,7 @@ export default function StudyScreen({
             type="button"
             onClick={handleRegenerateStudyGuide}
             disabled={isLoading || isRegenerating}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Regenerate

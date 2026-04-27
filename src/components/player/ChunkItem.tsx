@@ -61,7 +61,7 @@ export default function ChunkItem({
               saveTranscriptRestoreState({ episodeHref, chunkId: chunk.id });
             }
           }}
-          className="absolute top-2 right-2 flex items-center justify-center w-11 h-11 text-muted hover:text-primary transition-colors"
+          className="absolute right-2 top-2 flex h-11 w-11 cursor-pointer items-center justify-center text-muted transition-colors hover:text-primary"
           aria-label="Study this segment"
         >
           <BookOpen size={16} />

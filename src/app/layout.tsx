@@ -39,7 +39,7 @@ export default function RootLayout({
         >
           <div className="h-1 bg-primary" />
           <div className="max-w-2xl mx-auto px-4 sm:px-6 h-12 flex items-center justify-between">
-            <Link href="/" className="text-sm font-semibold tracking-wide hover:opacity-80 transition-opacity">
+            <Link href="/" className="cursor-pointer text-sm font-semibold tracking-wide transition-opacity hover:opacity-80">
               <span className="text-primary font-jp">聴く</span>{" "}
               <span className="text-muted font-normal">KIKU</span>
             </Link>

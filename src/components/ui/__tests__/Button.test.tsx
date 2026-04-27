@@ -40,6 +40,11 @@ describe('Button', () => {
     expect(screen.getByRole('button')).toBeDisabled();
   });
 
+  it('uses a not-allowed cursor when disabled', () => {
+    render(<Button disabled>Disabled</Button>);
+    expect(screen.getByRole('button')).toHaveClass('disabled:cursor-not-allowed');
+  });
+
   it('is disabled when loading is true', () => {
     render(<Button loading>Loading</Button>);
     expect(screen.getByRole('button')).toBeDisabled();

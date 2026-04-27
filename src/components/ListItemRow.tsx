@@ -12,7 +12,7 @@ export default function ListItemRow({ href, children, actions }: ListItemRowProp
     <div className="flex min-h-16 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-2 transition-colors hover:bg-canvas">
       <Link
         href={href}
-        className="flex min-h-12 min-w-0 flex-1 items-center"
+        className="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center"
       >
         <div className="min-w-0">
           {children}

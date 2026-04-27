@@ -13,6 +13,8 @@ interface PlayerControlsProps {
   readonly onRestart: () => void;
 }
 
+const PLAYER_CONTROL_BUTTON_CLASS = 'cursor-pointer p-3 transition-colors sm:p-1.5';
+
 export default function PlayerControls({
   isPlaying,
   isLooping,
@@ -29,7 +31,7 @@ export default function PlayerControls({
         type="button"
         onClick={onRestart}
         aria-label="Restart"
-        className="p-3 sm:p-1.5 rounded hover:bg-canvas-subtle text-muted hover:text-ink transition-colors"
+        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded text-muted hover:bg-canvas-subtle hover:text-ink`}
       >
         <SkipBack className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
@@ -37,7 +39,7 @@ export default function PlayerControls({
         type="button"
         onClick={onRewind}
         aria-label="Rewind 5 seconds"
-        className="p-3 sm:p-1.5 rounded hover:bg-canvas-subtle text-muted hover:text-ink transition-colors"
+        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded text-muted hover:bg-canvas-subtle hover:text-ink`}
       >
         <Rewind className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
@@ -45,7 +47,7 @@ export default function PlayerControls({
         type="button"
         onClick={isPlaying ? onPause : onPlay}
         aria-label={isPlaying ? 'Pause' : 'Play'}
-        className="p-3 sm:p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition-colors"
+        className="cursor-pointer rounded-full bg-primary p-3 text-white transition-colors hover:bg-primary-hover sm:p-2"
       >
         {isPlaying ? (
           <Pause className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
@@ -57,7 +59,7 @@ export default function PlayerControls({
         type="button"
         onClick={onForward}
         aria-label="Forward 5 seconds"
-        className="p-3 sm:p-1.5 rounded hover:bg-canvas-subtle text-muted hover:text-ink transition-colors"
+        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded text-muted hover:bg-canvas-subtle hover:text-ink`}
       >
         <FastForward className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
@@ -66,7 +68,7 @@ export default function PlayerControls({
         onClick={onToggleLoop}
         aria-label="Toggle loop"
         aria-pressed={isLooping}
-        className={`p-3 sm:p-1.5 rounded transition-colors ${
+        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded ${
           isLooping
             ? 'text-primary bg-primary-subtle'
             : 'text-muted hover:bg-canvas-subtle hover:text-ink'

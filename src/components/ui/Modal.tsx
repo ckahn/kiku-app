@@ -26,7 +26,7 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
-        className="absolute inset-0 bg-ink/50"
+        className="absolute inset-0 cursor-pointer bg-ink/50"
         onClick={onClose}
         aria-hidden="true"
       />
