@@ -4,6 +4,7 @@ const mockAnd = vi.fn(() => 'and-clause');
 const mockEq = vi.fn(() => 'eq-clause');
 const mockNe = vi.fn(() => 'ne-clause');
 const mockDesc = vi.fn(() => 'desc-clause');
+const mockLimit = vi.fn();
 const mockPodcastWhere = vi.fn();
 const mockEpisodeOrderBy = vi.fn();
 const podcastsTable = {
@@ -65,6 +66,7 @@ describe('DELETE /api/podcasts/[id]', () => {
     mockEq.mockReset().mockReturnValue('eq-clause');
     mockNe.mockReset().mockReturnValue('ne-clause');
     mockDesc.mockReset().mockReturnValue('desc-clause');
+    mockLimit.mockReset();
   });
 
   function mockEpisodeRowsAndReferences(
@@ -74,7 +76,8 @@ describe('DELETE /api/podcasts/[id]', () => {
     mockEpisodeWhere.mockReturnValueOnce({ orderBy: mockEpisodeOrderBy });
     mockEpisodeOrderBy.mockResolvedValueOnce(episodeRows);
     for (const rows of referenceRows) {
-      mockEpisodeWhere.mockResolvedValueOnce(rows);
+      mockEpisodeWhere.mockReturnValueOnce({ limit: mockLimit });
+      mockLimit.mockResolvedValueOnce(rows);
     }
   }
 
