@@ -9,6 +9,7 @@ import ChunkList from '@/components/ChunkList';
 import { consumeTranscriptRestoreState, saveEpisodeFocusState, loadEpisodeFocusState } from './studyNavigation';
 import { scrollChunkToTop } from './scrollChunk';
 import { findActiveChunkId } from './chunkUtils';
+import { useManualScrollRestoration } from './useManualScrollRestoration';
 
 interface EpisodePlayerProps {
   readonly chunks: readonly Chunk[];
@@ -29,6 +30,7 @@ export default function EpisodePlayer({
 }: EpisodePlayerProps) {
   const player = usePlayer(chunks, durationMs);
   const { toggle, rewind, forward, toggleLoop } = player.controls;
+  useManualScrollRestoration();
   useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop });
 
   const { seekToChunk } = player.controls;

@@ -36,6 +36,11 @@ beforeEach(() => {
     writable: true,
     value: 0,
   });
+  Object.defineProperty(window.history, 'scrollRestoration', {
+    configurable: true,
+    writable: true,
+    value: 'auto',
+  });
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
@@ -135,6 +140,18 @@ describe('EpisodePlayer (integration)', () => {
     });
 
     expect(screen.getByRole('alert')).toHaveTextContent(/could not play this episode audio/i);
+  });
+
+  it('uses manual browser scroll restoration while mounted', () => {
+    const { unmount } = render(
+      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+    );
+
+    expect(window.history.scrollRestoration).toBe('manual');
+
+    unmount();
+
+    expect(window.history.scrollRestoration).toBe('auto');
   });
 
   it('restores the previously studied chunk by scrolling it to the top', async () => {
