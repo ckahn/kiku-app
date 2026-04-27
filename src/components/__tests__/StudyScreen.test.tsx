@@ -535,8 +535,27 @@ describe('StudyScreen', () => {
       );
     });
 
-    it('saves the current chunk id to localStorage when the back button is clicked', () => {
-      const saveSpy = vi.spyOn(studyNavigation, 'saveTranscriptRestoreState');
+    it('saves the current chunk id when the study page renders', () => {
+      const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
+
+      render(
+        <StudyScreen
+          chunk={makeChunk({ id: 99, chunkIndex: 5 })}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/99/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      expect(saveSpy).toHaveBeenCalledWith({
+        episodeHref: '/podcasts/slow-japanese/episodes/7',
+        chunkId: 99,
+      });
+    });
+
+    it('saves the current chunk id when the back button is clicked', () => {
+      const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
 
       render(
         <StudyScreen
@@ -550,7 +569,7 @@ describe('StudyScreen', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /transcript/i }));
 
-      expect(saveSpy).toHaveBeenCalledWith({
+      expect(saveSpy).toHaveBeenLastCalledWith({
         episodeHref: '/podcasts/slow-japanese/episodes/7',
         chunkId: 99,
       });

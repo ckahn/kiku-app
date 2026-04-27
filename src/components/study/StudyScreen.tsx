@@ -7,7 +7,7 @@ import { Check, Copy, Play, Repeat, Square } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
-import { saveTranscriptRestoreState } from '@/components/player/studyNavigation';
+import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
 
 // LLM sometimes echoes kana words as their own reading — skip when redundant
 function hasDistinctReading(reading: string | undefined, text: string): boolean {
@@ -101,6 +101,10 @@ export default function StudyScreen({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    saveEpisodeFocusState({ episodeHref: backHref, chunkId: chunk.id });
+  }, [backHref, chunk.id]);
+
+  useEffect(() => {
     let isCancelled = false;
 
     async function fetchStudyGuide() {
@@ -185,7 +189,7 @@ export default function StudyScreen({
   }
 
   function handleBack() {
-    saveTranscriptRestoreState({ episodeHref: backHref, chunkId: chunk.id });
+    saveEpisodeFocusState({ episodeHref: backHref, chunkId: chunk.id });
     router.push(backHref);
   }
 

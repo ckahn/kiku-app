@@ -154,34 +154,7 @@ describe('EpisodePlayer (integration)', () => {
     expect(window.history.scrollRestoration).toBe('auto');
   });
 
-  it('restores the previously studied chunk by scrolling it to the top', async () => {
-    vi.spyOn(studyNavigation, 'consumeTranscriptRestoreState')
-      .mockReturnValueOnce({
-        episodeHref: '/podcasts/slow-japanese/episodes/7',
-        chunkId: 2,
-      })
-      .mockReturnValue(null);
-
-    render(
-      <EpisodePlayer
-        chunks={CHUNKS}
-        audioUrl="/api/episodes/1/audio"
-        durationMs={20000}
-        episodeHref="/podcasts/slow-japanese/episodes/7"
-      />,
-    );
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(window.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({ behavior: 'auto' }),
-    );
-  });
-
-  it('restores the episode focus state on refresh when no study-restore is present', async () => {
-    vi.spyOn(studyNavigation, 'consumeTranscriptRestoreState').mockReturnValue(null);
+  it('restores the saved episode focus state', async () => {
     vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue({
       episodeHref: '/podcasts/slow-japanese/episodes/7',
       chunkId: 3,
@@ -206,7 +179,6 @@ describe('EpisodePlayer (integration)', () => {
   });
 
   it('saves the episode focus state when the active chunk changes', async () => {
-    vi.spyOn(studyNavigation, 'consumeTranscriptRestoreState').mockReturnValue(null);
     vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue(null);
     const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
 

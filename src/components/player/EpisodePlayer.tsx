@@ -6,7 +6,7 @@ import { usePlayer } from './usePlayer';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import AudioPlayer from './AudioPlayer';
 import ChunkList from '@/components/ChunkList';
-import { consumeTranscriptRestoreState, saveEpisodeFocusState, loadEpisodeFocusState } from './studyNavigation';
+import { saveEpisodeFocusState, loadEpisodeFocusState } from './studyNavigation';
 import { scrollChunkToTop } from './scrollChunk';
 import { findActiveChunkId } from './chunkUtils';
 import { useManualScrollRestoration } from './useManualScrollRestoration';
@@ -36,16 +36,13 @@ export default function EpisodePlayer({
   const { seekToChunk } = player.controls;
   const activeChunkId = findActiveChunkId(chunks, player.state.currentTime);
 
-  // Restore scroll position on mount: prefer study-restore (coming back from
-  // the study screen), then fall back to the persisted episode focus state
-  // (coming back after a page refresh).
+  // Restore the focused segment when returning from study or refreshing.
   useEffect(() => {
     if (!episodeHref || chunks.length === 0) {
       return;
     }
 
-    const restoreState = consumeTranscriptRestoreState(episodeHref);
-    const focusState = restoreState ?? loadEpisodeFocusState(episodeHref);
+    const focusState = loadEpisodeFocusState(episodeHref);
     if (!focusState) {
       return;
     }
