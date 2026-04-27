@@ -101,6 +101,89 @@ describe('EpisodeActionMenu', () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
+  it('toggles study status from new to studying and refreshes', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    } as Response);
+
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="new"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/episodes/5/study',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ studyStatus: 'studying' }),
+        })
+      )
+    );
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it('toggles study status from studying to new and refreshes', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    } as Response);
+
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="studying"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /stop studying/i }));
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/episodes/5/study',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ studyStatus: 'new' }),
+        })
+      )
+    );
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it('alerts on study toggle network failure', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'Server error' }),
+    } as Response);
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="new"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Server error'));
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
   it('shows API errors in the edit modal without closing it', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: false,

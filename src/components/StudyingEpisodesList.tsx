@@ -1,23 +1,26 @@
+'use client';
+
 import type { Episode } from '@/db/schema';
 import EpisodeActionMenu from '@/components/EpisodeActionMenu';
 import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
 import ListItemRow from '@/components/ListItemRow';
 
-interface EpisodeListProps {
-  episodes: Episode[];
+type StudyingEpisode = Pick<Episode, 'id' | 'title' | 'episodeNumber' | 'status' | 'studyStatus'> & {
   podcastSlug: string;
+  podcastName: string;
+};
+
+interface StudyingEpisodesListProps {
+  episodes: StudyingEpisode[];
 }
 
-export default function EpisodeList({ episodes, podcastSlug }: EpisodeListProps) {
-  if (episodes.length === 0) {
-    return <p className="text-muted text-sm">No episodes yet.</p>;
-  }
+export default function StudyingEpisodesList({ episodes }: StudyingEpisodesListProps) {
   return (
     <ul className="space-y-2">
       {episodes.map((ep) => (
         <li key={ep.id}>
           <ListItemRow
-            href={`/podcasts/${podcastSlug}/episodes/${ep.episodeNumber}`}
+            href={`/podcasts/${ep.podcastSlug}/episodes/${ep.episodeNumber}`}
             actions={(
               <>
                 <EpisodeStatusBadge status={ep.status} studyStatus={ep.studyStatus} />
@@ -26,14 +29,13 @@ export default function EpisodeList({ episodes, podcastSlug }: EpisodeListProps)
                   episodeTitle={ep.title}
                   episodeNumber={ep.episodeNumber}
                   studyStatus={ep.studyStatus}
+                  redirectTo="/"
                 />
               </>
             )}
           >
-            {ep.episodeNumber && (
-              <p className="text-xs text-muted mb-0.5">Episode {ep.episodeNumber}</p>
-            )}
             <p className="font-medium text-ink truncate">{ep.title}</p>
+            <p className="text-xs text-muted mt-0.5">{ep.podcastName} · Episode {ep.episodeNumber}</p>
           </ListItemRow>
         </li>
       ))}
