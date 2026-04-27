@@ -3,12 +3,7 @@
 const STUDY_TRANSCRIPT_RESTORE_KEY = 'kiku:study-transcript-restore';
 const EPISODE_FOCUS_KEY = 'kiku:episode-focus';
 
-interface TranscriptRestoreState {
-  readonly episodeHref: string;
-  readonly chunkId: number;
-}
-
-interface EpisodeFocusState {
+interface EpisodeChunkState {
   readonly episodeHref: string;
   readonly chunkId: number;
 }
@@ -17,7 +12,7 @@ function canUseLocalStorage(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
-export function saveTranscriptRestoreState(state: TranscriptRestoreState): void {
+export function saveTranscriptRestoreState(state: EpisodeChunkState): void {
   if (!canUseLocalStorage()) {
     return;
   }
@@ -25,7 +20,7 @@ export function saveTranscriptRestoreState(state: TranscriptRestoreState): void 
   window.localStorage.setItem(STUDY_TRANSCRIPT_RESTORE_KEY, JSON.stringify(state));
 }
 
-export function saveEpisodeFocusState(state: EpisodeFocusState): void {
+export function saveEpisodeFocusState(state: EpisodeChunkState): void {
   if (!canUseLocalStorage()) {
     return;
   }
@@ -33,7 +28,7 @@ export function saveEpisodeFocusState(state: EpisodeFocusState): void {
   window.localStorage.setItem(EPISODE_FOCUS_KEY, JSON.stringify(state));
 }
 
-export function loadEpisodeFocusState(episodeHref: string): EpisodeFocusState | null {
+export function loadEpisodeFocusState(episodeHref: string): EpisodeChunkState | null {
   if (!canUseLocalStorage()) {
     return null;
   }
@@ -44,7 +39,7 @@ export function loadEpisodeFocusState(episodeHref: string): EpisodeFocusState | 
   }
 
   try {
-    const parsed = JSON.parse(rawValue) as Partial<EpisodeFocusState>;
+    const parsed = JSON.parse(rawValue) as Partial<EpisodeChunkState>;
     if (parsed.episodeHref !== episodeHref || typeof parsed.chunkId !== 'number') {
       return null;
     }
@@ -55,7 +50,7 @@ export function loadEpisodeFocusState(episodeHref: string): EpisodeFocusState | 
   }
 }
 
-export function consumeTranscriptRestoreState(episodeHref: string): TranscriptRestoreState | null {
+export function consumeTranscriptRestoreState(episodeHref: string): EpisodeChunkState | null {
   if (!canUseLocalStorage()) {
     return null;
   }
@@ -68,7 +63,7 @@ export function consumeTranscriptRestoreState(episodeHref: string): TranscriptRe
   window.localStorage.removeItem(STUDY_TRANSCRIPT_RESTORE_KEY);
 
   try {
-    const parsed = JSON.parse(rawValue) as Partial<TranscriptRestoreState>;
+    const parsed = JSON.parse(rawValue) as Partial<EpisodeChunkState>;
     if (parsed.episodeHref !== episodeHref || typeof parsed.chunkId !== 'number') {
       return null;
     }

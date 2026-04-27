@@ -12,7 +12,8 @@ async function isAudioUrlUsedByAnotherEpisode(
   const [referencingEpisode] = await db
     .select({ id: episodes.id })
     .from(episodes)
-    .where(and(eq(episodes.audioUrl, audioUrl), ne(episodes.id, episodeId)));
+    .where(and(eq(episodes.audioUrl, audioUrl), ne(episodes.id, episodeId)))
+    .limit(1);
 
   return referencingEpisode !== undefined;
 }

@@ -58,7 +58,8 @@ export default function EpisodePlayer({
   }, [chunks, episodeHref, seekToChunk]);
 
   // Persist the active chunk so a refresh can restore it. Skip the initial
-  // mount so we don't overwrite the saved state before the restore runs.
+  // mount because currentTime starts at 0, so activeChunkId is the first
+  // chunk regardless of what was saved — saving it would corrupt the state.
   const hasMountedRef = useRef(false);
   useEffect(() => {
     if (!hasMountedRef.current) {

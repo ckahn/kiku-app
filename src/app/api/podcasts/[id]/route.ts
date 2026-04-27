@@ -12,7 +12,8 @@ async function isAudioUrlUsedOutsidePodcast(
   const [referencingEpisode] = await db
     .select({ id: episodes.id })
     .from(episodes)
-    .where(and(eq(episodes.audioUrl, audioUrl), ne(episodes.podcastId, podcastId)));
+    .where(and(eq(episodes.audioUrl, audioUrl), ne(episodes.podcastId, podcastId)))
+    .limit(1);
 
   return referencingEpisode !== undefined;
 }
@@ -62,7 +63,7 @@ export async function DELETE(
         await deletePrivateBlob(audioUrl);
       } catch (error: unknown) {
         console.error(
-          `[podcasts.delete] failed to delete blob for podcast ${podcastId}:`,
+          `[podcasts.delete] failed to delete blob ${audioUrl} for podcast ${podcastId}:`,
           error
         );
         return apiErr(getErrorMessage(error), 500);
