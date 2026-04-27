@@ -1,6 +1,7 @@
 'use client';
 
 import EpisodeActionMenu from '@/components/EpisodeActionMenu';
+import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
 import ListItemRow from '@/components/ListItemRow';
 
 interface StudyingEpisode {
@@ -9,6 +10,8 @@ interface StudyingEpisode {
   episodeNumber: number;
   podcastSlug: string;
   podcastName: string;
+  status: 'uploaded' | 'transcribing' | 'chunking' | 'ready' | 'error';
+  studyStatus: 'new' | 'studying' | 'learned';
 }
 
 interface StudyingEpisodesListProps {
@@ -23,13 +26,16 @@ export default function StudyingEpisodesList({ episodes }: StudyingEpisodesListP
           <ListItemRow
             href={`/podcasts/${ep.podcastSlug}/episodes/${ep.episodeNumber}`}
             actions={(
-              <EpisodeActionMenu
-                episodeId={ep.id}
-                episodeTitle={ep.title}
-                episodeNumber={ep.episodeNumber}
-                studyStatus="studying"
-                redirectTo="/"
-              />
+              <>
+                <EpisodeStatusBadge status={ep.status} studyStatus={ep.studyStatus} />
+                <EpisodeActionMenu
+                  episodeId={ep.id}
+                  episodeTitle={ep.title}
+                  episodeNumber={ep.episodeNumber}
+                  studyStatus="studying"
+                  redirectTo="/"
+                />
+              </>
             )}
           >
             <p className="font-medium text-ink truncate">{ep.title}</p>

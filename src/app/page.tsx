@@ -18,6 +18,8 @@ export default async function HomePage() {
         episodeNumber: episodes.episodeNumber,
         podcastSlug: podcasts.slug,
         podcastName: podcasts.name,
+        status: episodes.status,
+        studyStatus: episodes.studyStatus,
       })
       .from(episodes)
       .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))

@@ -1,17 +1,7 @@
 import type { Episode } from '@/db/schema';
-import { Badge } from '@/components/ui';
 import EpisodeActionMenu from '@/components/EpisodeActionMenu';
+import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
 import ListItemRow from '@/components/ListItemRow';
-
-type BadgeVariant = 'info' | 'warning' | 'success' | 'error' | 'neutral';
-
-const STATUS_VARIANT: Record<string, BadgeVariant> = {
-  uploaded:     'info',
-  transcribing: 'warning',
-  chunking:     'warning',
-  ready:        'success',
-  error:        'error',
-};
 
 interface EpisodeListProps {
   episodes: Episode[];
@@ -30,9 +20,7 @@ export default function EpisodeList({ episodes, podcastSlug }: EpisodeListProps)
             href={`/podcasts/${podcastSlug}/episodes/${ep.episodeNumber}`}
             actions={(
               <>
-                <Badge variant={STATUS_VARIANT[ep.status] ?? 'neutral'}>
-                  {ep.status}
-                </Badge>
+                <EpisodeStatusBadge status={ep.status} studyStatus={ep.studyStatus} />
                 <EpisodeActionMenu
                   episodeId={ep.id}
                   episodeTitle={ep.title}
