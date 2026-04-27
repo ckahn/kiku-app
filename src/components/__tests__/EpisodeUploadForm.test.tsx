@@ -47,6 +47,13 @@ describe('EpisodeUploadForm', () => {
     expect(screen.getByRole('button', { name: 'Upload' })).toBeEnabled();
   });
 
+  it('renders the file input with a 44px pointer target', () => {
+    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
+    const fileInput = container.querySelector('input[type="file"]');
+
+    expect(fileInput).toHaveClass('min-h-11', 'cursor-pointer');
+  });
+
   it('uploads to blob then creates episode record and redirects', async () => {
     mockUpload.mockResolvedValueOnce({ url: 'https://blob.vercel-storage.com/ep1.mp3' });
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({

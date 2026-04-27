@@ -72,7 +72,7 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUpl
         accept="audio/*"
         onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         required
-        className="block text-sm text-muted file:mr-3 file:rounded file:border-0 file:bg-canvas file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink file:cursor-pointer"
+        className="block min-h-11 cursor-pointer text-sm text-muted file:mr-3 file:min-h-11 file:cursor-pointer file:rounded file:border-0 file:bg-canvas file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink"
       />
       {loading && (
         <p className="text-sm text-muted">Uploading… this may take a moment.</p>

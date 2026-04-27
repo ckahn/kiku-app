@@ -31,7 +31,7 @@ export default function ProgressBar({ currentTime, durationSec, onSeek }: Progre
         value={currentTime}
         onChange={handleChange}
         aria-label="Playback position"
-        className="flex-1 h-1 accent-primary cursor-pointer"
+        className="h-11 flex-1 cursor-pointer accent-primary"
       />
       <span className="text-xs tabular-nums text-muted w-9 shrink-0">
         {formatTime(durationSec)}

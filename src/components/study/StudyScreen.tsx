@@ -47,7 +47,7 @@ function StudySection({ title, isOpen, onToggle, children }: StudySectionProps) 
     <section className="rounded-lg border border-border bg-surface">
       <button
         type="button"
-        className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left text-sm font-semibold text-ink"
+        className="flex min-h-11 w-full cursor-pointer items-center justify-between px-4 py-3 text-left text-sm font-semibold text-ink"
         aria-label={title}
         aria-expanded={isOpen}
         onClick={onToggle}
@@ -207,7 +207,7 @@ export default function StudyScreen({
         <button
           type="button"
           onClick={handleBack}
-          className="inline-flex cursor-pointer items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
+          className="inline-flex min-h-11 min-w-11 cursor-pointer items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
         >
           ← Transcript
         </button>
@@ -218,14 +218,14 @@ export default function StudyScreen({
           <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1} of {totalSegments}</p>
           <div className="flex items-center gap-3">
             {prevHref ? (
-              <Link href={prevHref} className="cursor-pointer text-sm text-muted transition-colors hover:text-ink">
+              <Link href={prevHref} className="inline-flex min-h-11 min-w-11 cursor-pointer items-center text-sm text-muted transition-colors hover:text-ink">
                 ← Previous
               </Link>
             ) : (
               <span className="text-sm text-muted/40 select-none">← Previous</span>
             )}
             {nextHref ? (
-              <Link href={nextHref} className="cursor-pointer text-sm text-muted transition-colors hover:text-ink">
+              <Link href={nextHref} className="inline-flex min-h-11 min-w-11 cursor-pointer items-center text-sm text-muted transition-colors hover:text-ink">
                 Next →
               </Link>
             ) : (

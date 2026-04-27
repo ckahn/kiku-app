@@ -35,7 +35,7 @@ export default function Button({
   return (
     <button
       disabled={disabled || loading}
-      className={`inline-flex cursor-pointer items-center justify-center rounded-md font-medium transition-colors disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      className={`inline-flex min-h-11 cursor-pointer items-center justify-center rounded-md font-medium transition-colors disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
       {...props}
     >
       {children}

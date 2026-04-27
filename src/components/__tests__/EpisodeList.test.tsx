@@ -34,4 +34,34 @@ describe('EpisodeList', () => {
 
     expect(screen.getByRole('button', { name: 'Actions for Episode One' })).toBeInTheDocument();
   });
+
+  it('renders episode links with 44px pointer targets', () => {
+    render(
+      <EpisodeList
+        podcastSlug="slow-japanese"
+        episodes={[
+          {
+            id: 1,
+            podcastId: 2,
+            title: 'Episode One',
+            episodeNumber: 1,
+            audioUrl: 'https://blob.example.com/one.mp3',
+            durationMs: null,
+            status: 'ready',
+            studyStatus: 'new',
+            learnedAt: null,
+            nextReview: null,
+            errorMessage: null,
+            createdAt: null,
+            updatedAt: null,
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: /episode one/i })).toHaveClass(
+      'min-h-12',
+      'cursor-pointer'
+    );
+  });
 });
