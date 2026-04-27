@@ -1,9 +1,16 @@
+import { z } from 'zod';
 import { db } from '@/db';
 import { podcasts, episodes } from '@/db/schema';
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { deletePrivateBlob } from '@/lib/blob';
+import { toSlug } from '@/lib/slug';
+
+const updatePodcastSchema = z.object({
+  name: z.string().trim().min(1, 'name is required'),
+  description: z.string().optional(),
+});
 
 async function isAudioUrlUsedOutsidePodcast(
   audioUrl: string,
@@ -33,6 +40,53 @@ export async function GET(
     .orderBy(desc(episodes.createdAt));
 
   return apiOk({ ...podcast, episodes: episodeRows });
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const podcastId = Number(id);
+
+    const body: unknown = await request.json();
+    const result = updatePodcastSchema.safeParse(body);
+    if (!result.success) {
+      return apiErr(result.error.issues[0].message, 400);
+    }
+
+    const [podcast] = await db.select().from(podcasts).where(eq(podcasts.id, podcastId));
+    if (!podcast) return apiErr('not found', 404);
+
+    const name = result.data.name;
+    const slug = toSlug(name);
+    if (!slug) {
+      return apiErr('name must include at least one letter or number', 400);
+    }
+
+    const [existing] = await db
+      .select()
+      .from(podcasts)
+      .where(and(eq(podcasts.slug, slug), ne(podcasts.id, podcastId)));
+    if (existing) {
+      return apiErr(
+        `The name "${name}" is too similar to existing podcast "${existing.name}". Please choose a different name.`,
+        409
+      );
+    }
+
+    const description = result.data.description?.trim() || null;
+    const [updatedPodcast] = await db
+      .update(podcasts)
+      .set({ name, slug, description })
+      .where(eq(podcasts.id, podcastId))
+      .returning();
+
+    return apiOk(updatedPodcast);
+  } catch (error: unknown) {
+    return apiErr(getErrorMessage(error), 500);
+  }
 }
 
 export async function DELETE(

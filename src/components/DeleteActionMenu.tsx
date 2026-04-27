@@ -5,27 +5,27 @@ import { useRouter } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
 import ActionMenu from '@/components/ActionMenu';
 
-interface DeleteActionMenuProps {
-  ariaLabel: string;
+interface DeleteMenuItemProps {
   deleteUrl: string;
   confirmMessage: string;
   menuLabel: string;
   loadingLabel: string;
   redirectTo?: string;
+  closeMenu: () => void;
 }
 
 interface DeleteResponse {
   error?: string;
 }
 
-export default function DeleteActionMenu({
-  ariaLabel,
+export function DeleteMenuItem({
   deleteUrl,
   confirmMessage,
   menuLabel,
   loadingLabel,
   redirectTo,
-}: DeleteActionMenuProps) {
+  closeMenu,
+}: DeleteMenuItemProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,25 +62,38 @@ export default function DeleteActionMenu({
   }
 
   return (
+    <>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={loading}
+        onClick={() => void handleDelete(closeMenu)}
+        className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-error-on-subtle transition-colors hover:bg-error-subtle disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <Trash2 size={16} aria-hidden="true" />
+        <span>{loading ? loadingLabel : menuLabel}</span>
+      </button>
+      {error && (
+        <p className="px-3 pb-2 pt-1 text-xs text-error-on-subtle">
+          {error}
+        </p>
+      )}
+    </>
+  );
+}
+
+interface DeleteActionMenuProps extends Omit<DeleteMenuItemProps, 'closeMenu'> {
+  ariaLabel: string;
+}
+
+export default function DeleteActionMenu({
+  ariaLabel,
+  ...props
+}: DeleteActionMenuProps) {
+  return (
     <ActionMenu ariaLabel={ariaLabel}>
       {({ closeMenu }) => (
-        <>
-          <button
-            type="button"
-            role="menuitem"
-            disabled={loading}
-            onClick={() => void handleDelete(closeMenu)}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-error-on-subtle transition-colors hover:bg-error-subtle disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Trash2 size={16} aria-hidden="true" />
-            <span>{loading ? loadingLabel : menuLabel}</span>
-          </button>
-          {error && (
-            <p className="px-3 pb-2 pt-1 text-xs text-error-on-subtle">
-              {error}
-            </p>
-          )}
-        </>
+        <DeleteMenuItem {...props} closeMenu={closeMenu} />
       )}
     </ActionMenu>
   );

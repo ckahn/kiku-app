@@ -62,7 +62,10 @@ export default async function EpisodePage({
           <EpisodeActionMenu
             episodeId={episode.id}
             episodeTitle={episode.title}
+            episodeNumber={episode.episodeNumber}
             redirectTo={`/podcasts/${slug}`}
+            podcastSlug={slug}
+            redirectToEditedEpisode
           />
         </div>
       </div>

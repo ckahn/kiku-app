@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -56,5 +57,31 @@ describe('Modal', () => {
     render(<Modal isOpen={false} onClose={onClose} title="T"><p>x</p></Modal>);
     await userEvent.keyboard('{Escape}');
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('keeps focus in an input while typing even when onClose changes on rerender', async () => {
+    function ModalWithChangingCloseHandler() {
+      const [value, setValue] = useState('');
+
+      return (
+        <Modal isOpen onClose={() => undefined} title="Edit">
+          <label htmlFor="modal-input">Name</label>
+          <input
+            id="modal-input"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+          />
+        </Modal>
+      );
+    }
+
+    render(<ModalWithChangingCloseHandler />);
+
+    const input = screen.getByLabelText('Name');
+    await userEvent.click(input);
+    await userEvent.type(input, 'New name');
+
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('New name');
   });
 });

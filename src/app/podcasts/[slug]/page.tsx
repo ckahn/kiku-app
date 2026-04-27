@@ -34,6 +34,9 @@ export default async function PodcastPage({
         <PodcastActionMenu
           podcastId={podcast.id}
           podcastName={podcast.name}
+          podcastDescription={podcast.description}
+          podcastSlug={slug}
+          redirectToEditedPodcast
         />
       </div>
 

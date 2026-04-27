@@ -21,6 +21,7 @@ export default function PodcastList({ podcasts }: { podcasts: Podcast[] }) {
               <PodcastActionMenu
                 podcastId={p.id}
                 podcastName={p.name}
+                podcastDescription={p.description}
               />
             )}
           >

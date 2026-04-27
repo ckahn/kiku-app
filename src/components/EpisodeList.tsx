@@ -36,6 +36,7 @@ export default function EpisodeList({ episodes, podcastSlug }: EpisodeListProps)
                 <EpisodeActionMenu
                   episodeId={ep.id}
                   episodeTitle={ep.title}
+                  episodeNumber={ep.episodeNumber}
                 />
               </>
             )}

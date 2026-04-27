@@ -4,10 +4,7 @@ import { podcasts } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { getErrorMessage } from '@/lib/utils';
 import { apiOk, apiErr } from '@/lib/api-response';
-
-function toSlug(str: string): string {
-  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
+import { toSlug } from '@/lib/slug';
 
 const createPodcastSchema = z.object({
   name: z.string().min(1, 'name is required'),
