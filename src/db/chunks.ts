@@ -2,6 +2,11 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '.';
 import { chunks, episodes, podcasts } from './schema';
 import type { Chunk } from './schema';
+import type {
+  ChunkWithFurigana,
+  ElevenLabsWord,
+  TranscriptSentence,
+} from '@/lib/api/types';
 
 export interface RandomSegmentData {
   chunkId: number;
@@ -15,11 +20,6 @@ export interface RandomSegmentData {
   podcastSlug: string;
   podcastName: string;
 }
-import type {
-  ChunkWithFurigana,
-  ElevenLabsWord,
-  TranscriptSentence,
-} from '@/lib/api/types';
 
 type ChunkInsertInput = ChunkWithFurigana & {
   readonly sentences?: readonly TranscriptSentence[];

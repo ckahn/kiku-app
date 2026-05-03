@@ -14,6 +14,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [shuffleError, setShuffleError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const studyHref = `/podcasts/${segment.podcastSlug}/episodes/${segment.episodeNumber}/segments/${segment.chunkIndex}/study`;
@@ -62,6 +63,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
       setIsBuffering(false);
     } else {
       audio.src = `/api/episodes/${segment.episodeId}/audio`;
+      audio.load();
       audio.currentTime = segment.startMs / 1000;
       audio.play().catch(() => setIsPlaying(false));
       setIsPlaying(true);
@@ -75,20 +77,25 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     audioRef.current?.pause();
     setIsPlaying(false);
     setIsBuffering(false);
+    setShuffleError(false);
     setIsLoading(true);
 
     try {
       const res = await fetch('/api/chunks/random');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as { data: RandomSegmentData | null };
       if (json.data) {
         setSegment(json.data);
       }
+    } catch {
+      setShuffleError(true);
     } finally {
       setIsLoading(false);
     }
   }
 
   return (
+    <div className="flex flex-col gap-1">
     <div className="flex items-start gap-4 rounded-lg border border-border bg-surface p-4">
       <audio ref={audioRef} preload="metadata" className="hidden" />
 
@@ -124,6 +131,10 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
           <Shuffle size={14} />
         </button>
       </div>
+    </div>
+    {shuffleError && (
+      <p className="text-xs text-red-500 px-1">Could not load a new segment. Try again.</p>
+    )}
     </div>
   );
 }
