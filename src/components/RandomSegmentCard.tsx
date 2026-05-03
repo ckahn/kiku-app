@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Play, Shuffle, Square } from 'lucide-react';
+import { Loader2, Play, Shuffle, Square } from 'lucide-react';
 import type { RandomSegmentData } from '@/db/chunks';
 
 interface RandomSegmentCardProps {
@@ -12,6 +12,7 @@ interface RandomSegmentCardProps {
 export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardProps) {
   const [segment, setSegment] = useState(initialSegment);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -31,14 +32,21 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
       setIsPlaying(false);
     }
 
+    function handleWaiting() { setIsBuffering(true); }
+    function handlePlaying() { setIsBuffering(false); }
+
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('pause', handlePauseOrEnd);
     audio.addEventListener('ended', handlePauseOrEnd);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('playing', handlePlaying);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('pause', handlePauseOrEnd);
       audio.removeEventListener('ended', handlePauseOrEnd);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('playing', handlePlaying);
     };
   }, [segment.endMs]);
 
@@ -51,6 +59,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
 
     if (isPlaying) {
       audio.pause();
+      setIsBuffering(false);
     } else {
       audio.src = `/api/episodes/${segment.episodeId}/audio`;
       audio.currentTime = segment.startMs / 1000;
@@ -65,6 +74,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
 
     audioRef.current?.pause();
     setIsPlaying(false);
+    setIsBuffering(false);
     setIsLoading(true);
 
     try {
@@ -97,7 +107,12 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
           className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white transition-colors hover:bg-primary/90 cursor-pointer"
           aria-label={isPlaying ? 'Stop' : 'Play segment'}
         >
-          {isPlaying ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+          {isBuffering
+            ? <Loader2 size={16} className="animate-spin" />
+            : isPlaying
+              ? <Square size={16} fill="currentColor" />
+              : <Play size={16} fill="currentColor" />
+          }
         </button>
 
         <button
