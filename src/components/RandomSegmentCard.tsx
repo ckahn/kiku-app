@@ -49,7 +49,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
       audio.removeEventListener('waiting', handleWaiting);
       audio.removeEventListener('playing', handlePlaying);
     };
-  }, [segment.endMs]);
+  }, [segment]);
 
   function handlePlayPause(e: React.MouseEvent) {
     e.preventDefault();
@@ -62,11 +62,19 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
       audio.pause();
       setIsBuffering(false);
     } else {
+      setIsPlaying(true);
       audio.src = `/api/episodes/${segment.episodeId}/audio`;
       audio.load();
-      audio.currentTime = segment.startMs / 1000;
-      audio.play().catch(() => setIsPlaying(false));
-      setIsPlaying(true);
+      // Setting currentTime synchronously after load() is unreliable — Firefox and
+      // mobile Safari reset it to 0 during the HAVE_NOTHING state transition.
+      // Wait for loadedmetadata before seeking.
+      const startMs = segment.startMs;
+      const onLoaded = () => {
+        audio.removeEventListener('loadedmetadata', onLoaded);
+        audio.currentTime = startMs / 1000;
+        audio.play().catch(() => setIsPlaying(false));
+      };
+      audio.addEventListener('loadedmetadata', onLoaded);
     }
   }
 
@@ -81,7 +89,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/chunks/random');
+      const res = await fetch(`/api/chunks/random?exclude=${segment.chunkId}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as { data: RandomSegmentData | null };
       if (json.data) {
@@ -111,7 +119,8 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
       <div className="flex shrink-0 items-start gap-2">
         <button
           onClick={handlePlayPause}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white transition-colors hover:bg-primary/90 cursor-pointer"
+          disabled={isLoading}
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white transition-colors hover:bg-primary/90 cursor-pointer disabled:opacity-50"
           aria-label={isPlaying ? 'Stop' : 'Play segment'}
         >
           {isBuffering

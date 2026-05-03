@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '.';
 import { chunks, episodes, podcasts } from './schema';
 import type { Chunk } from './schema';
@@ -125,7 +125,7 @@ export async function getChunkById(chunkId: number): Promise<Chunk | null> {
 /**
  * Fetch a random chunk from an episode currently being studied.
  */
-export async function getRandomStudyingChunk(): Promise<RandomSegmentData | null> {
+export async function getRandomStudyingChunk(excludeChunkId?: number): Promise<RandomSegmentData | null> {
   const [row] = await db
     .select({
       chunkId: chunks.id,
@@ -145,6 +145,7 @@ export async function getRandomStudyingChunk(): Promise<RandomSegmentData | null
     .where(and(
       eq(episodes.studyStatus, 'studying'),
       eq(episodes.status, 'ready'),
+      excludeChunkId !== undefined ? ne(chunks.id, excludeChunkId) : undefined,
     ))
     .orderBy(sql`RANDOM()`)
     .limit(1);
