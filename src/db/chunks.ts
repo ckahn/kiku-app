@@ -1,12 +1,25 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '.';
-import { chunks } from './schema';
+import { chunks, episodes, podcasts } from './schema';
 import type { Chunk } from './schema';
 import type {
   ChunkWithFurigana,
   ElevenLabsWord,
   TranscriptSentence,
 } from '@/lib/api/types';
+
+export interface RandomSegmentData {
+  chunkId: number;
+  chunkIndex: number;
+  textRaw: string;
+  startMs: number;
+  endMs: number;
+  episodeId: number;
+  episodeNumber: number;
+  episodeTitle: string;
+  podcastSlug: string;
+  podcastName: string;
+}
 
 type ChunkInsertInput = ChunkWithFurigana & {
   readonly sentences?: readonly TranscriptSentence[];
@@ -107,6 +120,37 @@ export async function getChunkById(chunkId: number): Promise<Chunk | null> {
     .where(eq(chunks.id, chunkId));
 
   return chunk ?? null;
+}
+
+/**
+ * Fetch a random chunk from an episode currently being studied.
+ */
+export async function getRandomStudyingChunk(excludeChunkId?: number): Promise<RandomSegmentData | null> {
+  const [row] = await db
+    .select({
+      chunkId: chunks.id,
+      chunkIndex: chunks.chunkIndex,
+      textRaw: chunks.textRaw,
+      startMs: chunks.startMs,
+      endMs: chunks.endMs,
+      episodeId: episodes.id,
+      episodeNumber: episodes.episodeNumber,
+      episodeTitle: episodes.title,
+      podcastSlug: podcasts.slug,
+      podcastName: podcasts.name,
+    })
+    .from(chunks)
+    .innerJoin(episodes, eq(chunks.episodeId, episodes.id))
+    .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))
+    .where(and(
+      eq(episodes.studyStatus, 'studying'),
+      eq(episodes.status, 'ready'),
+      excludeChunkId !== undefined ? ne(chunks.id, excludeChunkId) : undefined,
+    ))
+    .orderBy(sql`RANDOM()`)
+    .limit(1);
+
+  return row ?? null;
 }
 
 /**

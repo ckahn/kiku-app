@@ -8,8 +8,10 @@ import type {
 const mockInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
 const mockSelect = vi.fn();
 const mockFrom = vi.fn();
+const mockInnerJoin = vi.fn();
 const mockWhere = vi.fn();
 const mockOrderBy = vi.fn().mockResolvedValue([]);
+const mockLimit = vi.fn();
 
 vi.mock('@/db', () => ({
   db: {
@@ -19,7 +21,9 @@ vi.mock('@/db', () => ({
 }));
 
 vi.mock('@/db/schema', () => ({
-  chunks: { episodeId: 'episodeId', chunkIndex: 'chunkIndex' },
+  chunks: { id: 'id', episodeId: 'episodeId', chunkIndex: 'chunkIndex' },
+  episodes: { id: 'episodeId', studyStatus: 'studyStatus', status: 'status', podcastId: 'podcastId' },
+  podcasts: { id: 'podcastId', slug: 'slug', name: 'name' },
 }));
 
 const SAMPLE_WORDS: ElevenLabsWord[] = [
@@ -60,7 +64,7 @@ describe('insertChunks()', () => {
   it('calls db.insert with the chunks table', async () => {
     const { insertChunks } = await import('../chunks');
     await insertChunks(42, SAMPLE_CHUNKS, SAMPLE_WORDS);
-    expect(mockInsert).toHaveBeenCalledWith({ episodeId: 'episodeId', chunkIndex: 'chunkIndex' });
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ episodeId: 'episodeId', chunkIndex: 'chunkIndex' }));
   });
 
   it('computes startMs and endMs from word timestamps', async () => {
@@ -319,6 +323,64 @@ describe('getChunkById()', () => {
     const { getChunkById } = await import('../chunks');
 
     await expect(getChunkById(8)).resolves.toEqual(fakeChunk);
+  });
+});
+
+describe('getRandomStudyingChunk()', () => {
+  const FAKE_ROW = {
+    chunkId: 5,
+    chunkIndex: 2,
+    textRaw: '日本語の文です。',
+    startMs: 1000,
+    endMs: 3000,
+    episodeId: 10,
+    episodeNumber: 3,
+    episodeTitle: 'Test Episode',
+    podcastSlug: 'test-podcast',
+    podcastName: 'Test Podcast',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockFrom.mockReturnValue({ innerJoin: mockInnerJoin });
+    mockInnerJoin
+      .mockReturnValueOnce({ innerJoin: mockInnerJoin })
+      .mockReturnValue({ where: mockWhere });
+    mockWhere.mockReturnValue({ orderBy: mockOrderBy });
+    mockOrderBy.mockReturnValue({ limit: mockLimit });
+    mockLimit.mockResolvedValue([]);
+  });
+
+  it('returns null when no studying chunk exists', async () => {
+    const { getRandomStudyingChunk } = await import('../chunks');
+    await expect(getRandomStudyingChunk()).resolves.toBeNull();
+  });
+
+  it('returns the row when a studying chunk exists', async () => {
+    mockLimit.mockResolvedValueOnce([FAKE_ROW]);
+    const { getRandomStudyingChunk } = await import('../chunks');
+    await expect(getRandomStudyingChunk()).resolves.toEqual(FAKE_ROW);
+  });
+
+  it('calls db.select and applies studying/ready filters', async () => {
+    const { getRandomStudyingChunk } = await import('../chunks');
+    await getRandomStudyingChunk();
+    expect(mockSelect).toHaveBeenCalled();
+    expect(mockWhere).toHaveBeenCalled();
+    expect(mockLimit).toHaveBeenCalledWith(1);
+  });
+
+  it('passes excludeChunkId to the where clause when provided', async () => {
+    const { getRandomStudyingChunk } = await import('../chunks');
+    await getRandomStudyingChunk(42);
+    expect(mockWhere).toHaveBeenCalled();
+    expect(mockLimit).toHaveBeenCalledWith(1);
+  });
+
+  it('returns null when the only chunk matches the exclude id', async () => {
+    const { getRandomStudyingChunk } = await import('../chunks');
+    await expect(getRandomStudyingChunk(5)).resolves.toBeNull();
   });
 });
 
