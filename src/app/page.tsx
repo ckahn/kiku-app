@@ -3,13 +3,15 @@ export const dynamic = 'force-dynamic';
 import { db } from '@/db';
 import { episodes, podcasts } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
+import { getRandomStudyingChunk } from '@/db/chunks';
 import PodcastList from '@/components/PodcastList';
 import StudyingEpisodesList from '@/components/StudyingEpisodesList';
 import AddPodcastButton from '@/components/AddPodcastButton';
+import RandomSegmentCard from '@/components/RandomSegmentCard';
 import { PageShell } from '@/components/layout';
 
 export default async function HomePage() {
-  const [podcastList, studyingEpisodes] = await Promise.all([
+  const [podcastList, studyingEpisodes, randomSegment] = await Promise.all([
     db.select().from(podcasts).orderBy(desc(podcasts.createdAt)),
     db
       .select({
@@ -25,6 +27,7 @@ export default async function HomePage() {
       .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))
       .where(eq(episodes.studyStatus, 'studying'))
       .orderBy(desc(episodes.updatedAt)),
+    getRandomStudyingChunk(),
   ]);
   return (
     <PageShell>
@@ -84,6 +87,12 @@ export default async function HomePage() {
           <p className="text-sm text-muted">Add a Japanese podcast to start studying.</p>
         </div>
       </div>
+      {randomSegment && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">Spotlight segment</h2>
+          <RandomSegmentCard initialSegment={randomSegment} />
+        </div>
+      )}
       {studyingEpisodes.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">Currently studying</h2>
