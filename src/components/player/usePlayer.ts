@@ -24,6 +24,7 @@ export type UsePlayerReturn = {
   dispatch: React.Dispatch<PlayerAction>;
   controls: PlayerControls;
   isLoading: boolean;
+  durationSec: number;
   playbackError: string | null;
   clearPlaybackError: () => void;
 };
@@ -170,6 +171,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
     dispatch,
     controls,
     isLoading: engine.status === 'loading',
+    durationSec: engine.durationSec > 0 ? engine.durationSec : durationMs / 1000,
     playbackError,
     clearPlaybackError,
   };

@@ -5,12 +5,11 @@ import PlayerControls from './PlayerControls';
 import ProgressBar from './ProgressBar';
 
 interface AudioPlayerProps {
-  readonly durationMs: number;
   readonly player: UsePlayerReturn;
 }
 
-export default function AudioPlayer({ durationMs, player }: AudioPlayerProps) {
-  const { state, controls, isLoading, playbackError } = player;
+export default function AudioPlayer({ player }: AudioPlayerProps) {
+  const { state, controls, isLoading, durationSec, playbackError } = player;
 
   return (
     <div
@@ -45,7 +44,7 @@ export default function AudioPlayer({ durationMs, player }: AudioPlayerProps) {
         ) : (
           <ProgressBar
             currentTime={state.currentTime}
-            durationSec={durationMs / 1000}
+            durationSec={durationSec}
             onSeek={controls.seek}
           />
         )}

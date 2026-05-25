@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import type { Mock } from 'vitest';
 import type { AudioStatus } from '../audioEngine';
 
 export interface MockAudioEngineState {
@@ -9,12 +10,12 @@ export interface MockAudioEngineState {
 }
 
 export interface MockAudioEngine {
-  unlock: ReturnType<typeof vi.fn>;
-  load: ReturnType<typeof vi.fn>;
-  play: ReturnType<typeof vi.fn>;
-  pause: ReturnType<typeof vi.fn>;
-  seek: ReturnType<typeof vi.fn>;
-  setPlaybackRate: ReturnType<typeof vi.fn>;
+  unlock: Mock<() => void>;
+  load: Mock<(url: string) => Promise<void>>;
+  play: Mock<(startSec?: number) => void>;
+  pause: Mock<() => void>;
+  seek: Mock<(sec: number) => void>;
+  setPlaybackRate: Mock<(rate: number) => void>;
   subscribe: (fn: () => void) => () => void;
   subscribeToEnd: (fn: () => void) => () => void;
   // Test helpers

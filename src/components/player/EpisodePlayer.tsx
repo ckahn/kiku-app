@@ -80,7 +80,7 @@ export default function EpisodePlayer({
         episodeNumber={episodeNumber}
         episodeHref={episodeHref}
       />
-      <AudioPlayer durationMs={durationMs} player={player} />
+      <AudioPlayer player={player} />
     </>
   );
 }
