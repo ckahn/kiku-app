@@ -13,6 +13,9 @@ interface RandomSegmentCardProps {
 
 export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardProps) {
   const [segment, setSegment] = useState(initialSegment);
+  // Local isPlaying is set optimistically on click so the UI responds
+  // immediately, even while the engine is still fetching/decoding the buffer.
+  // engine.isPlaying syncs it back when the engine eventually stops.
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [shuffleError, setShuffleError] = useState(false);
