@@ -22,7 +22,7 @@ jobs:
 
       - run: npm install -g npm@latest
 
-      - run: npm ci
+      - run: npm install
 
       - run: npm rebuild esbuild --ignore-scripts=false
 
