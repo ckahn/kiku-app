@@ -10,7 +10,7 @@ function getAudioContext(): typeof AudioContext | null {
   return window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext ?? null;
 }
 
-class AudioEngine {
+export class AudioEngine {
   private _ctx: AudioContext | null = null;
   private _cache: { url: string; buffer: AudioBuffer } | null = null;
   private _sourceNode: AudioBufferSourceNode | null = null;
@@ -143,10 +143,12 @@ class AudioEngine {
   }
 
   setPlaybackRate(rate: number): void {
+    // Snapshot position before changing rate — currentTime uses _playbackRate
+    // in its formula, so the rate must not change until after the capture.
+    const pos = this.currentTime;
     this._playbackRate = rate;
     if (this._isPlaying) {
-      // Restart at current position with new rate
-      this.play(this.currentTime);
+      this.play(pos);
     }
   }
 
