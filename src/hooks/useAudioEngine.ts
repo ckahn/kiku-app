@@ -15,7 +15,6 @@ export type UseAudioEngineReturn = {
     pause: () => void;
     seek: (sec: number) => void;
     setPlaybackRate: (rate: number) => void;
-    unlock: () => void;
   };
 };
 
@@ -77,7 +76,6 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
     pause: useCallback(() => audioEngine.pause(), []),
     seek: useCallback((sec: number) => audioEngine.seek(sec), []),
     setPlaybackRate: useCallback((rate: number) => audioEngine.setPlaybackRate(rate), []),
-    unlock: useCallback(() => audioEngine.unlock(), []),
   };
 
   return {
