@@ -23,6 +23,7 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
   const [status, setStatus] = useState<AudioStatus>(audioEngine.status);
   const [isPlaying, setIsPlaying] = useState(audioEngine.isPlaying);
   const [currentTime, setCurrentTime] = useState(audioEngine.currentTime);
+  const [durationSec, setDurationSec] = useState(audioEngine.duration);
   const [error, setError] = useState<string | null>(audioEngine.error);
   const rafRef = useRef<number | null>(null);
 
@@ -32,6 +33,7 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
       setStatus(audioEngine.status);
       setIsPlaying(audioEngine.isPlaying);
       setCurrentTime(audioEngine.currentTime);
+      setDurationSec(audioEngine.duration);
       setError(audioEngine.error);
     });
     return unsubscribe;
@@ -82,7 +84,7 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
     status,
     isPlaying,
     currentTime,
-    durationSec: audioEngine.duration,
+    durationSec,
     error,
     controls,
   };
