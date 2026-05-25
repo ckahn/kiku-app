@@ -137,8 +137,8 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
     toggleLoop: useCallback(() => dispatch({ type: 'TOGGLE_LOOP' }), []),
 
     restart: useCallback(() => {
-      audioEngine.seek(0);
       audioEngine.pause();
+      audioEngine.seek(0);
       dispatch({ type: 'RESTART', payload: 0 });
     }, []),
 
