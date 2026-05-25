@@ -31,6 +31,10 @@ export type UsePlayerReturn = {
 export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl: string): UsePlayerReturn {
   const [state, dispatch] = useReducer(playerReducer, initialPlayerState);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  // Tracks the last error value that was acknowledged (dismissed) by the user,
+  // so the engine-error effect doesn't re-surface the same error after
+  // clearPlaybackError() is called.
+  const acknowledgedErrorRef = useRef<string | null>(null);
 
   const engine = useAudioEngine(audioUrl);
 
@@ -88,9 +92,10 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
     });
   }, []);
 
-  // Surface engine errors as playbackError strings.
+  // Surface engine errors as playbackError strings, unless the user has
+  // already dismissed this exact error via clearPlaybackError().
   useEffect(() => {
-    if (engine.error) {
+    if (engine.error && engine.error !== acknowledgedErrorRef.current) {
       setPlaybackError(engine.error);
     }
   }, [engine.error]);
@@ -155,7 +160,10 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
     }, [chunks]),
   };
 
-  const clearPlaybackError = useCallback(() => setPlaybackError(null), []);
+  const clearPlaybackError = useCallback(() => {
+    acknowledgedErrorRef.current = engine.error;
+    setPlaybackError(null);
+  }, [engine.error]);
 
   return {
     state,
