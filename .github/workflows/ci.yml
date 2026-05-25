@@ -20,7 +20,11 @@ jobs:
           node-version: 24
           cache: npm
 
+      - run: npm install -g npm@latest
+
       - run: npm install
+
+      - run: npm rebuild esbuild --ignore-scripts=false
 
       - run: npm run lint
 
