@@ -150,18 +150,13 @@ export default function StudyScreen({
     }
   }, [engine.isPlaying, isPlaying]);
 
-  // Enforce chunk boundary: stop or loop when currentTime passes endMs
+  // Enforce chunk boundary: loop or stop when currentTime passes endMs
   useEffect(() => {
-    if (!engine.isPlaying) return;
-    const endSec = chunk.endMs / 1000;
-    if (engine.currentTime >= endSec) {
-      if (isLooping) {
-        audioEngine.seek(chunk.startMs / 1000);
-      } else {
-        audioEngine.seek(chunk.startMs / 1000);
-        audioEngine.pause();
-        setIsPlaying(false);
-      }
+    if (!engine.isPlaying || engine.currentTime < chunk.endMs / 1000) return;
+    audioEngine.seek(chunk.startMs / 1000);
+    if (!isLooping) {
+      audioEngine.pause();
+      setIsPlaying(false);
     }
   }, [engine.currentTime, engine.isPlaying, isLooping, chunk]);
 
