@@ -4,75 +4,14 @@ import { renderHook, act } from '@testing-library/react';
 import { usePlayer } from '../player/usePlayer';
 import type { Chunk } from '@/db/schema';
 
-// ---------------------------------------------------------------------------
-// Engine mock — hoisted so vi.mock factory can reference it before imports
-// ---------------------------------------------------------------------------
-
-const { engineMock, getEngineState } = vi.hoisted(() => {
-  const state = {
-    time: 0,
-    isPlaying: false,
-    error: null as string | null,
-  };
-  const generalSubscribers = new Set<() => void>();
-  const endSubscribers = new Set<() => void>();
-
-  function notifyGeneral() {
-    generalSubscribers.forEach((fn) => fn());
-  }
-
-  const mock = {
-    unlock: vi.fn(),
-    load: vi.fn().mockResolvedValue(undefined),
-    play: vi.fn((startSec?: number) => {
-      if (startSec !== undefined) state.time = startSec;
-      state.isPlaying = true;
-      notifyGeneral();
-    }),
-    pause: vi.fn(() => {
-      state.isPlaying = false;
-      notifyGeneral();
-    }),
-    seek: vi.fn((sec: number) => {
-      state.time = Math.max(0, sec);
-      notifyGeneral();
-    }),
-    setPlaybackRate: vi.fn(),
-    subscribe(fn: () => void) {
-      generalSubscribers.add(fn);
-      return () => generalSubscribers.delete(fn);
-    },
-    subscribeToEnd(fn: () => void) {
-      endSubscribers.add(fn);
-      return () => endSubscribers.delete(fn);
-    },
-    // Test helpers
-    _setTime(t: number) { state.time = t; notifyGeneral(); },
-    _setIsPlaying(v: boolean) { state.isPlaying = v; notifyGeneral(); },
-    _setError(e: string | null) { state.error = e; notifyGeneral(); },
-    _triggerNaturalEnd() {
-      state.isPlaying = false;
-      notifyGeneral();
-      endSubscribers.forEach((fn) => fn());
-    },
-    _reset() {
-      state.time = 0;
-      state.isPlaying = false;
-      state.error = null;
-      generalSubscribers.clear();
-      endSubscribers.clear();
-    },
-    get currentTime() { return state.time; },
-    get duration() { return 20; },
-    get status() { return 'ready' as const; },
-    get isPlaying() { return state.isPlaying; },
-    get error() { return state.error; },
-  };
-
-  return { engineMock: mock, getEngineState: () => state };
+vi.mock('@/lib/audio/audioEngine', async () => {
+  const { createMockAudioEngine } = await import('@/lib/audio/__tests__/mockAudioEngine');
+  return { audioEngine: createMockAudioEngine() };
 });
 
-vi.mock('@/lib/audio/audioEngine', () => ({ audioEngine: engineMock }));
+import { audioEngine } from '@/lib/audio/audioEngine';
+import type { MockAudioEngine } from '@/lib/audio/__tests__/mockAudioEngine';
+const engineMock = audioEngine as unknown as MockAudioEngine;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -236,12 +175,7 @@ describe('usePlayer', () => {
 
       // Enable looping, start playback atomically at time inside chunk 2 (5s–12s)
       act(() => { result.current.controls.toggleLoop(); });
-      act(() => {
-        getEngineState().time = 6;
-        getEngineState().isPlaying = true;
-        // Trigger both changes in one subscriber notification via play mock
-        engineMock.play(6);
-      });
+      act(() => { engineMock.play(6); });
 
       // Advance past chunk 2's end
       act(() => { engineMock._setTime(12.1); });

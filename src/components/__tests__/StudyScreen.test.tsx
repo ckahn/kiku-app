@@ -20,45 +20,14 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-// ---------------------------------------------------------------------------
-// Engine mock (hoisted)
-// ---------------------------------------------------------------------------
-
-const { engineMock } = vi.hoisted(() => {
-  const state = { time: 0, isPlaying: false, error: null as string | null };
-  const generalSubs = new Set<() => void>();
-  const endSubs = new Set<() => void>();
-
-  function notifyGeneral() { generalSubs.forEach((fn) => fn()); }
-
-  const mock = {
-    unlock: vi.fn(),
-    load: vi.fn().mockResolvedValue(undefined),
-    play: vi.fn((startSec?: number) => {
-      if (startSec !== undefined) state.time = startSec;
-      state.isPlaying = true;
-      notifyGeneral();
-    }),
-    pause: vi.fn(() => { state.isPlaying = false; notifyGeneral(); }),
-    seek: vi.fn((sec: number) => { state.time = Math.max(0, sec); notifyGeneral(); }),
-    setPlaybackRate: vi.fn(),
-    subscribe(fn: () => void) { generalSubs.add(fn); return () => generalSubs.delete(fn); },
-    subscribeToEnd(fn: () => void) { endSubs.add(fn); return () => endSubs.delete(fn); },
-    _setTime(t: number) { state.time = t; notifyGeneral(); },
-    _setIsPlaying(v: boolean) { state.isPlaying = v; notifyGeneral(); },
-    _setError(e: string | null) { state.error = e; notifyGeneral(); },
-    _reset() { state.time = 0; state.isPlaying = false; state.error = null; generalSubs.clear(); endSubs.clear(); },
-    get currentTime() { return state.time; },
-    get duration() { return 20; },
-    get status() { return 'ready' as const; },
-    get isPlaying() { return state.isPlaying; },
-    get error() { return state.error; },
-  };
-
-  return { engineMock: mock };
+vi.mock('@/lib/audio/audioEngine', async () => {
+  const { createMockAudioEngine } = await import('@/lib/audio/__tests__/mockAudioEngine');
+  return { audioEngine: createMockAudioEngine() };
 });
 
-vi.mock('@/lib/audio/audioEngine', () => ({ audioEngine: engineMock }));
+import { audioEngine } from '@/lib/audio/audioEngine';
+import type { MockAudioEngine } from '@/lib/audio/__tests__/mockAudioEngine';
+const engineMock = audioEngine as unknown as MockAudioEngine;
 
 // ---------------------------------------------------------------------------
 // Fixtures
