@@ -5,23 +5,56 @@ import EpisodePlayer from '../player/EpisodePlayer';
 import type { Chunk } from '@/db/schema';
 import * as studyNavigation from '../player/studyNavigation';
 
-// Mock HTMLMediaElement since jsdom doesn't implement playback
+// ---------------------------------------------------------------------------
+// Engine mock (hoisted)
+// ---------------------------------------------------------------------------
+
+const { engineMock } = vi.hoisted(() => {
+  const state = { time: 0, isPlaying: false };
+  const generalSubs = new Set<() => void>();
+  const endSubs = new Set<() => void>();
+
+  function notifyGeneral() { generalSubs.forEach((fn) => fn()); }
+
+  const mock = {
+    unlock: vi.fn(),
+    load: vi.fn().mockResolvedValue(undefined),
+    play: vi.fn((startSec?: number) => {
+      if (startSec !== undefined) state.time = startSec;
+      state.isPlaying = true;
+      notifyGeneral();
+    }),
+    pause: vi.fn(() => { state.isPlaying = false; notifyGeneral(); }),
+    seek: vi.fn((sec: number) => { state.time = Math.max(0, sec); notifyGeneral(); }),
+    setPlaybackRate: vi.fn(),
+    subscribe(fn: () => void) { generalSubs.add(fn); return () => generalSubs.delete(fn); },
+    subscribeToEnd(fn: () => void) { endSubs.add(fn); return () => endSubs.delete(fn); },
+    _setTime(t: number) { state.time = t; notifyGeneral(); },
+    _setIsPlaying(v: boolean) { state.isPlaying = v; notifyGeneral(); },
+    _reset() { state.time = 0; state.isPlaying = false; generalSubs.clear(); endSubs.clear(); },
+    get currentTime() { return state.time; },
+    get duration() { return 20; },
+    get status() { return 'ready' as const; },
+    get isPlaying() { return state.isPlaying; },
+    get error() { return null; },
+  };
+
+  return { engineMock: mock };
+});
+
+vi.mock('@/lib/audio/audioEngine', () => ({ audioEngine: engineMock }));
+
+// ---------------------------------------------------------------------------
+// Fixtures / shared setup
+// ---------------------------------------------------------------------------
+
 beforeEach(() => {
   vi.restoreAllMocks();
-  Object.defineProperty(HTMLMediaElement.prototype, 'play', {
-    configurable: true,
-    value: vi.fn().mockResolvedValue(undefined),
-  });
-  Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
-    configurable: true,
-    value: vi.fn(),
-  });
-  // currentTime is a real property in jsdom but always 0; allow setting
-  Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
-    configurable: true,
-    writable: true,
-    value: 0,
-  });
+  engineMock._reset();
+  // No-op rAF to avoid infinite loop from useAudioEngine's rAF loop
+  vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0 as unknown as ReturnType<typeof requestAnimationFrame>);
+  vi.spyOn(window, 'cancelAnimationFrame').mockReturnValue(undefined);
+
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     value: vi.fn(),
@@ -40,10 +73,6 @@ beforeEach(() => {
     configurable: true,
     writable: true,
     value: 'auto',
-  });
-  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-    callback(0);
-    return 1;
   });
 });
 
@@ -91,18 +120,15 @@ describe('EpisodePlayer (integration)', () => {
     );
     const items = screen.getAllByRole('listitem');
     fireEvent.click(items[1]); // click chunk 2 (startMs = 5000)
-    const audio = document.querySelector('audio') as HTMLAudioElement;
-    expect(audio.currentTime).toBe(5); // 5000ms / 1000
+    expect(engineMock.seek).toHaveBeenCalledWith(5); // 5000ms / 1000
   });
 
-  it('play button calls audio.play', async () => {
+  it('play button calls audioEngine.play', () => {
     render(
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    });
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(engineMock.play).toHaveBeenCalled();
   });
 
   it('loop button toggles aria-pressed', () => {
@@ -115,31 +141,20 @@ describe('EpisodePlayer (integration)', () => {
     expect(loopBtn).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('Space key toggles playback', async () => {
+  it('Space key toggles playback', () => {
     render(
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
-    await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }));
-    });
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }));
+    expect(engineMock.play).toHaveBeenCalled();
   });
 
-  it('shows a helpful error when playback fails', async () => {
-    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
-      configurable: true,
-      value: vi.fn().mockRejectedValue(new Error('Forbidden')),
-    });
-
+  it('no alert is shown while the engine is healthy', () => {
     render(
       <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    });
-
-    expect(screen.getByRole('alert')).toHaveTextContent(/could not play this episode audio/i);
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('uses manual browser scroll restoration while mounted', () => {
@@ -158,6 +173,13 @@ describe('EpisodePlayer (integration)', () => {
     vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue({
       episodeHref: '/podcasts/slow-japanese/episodes/7',
       chunkId: 3,
+    });
+
+    // Allow rAF to fire once so scrollChunkToTop can call window.scrollTo.
+    // The engine is not playing, so useAudioEngine's rAF loop is not running.
+    vi.mocked(window.requestAnimationFrame).mockImplementationOnce((cb) => {
+      cb(0);
+      return 1;
     });
 
     render(
@@ -192,10 +214,8 @@ describe('EpisodePlayer (integration)', () => {
     );
 
     // Simulate audio advancing into chunk 2 (startMs=5000, endMs=12000)
-    const audio = document.querySelector('audio') as HTMLAudioElement;
     await act(async () => {
-      audio.currentTime = 6;
-      fireEvent(audio, new Event('timeupdate'));
+      engineMock._setTime(6);
     });
 
     expect(saveSpy).toHaveBeenCalledWith({

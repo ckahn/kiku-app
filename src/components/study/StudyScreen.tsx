@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Check, Copy, Play, Repeat, Square } from 'lucide-react';
 import type { Chunk } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
 import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
+import { useAudioEngine } from '@/hooks/useAudioEngine';
+import { audioEngine } from '@/lib/audio/audioEngine';
 
 // LLM sometimes echoes kana words as their own reading — skip when redundant
 function hasDistinctReading(reading: string | undefined, text: string): boolean {
@@ -85,7 +87,7 @@ export default function StudyScreen({
   nextHref,
 }: StudyScreenProps) {
   const router = useRouter();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const engine = useAudioEngine(audioUrl);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<PlaybackRate>(1);
@@ -134,52 +136,56 @@ export default function StudyScreen({
     };
   }, [studyGuideUrl]);
 
-  async function playFromChunkStart() {
-    if (!audioRef.current) {
-      return;
+  // Sync engine errors to error message
+  useEffect(() => {
+    if (engine.error) {
+      setErrorMessage(engine.error);
     }
+  }, [engine.error]);
 
+  // Sync engine isPlaying to local state (handles external stops, e.g. file end)
+  useEffect(() => {
+    if (!engine.isPlaying && isPlaying) {
+      setIsPlaying(false);
+    }
+  }, [engine.isPlaying, isPlaying]);
+
+  // Enforce chunk boundary: stop or loop when currentTime passes endMs
+  useEffect(() => {
+    if (!engine.isPlaying) return;
+    const endSec = chunk.endMs / 1000;
+    if (engine.currentTime >= endSec) {
+      if (isLooping) {
+        audioEngine.seek(chunk.startMs / 1000);
+      } else {
+        audioEngine.seek(chunk.startMs / 1000);
+        audioEngine.pause();
+        setIsPlaying(false);
+      }
+    }
+  }, [engine.currentTime, engine.isPlaying, isLooping, chunk]);
+
+  const stopPlayback = useCallback(() => {
+    audioEngine.seek(chunk.startMs / 1000);
+    audioEngine.pause();
+    setIsPlaying(false);
+  }, [chunk.startMs]);
+
+  function playFromChunkStart() {
     try {
-      audioRef.current.currentTime = chunk.startMs / 1000;
       setErrorMessage(null);
       setIsPlaying(true);
-      await audioRef.current.play();
+      audioEngine.unlock();
+      audioEngine.play(chunk.startMs / 1000);
     } catch {
       setIsPlaying(false);
       setErrorMessage('Could not play this chunk audio.');
     }
   }
 
-  function stopPlayback() {
-    if (!audioRef.current) {
-      return;
-    }
-
-    audioRef.current.pause();
-    audioRef.current.currentTime = chunk.startMs / 1000;
-    setIsPlaying(false);
-  }
-
-  function handleTimeUpdate() {
-    if (!audioRef.current) {
-      return;
-    }
-
-    const chunkEndTime = chunk.endMs / 1000;
-    if (audioRef.current.currentTime >= chunkEndTime) {
-      if (isLooping) {
-        audioRef.current.currentTime = chunk.startMs / 1000;
-      } else {
-        stopPlayback();
-      }
-    }
-  }
-
   function cyclePlaybackRate() {
     const next = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(playbackRate) + 1) % PLAYBACK_RATES.length];
-    if (audioRef.current) {
-      audioRef.current.playbackRate = next;
-    }
+    audioEngine.setPlaybackRate(next);
     setPlaybackRate(next);
   }
 
@@ -197,14 +203,6 @@ export default function StudyScreen({
 
   return (
     <div className="space-y-6">
-      <audio
-        ref={audioRef}
-        src={audioUrl}
-        onTimeUpdate={handleTimeUpdate}
-        onPause={() => setIsPlaying(false)}
-        onEnded={() => setIsPlaying(false)}
-      />
-
       <div>
         <button
           type="button"

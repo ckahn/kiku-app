@@ -1,37 +1,22 @@
 'use client';
 
-import { useState } from 'react';
 import type { UsePlayerReturn } from './usePlayer';
 import PlayerControls from './PlayerControls';
 import ProgressBar from './ProgressBar';
 
 interface AudioPlayerProps {
-  readonly audioUrl: string;
   readonly durationMs: number;
   readonly player: UsePlayerReturn;
 }
 
-export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlayerProps) {
-  const { state, controls, setAudioEl, playbackError, clearPlaybackError } = player;
-  const [audioDurationSec, setAudioDurationSec] = useState(durationMs > 0 ? durationMs / 1000 : 0);
+export default function AudioPlayer({ durationMs, player }: AudioPlayerProps) {
+  const { state, controls, isLoading, playbackError } = player;
 
   return (
     <div
       data-sticky-player
       className="sticky bottom-0 z-10 bg-surface border-t border-border px-4 pt-3 pb-6 sm:pb-3 shadow-sm"
     >
-      {/* Hidden audio element — the single source of truth for playback */}
-      <audio
-        ref={setAudioEl}
-        src={audioUrl}
-        preload="metadata"
-        onLoadedMetadata={(e) => {
-          setAudioDurationSec((e.target as HTMLAudioElement).duration);
-          clearPlaybackError();
-        }}
-        aria-hidden="true"
-        className="hidden"
-      />
       <div className="max-w-2xl mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
         {playbackError && (
           <p
@@ -50,12 +35,20 @@ export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlaye
           onForward={controls.forward}
           onToggleLoop={controls.toggleLoop}
           onRestart={controls.restart}
+          disabled={isLoading}
         />
-        <ProgressBar
-          currentTime={state.currentTime}
-          durationSec={audioDurationSec}
-          onSeek={controls.seek}
-        />
+        {isLoading ? (
+          <div className="flex flex-1 items-center gap-2 text-sm text-muted">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+            Loading audio…
+          </div>
+        ) : (
+          <ProgressBar
+            currentTime={state.currentTime}
+            durationSec={durationMs / 1000}
+            onSeek={controls.seek}
+          />
+        )}
       </div>
     </div>
   );

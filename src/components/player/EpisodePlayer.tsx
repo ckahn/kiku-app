@@ -28,7 +28,7 @@ export default function EpisodePlayer({
   episodeNumber,
   episodeHref,
 }: EpisodePlayerProps) {
-  const player = usePlayer(chunks, durationMs);
+  const player = usePlayer(chunks, durationMs, audioUrl);
   const { toggle, rewind, forward, toggleLoop } = player.controls;
   useManualScrollRestoration();
   useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop });
@@ -80,7 +80,7 @@ export default function EpisodePlayer({
         episodeNumber={episodeNumber}
         episodeHref={episodeHref}
       />
-      <AudioPlayer audioUrl={audioUrl} durationMs={durationMs} player={player} />
+      <AudioPlayer durationMs={durationMs} player={player} />
     </>
   );
 }

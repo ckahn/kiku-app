@@ -4,6 +4,47 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import RandomSegmentCard from '../RandomSegmentCard';
 import type { RandomSegmentData } from '@/db/chunks';
 
+// ---------------------------------------------------------------------------
+// Engine mock (hoisted)
+// ---------------------------------------------------------------------------
+
+const { engineMock } = vi.hoisted(() => {
+  const state = { time: 0, isPlaying: false };
+  const generalSubs = new Set<() => void>();
+
+  function notifyGeneral() { generalSubs.forEach((fn) => fn()); }
+
+  const mock = {
+    unlock: vi.fn(),
+    load: vi.fn().mockResolvedValue(undefined),
+    play: vi.fn((startSec?: number) => {
+      if (startSec !== undefined) state.time = startSec;
+      state.isPlaying = true;
+      notifyGeneral();
+    }),
+    pause: vi.fn(() => { state.isPlaying = false; notifyGeneral(); }),
+    seek: vi.fn((sec: number) => { state.time = Math.max(0, sec); notifyGeneral(); }),
+    setPlaybackRate: vi.fn(),
+    subscribe(fn: () => void) { generalSubs.add(fn); return () => generalSubs.delete(fn); },
+    subscribeToEnd(_fn: () => void) { return () => {}; },
+    _setIsPlaying(v: boolean) { state.isPlaying = v; notifyGeneral(); },
+    _reset() { state.time = 0; state.isPlaying = false; generalSubs.clear(); },
+    get currentTime() { return state.time; },
+    get duration() { return 20; },
+    get status() { return 'ready' as const; },
+    get isPlaying() { return state.isPlaying; },
+    get error() { return null; },
+  };
+
+  return { engineMock: mock };
+});
+
+vi.mock('@/lib/audio/audioEngine', () => ({ audioEngine: engineMock }));
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
 const SEGMENT: RandomSegmentData = {
   chunkId: 5,
   chunkIndex: 2,
@@ -24,34 +65,22 @@ const SEGMENT_2: RandomSegmentData = {
   textRaw: '別の文です。',
 };
 
+beforeEach(() => {
+  vi.restoreAllMocks();
+  engineMock._reset();
+  vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0 as unknown as ReturnType<typeof requestAnimationFrame>);
+  vi.spyOn(window, 'cancelAnimationFrame').mockReturnValue(undefined);
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ data: SEGMENT_2 }),
+  }));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('RandomSegmentCard', () => {
-  beforeEach(() => {
-    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
-      value: vi.fn().mockResolvedValue(undefined),
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
-      value: vi.fn(),
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(HTMLMediaElement.prototype, 'load', {
-      value: vi.fn(),
-      writable: true,
-      configurable: true,
-    });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: SEGMENT_2 }),
-    }));
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-  });
-
   it('renders the segment text and metadata', () => {
     render(<RandomSegmentCard initialSegment={SEGMENT} />);
     expect(screen.getByText('日本語の文です。')).toBeInTheDocument();
@@ -66,17 +95,20 @@ describe('RandomSegmentCard', () => {
     expect(screen.getByRole('button', { name: 'Show a different random segment' })).toBeInTheDocument();
   });
 
-  it('shows Stop aria-label immediately after clicking play', () => {
+  it('shows Stop aria-label immediately after clicking play', async () => {
     render(<RandomSegmentCard initialSegment={SEGMENT} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
     expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
   });
 
-  it('resumes stopped state after audio pause event', () => {
+  it('resumes stopped state after engine stops externally', async () => {
     render(<RandomSegmentCard initialSegment={SEGMENT} />);
-    const audio = document.querySelector('audio')!;
-    fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
-    fireEvent.pause(audio);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+    act(() => { engineMock._setIsPlaying(false); });
     expect(screen.getByRole('button', { name: 'Play segment' })).toBeInTheDocument();
   });
 

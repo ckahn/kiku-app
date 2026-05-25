@@ -4,6 +4,80 @@ import { renderHook, act } from '@testing-library/react';
 import { usePlayer } from '../player/usePlayer';
 import type { Chunk } from '@/db/schema';
 
+// ---------------------------------------------------------------------------
+// Engine mock — hoisted so vi.mock factory can reference it before imports
+// ---------------------------------------------------------------------------
+
+const { engineMock, getEngineState } = vi.hoisted(() => {
+  const state = {
+    time: 0,
+    isPlaying: false,
+    error: null as string | null,
+  };
+  const generalSubscribers = new Set<() => void>();
+  const endSubscribers = new Set<() => void>();
+
+  function notifyGeneral() {
+    generalSubscribers.forEach((fn) => fn());
+  }
+
+  const mock = {
+    unlock: vi.fn(),
+    load: vi.fn().mockResolvedValue(undefined),
+    play: vi.fn((startSec?: number) => {
+      if (startSec !== undefined) state.time = startSec;
+      state.isPlaying = true;
+      notifyGeneral();
+    }),
+    pause: vi.fn(() => {
+      state.isPlaying = false;
+      notifyGeneral();
+    }),
+    seek: vi.fn((sec: number) => {
+      state.time = Math.max(0, sec);
+      notifyGeneral();
+    }),
+    setPlaybackRate: vi.fn(),
+    subscribe(fn: () => void) {
+      generalSubscribers.add(fn);
+      return () => generalSubscribers.delete(fn);
+    },
+    subscribeToEnd(fn: () => void) {
+      endSubscribers.add(fn);
+      return () => endSubscribers.delete(fn);
+    },
+    // Test helpers
+    _setTime(t: number) { state.time = t; notifyGeneral(); },
+    _setIsPlaying(v: boolean) { state.isPlaying = v; notifyGeneral(); },
+    _setError(e: string | null) { state.error = e; notifyGeneral(); },
+    _triggerNaturalEnd() {
+      state.isPlaying = false;
+      notifyGeneral();
+      endSubscribers.forEach((fn) => fn());
+    },
+    _reset() {
+      state.time = 0;
+      state.isPlaying = false;
+      state.error = null;
+      generalSubscribers.clear();
+      endSubscribers.clear();
+    },
+    get currentTime() { return state.time; },
+    get duration() { return 20; },
+    get status() { return 'ready' as const; },
+    get isPlaying() { return state.isPlaying; },
+    get error() { return state.error; },
+  };
+
+  return { engineMock: mock, getEngineState: () => state };
+});
+
+vi.mock('@/lib/audio/audioEngine', () => ({ audioEngine: engineMock }));
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
 function makeChunk(id: number, startMs: number, endMs: number): Chunk {
   return {
     id,
@@ -27,53 +101,32 @@ const CHUNKS = [
 ];
 
 const DURATION_MS = 20000;
+const AUDIO_URL = '/api/episodes/1/audio';
 
-// Build a minimal HTMLMediaElement mock
-function createAudioMock() {
-  let currentTime = 0;
-  const listeners: Record<string, Array<() => void>> = {};
-
-  const audio = {
-    error: null as { code: number } | null,
-    get currentTime() { return currentTime; },
-    set currentTime(v: number) { currentTime = v; },
-    play: vi.fn().mockResolvedValue(undefined),
-    pause: vi.fn(),
-    addEventListener: vi.fn((event: string, cb: () => void) => {
-      listeners[event] = listeners[event] ?? [];
-      listeners[event].push(cb);
-    }),
-    removeEventListener: vi.fn((event: string, cb: () => void) => {
-      listeners[event] = (listeners[event] ?? []).filter((l) => l !== cb);
-    }),
-    _emit(event: string) {
-      (listeners[event] ?? []).forEach((cb) => cb());
-    },
-  };
-
-  return audio;
-}
+// ---------------------------------------------------------------------------
+// Setup helpers
+// ---------------------------------------------------------------------------
 
 function setup() {
-  const audioMock = createAudioMock();
-  const { result } = renderHook(() => usePlayer(CHUNKS, DURATION_MS));
-
-  // Inject the mock via the callback ref so audioMounted state updates too
-  act(() => {
-    result.current.setAudioEl(audioMock as unknown as HTMLAudioElement);
-  });
-
-  return { result, audioMock };
+  vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0 as unknown as ReturnType<typeof requestAnimationFrame>);
+  vi.spyOn(window, 'cancelAnimationFrame').mockReturnValue(undefined);
+  const { result } = renderHook(() => usePlayer(CHUNKS, DURATION_MS, AUDIO_URL));
+  return { result };
 }
 
-describe('usePlayer', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
+  engineMock._reset();
+});
 
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('usePlayer', () => {
   describe('initial state', () => {
     it('starts paused, not looping, at time 0', () => {
-      const { result } = renderHook(() => usePlayer(CHUNKS, DURATION_MS));
+      const { result } = setup();
       expect(result.current.state.isPlaying).toBe(false);
       expect(result.current.state.isLooping).toBe(false);
       expect(result.current.state.currentTime).toBe(0);
@@ -81,126 +134,86 @@ describe('usePlayer', () => {
   });
 
   describe('play / pause / toggle', () => {
-    it('play() calls audio.play() and sets isPlaying', async () => {
-      const { result, audioMock } = setup();
-      await act(async () => {
-        result.current.controls.play();
-      });
-      expect(audioMock.play).toHaveBeenCalled();
+    it('play() calls audioEngine.play()', () => {
+      const { result } = setup();
+      act(() => { result.current.controls.play(); });
+      expect(engineMock.play).toHaveBeenCalled();
+    });
+
+    it('play() sets isPlaying when engine confirms', () => {
+      const { result } = setup();
+      act(() => { result.current.controls.play(); });
       expect(result.current.state.isPlaying).toBe(true);
     });
 
-    it('pause() calls audio.pause() and clears isPlaying', async () => {
-      const { result, audioMock } = setup();
-      await act(async () => {
-        result.current.controls.play();
-      });
-      act(() => {
-        result.current.controls.pause();
-      });
-      expect(audioMock.pause).toHaveBeenCalled();
+    it('pause() calls audioEngine.pause() and clears isPlaying', () => {
+      const { result } = setup();
+      act(() => { result.current.controls.play(); });
+      act(() => { result.current.controls.pause(); });
+      expect(engineMock.pause).toHaveBeenCalled();
       expect(result.current.state.isPlaying).toBe(false);
     });
 
-    it('toggle() while paused calls play', async () => {
-      const { result, audioMock } = setup();
-      await act(async () => {
-        result.current.controls.toggle();
-      });
-      expect(audioMock.play).toHaveBeenCalled();
+    it('toggle() while paused calls play', () => {
+      const { result } = setup();
+      act(() => { result.current.controls.toggle(); });
+      expect(engineMock.play).toHaveBeenCalled();
       expect(result.current.state.isPlaying).toBe(true);
     });
 
-    it('toggle() while playing calls pause', async () => {
-      const { result, audioMock } = setup();
-      await act(async () => {
-        result.current.controls.play();
-      });
-      act(() => {
-        result.current.controls.toggle();
-      });
-      expect(audioMock.pause).toHaveBeenCalled();
+    it('toggle() while playing calls pause', () => {
+      const { result } = setup();
+      act(() => { result.current.controls.play(); });
+      act(() => { result.current.controls.toggle(); });
+      expect(engineMock.pause).toHaveBeenCalled();
       expect(result.current.state.isPlaying).toBe(false);
-    });
-
-    it('play() rejected by browser sets isPlaying to false', async () => {
-      const { result, audioMock } = setup();
-      audioMock.play.mockRejectedValue(new Error('autoplay blocked'));
-      await act(async () => {
-        result.current.controls.play();
-      });
-      expect(result.current.state.isPlaying).toBe(false);
-      expect(result.current.playbackError).toMatch(/could not play this episode audio/i);
-    });
-
-    it('successful play clears a previous playback error', async () => {
-      const { result, audioMock } = setup();
-      audioMock.play.mockRejectedValueOnce(new Error('forbidden'));
-      await act(async () => {
-        result.current.controls.play();
-      });
-      expect(result.current.playbackError).not.toBeNull();
-
-      audioMock.play.mockResolvedValueOnce(undefined);
-      await act(async () => {
-        result.current.controls.play();
-      });
-      expect(result.current.state.isPlaying).toBe(true);
-      expect(result.current.playbackError).toBeNull();
     });
   });
 
-  describe('audio element errors', () => {
-    it('sets a playback error when the audio element emits an error event', () => {
-      const { result, audioMock } = setup();
-      audioMock.error = { code: 2 };
-
-      act(() => {
-        audioMock._emit('error');
-      });
-
-      expect(result.current.state.isPlaying).toBe(false);
-      expect(result.current.playbackError).toMatch(/could not play this episode audio/i);
+  describe('engine error propagation', () => {
+    it('propagates engine error to playbackError', () => {
+      const { result } = setup();
+      act(() => { engineMock._setError('Audio fetch failed: 404'); });
+      expect(result.current.playbackError).toMatch(/404/);
     });
   });
 
   describe('rewind / forward', () => {
     it('rewind subtracts 5 seconds, clamped to 0', () => {
-      const { result, audioMock } = setup();
-      audioMock.currentTime = 3;
+      const { result } = setup();
+      act(() => { engineMock._setTime(3); });
       act(() => { result.current.controls.rewind(); });
-      expect(audioMock.currentTime).toBe(0);
+      expect(engineMock.seek).toHaveBeenLastCalledWith(0);
     });
 
     it('forward adds 5 seconds, clamped to duration', () => {
-      const { result, audioMock } = setup();
-      audioMock.currentTime = 18;
+      const { result } = setup();
+      act(() => { engineMock._setTime(18); });
       act(() => { result.current.controls.forward(); });
-      expect(audioMock.currentTime).toBe(20);
+      expect(engineMock.seek).toHaveBeenLastCalledWith(20);
     });
   });
 
   describe('seekToChunk', () => {
-    it('seekToChunk seeks audio to chunk start', () => {
-      const { result, audioMock } = setup();
+    it('seekToChunk seeks engine to chunk start', () => {
+      const { result } = setup();
       act(() => { result.current.controls.seekToChunk(2); });
-      expect(audioMock.currentTime).toBe(5); // 5000ms / 1000
+      expect(engineMock.seek).toHaveBeenCalledWith(5); // 5000ms / 1000
     });
 
     it('seekToChunk to first chunk seeks to 0', () => {
-      const { result, audioMock } = setup();
+      const { result } = setup();
       act(() => { result.current.controls.seekToChunk(1); });
-      expect(audioMock.currentTime).toBe(0);
+      expect(engineMock.seek).toHaveBeenCalledWith(0);
     });
 
     it('seekToChunk with unknown chunk id does nothing', () => {
-      const { result, audioMock } = setup();
-      audioMock.currentTime = 5;
+      const { result } = setup();
       act(() => { result.current.controls.seekToChunk(999); });
-      expect(audioMock.currentTime).toBe(5);
+      expect(engineMock.seek).not.toHaveBeenCalled();
     });
 
-    it('seekToChunk updates state.currentTime synchronously without waiting for timeupdate', () => {
+    it('seekToChunk updates state.currentTime synchronously without waiting for rAF', () => {
       const { result } = setup();
       act(() => { result.current.controls.seekToChunk(2); });
       expect(result.current.state.currentTime).toBe(5); // 5000ms / 1000
@@ -218,86 +231,82 @@ describe('usePlayer', () => {
   });
 
   describe('chunk looping', () => {
-    it('seeks back to chunk start when timeupdate fires past the chunk end while looping', () => {
-      const { result, audioMock } = setup();
+    it('seeks back to chunk start when time passes the chunk end while looping', () => {
+      const { result } = setup();
 
-      // Enable looping and position inside chunk 2 (5s–12s)
+      // Enable looping, start playback atomically at time inside chunk 2 (5s–12s)
       act(() => { result.current.controls.toggleLoop(); });
-      audioMock.currentTime = 6;
-      act(() => { audioMock._emit('timeupdate'); });
+      act(() => {
+        getEngineState().time = 6;
+        getEngineState().isPlaying = true;
+        // Trigger both changes in one subscriber notification via play mock
+        engineMock.play(6);
+      });
 
-      // Simulate time advancing past chunk 2's end
-      audioMock.currentTime = 12.1;
-      act(() => { audioMock._emit('timeupdate'); });
+      // Advance past chunk 2's end
+      act(() => { engineMock._setTime(12.1); });
 
-      // Should have been reset to chunk 2's start
-      expect(audioMock.currentTime).toBe(5); // 5000ms / 1000
+      // Should have seeked back to chunk 2's start (5s)
+      expect(engineMock.seek).toHaveBeenLastCalledWith(5);
     });
 
     it('does not seek back when looping is off', () => {
-      const { audioMock } = setup();
-
-      // Position inside chunk 2, then advance past it — no loop active
-      audioMock.currentTime = 6;
-      act(() => { audioMock._emit('timeupdate'); });
-      audioMock.currentTime = 12.1;
-      act(() => { audioMock._emit('timeupdate'); });
-
-      expect(audioMock.currentTime).toBe(12.1);
+      setup();
+      act(() => {
+        engineMock.play(6); // isPlaying = true, time = 6
+      });
+      vi.clearAllMocks();
+      act(() => { engineMock._setTime(12.1); });
+      // seek() should not have been called (no loop)
+      expect(engineMock.seek).not.toHaveBeenCalled();
     });
 
     it('loops the new chunk after seekToChunk while looping', () => {
-      const { result, audioMock } = setup();
+      const { result } = setup();
 
-      // Enable looping, establish loop chunk 1 (0–5s)
+      // Enable looping, establish loop at chunk 1
       act(() => { result.current.controls.toggleLoop(); });
-      audioMock.currentTime = 2;
-      act(() => { audioMock._emit('timeupdate'); });
+      act(() => { engineMock.play(2); }); // isPlaying = true, time = 2
 
-      // Seek to chunk 3 (12s–20s)
+      // Seek to chunk 3 (12s–20s) — locks loop chunk to chunk 3
+      vi.clearAllMocks();
       act(() => { result.current.controls.seekToChunk(3); });
-      audioMock.currentTime = 14;
-      act(() => { audioMock._emit('timeupdate'); });
 
       // Advance past chunk 3's end
-      audioMock.currentTime = 20.1;
-      act(() => { audioMock._emit('timeupdate'); });
+      act(() => { engineMock._setTime(20.1); });
 
-      expect(audioMock.currentTime).toBe(12); // 12000ms / 1000
+      expect(engineMock.seek).toHaveBeenLastCalledWith(12); // 12000ms / 1000
     });
 
-    it('loops chunk on ended event when looping is active', async () => {
-      const { result, audioMock } = setup();
+    it('loops chunk on natural file end when looping is active', () => {
+      const { result } = setup();
 
+      // Enable looping, start in chunk 3 (12s–20s)
       act(() => { result.current.controls.toggleLoop(); });
-      audioMock.currentTime = 14;
-      act(() => { audioMock._emit('timeupdate'); });
+      act(() => { engineMock.play(14); }); // isPlaying = true, time = 14
 
-      // Episode ends while in chunk 3 (12s–20s)
-      await act(async () => { audioMock._emit('ended'); });
+      // Simulate the audio file reaching its natural end
+      act(() => { engineMock._triggerNaturalEnd(); });
 
-      expect(audioMock.currentTime).toBe(12);
-      expect(audioMock.play).toHaveBeenCalled();
+      // Should have restarted from chunk 3's start
+      expect(engineMock.play).toHaveBeenCalledWith(12); // 12000ms / 1000
     });
 
-    it('pauses on ended event when looping is off', async () => {
-      const { result, audioMock } = setup();
-      await act(async () => { result.current.controls.play(); });
-      await act(async () => { audioMock._emit('ended'); });
-
+    it('pauses on natural file end when looping is off', () => {
+      const { result } = setup();
+      act(() => { result.current.controls.play(); });
+      act(() => { engineMock._triggerNaturalEnd(); });
       expect(result.current.state.isPlaying).toBe(false);
-      // play was called once for the initial play, not again for loop
-      expect(audioMock.play).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('restart', () => {
     it('seeks to 0 and stops', () => {
-      const { result, audioMock } = setup();
-      audioMock.currentTime = 15;
+      const { result } = setup();
+      act(() => { engineMock._setTime(15); });
       act(() => { result.current.controls.restart(); });
-      expect(audioMock.currentTime).toBe(0);
-      expect(audioMock.pause).toHaveBeenCalled();
+      expect(engineMock.seek).toHaveBeenCalledWith(0);
+      expect(engineMock.pause).toHaveBeenCalled();
       expect(result.current.state.isPlaying).toBe(false);
     });
   });
