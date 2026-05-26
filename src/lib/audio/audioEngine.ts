@@ -45,24 +45,27 @@ export class AudioEngine {
     this._subscribers.forEach((fn) => fn());
   }
 
-  unlock(): void {
+  unlock(): Promise<void> {
     const ctx = this._getOrCreateContext();
     if (ctx && ctx.state === 'suspended') {
       ctx.resume().catch(() => undefined);
     }
-    this._loadWorklet();
+    return this._loadWorklet();
   }
 
-  private _loadWorklet(): void {
+  private _loadWorklet(): Promise<void> {
     const ctx = this._ctx;
-    if (!ctx?.audioWorklet || this._workletLoaded || this._workletLoading) return;
-    this._workletLoading = import('@soundtouchjs/audio-worklet').then(({ SoundTouchNode }) => {
+    if (!ctx?.audioWorklet || this._workletLoaded) return Promise.resolve();
+    if (this._workletLoading) return this._workletLoading;
+    const loading = import('@soundtouchjs/audio-worklet').then(({ SoundTouchNode }) => {
       this._SoundTouchNode = SoundTouchNode;
       const processorUrl = new URL('@soundtouchjs/audio-worklet/processor', import.meta.url);
       return SoundTouchNode.register(ctx, processorUrl);
     })
       .then(() => { this._workletLoaded = true; this._workletLoading = null; })
       .catch(() => { this._workletLoading = null; });
+    this._workletLoading = loading;
+    return loading;
   }
 
   async load(url: string): Promise<void> {

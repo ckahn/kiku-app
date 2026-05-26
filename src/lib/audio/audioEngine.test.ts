@@ -597,7 +597,7 @@ describe('AudioEngine', () => {
 
   describe('SoundTouch pitch correction', () => {
     beforeEach(async () => {
-      engine.unlock();
+      await engine.unlock();
       await engine.load('/audio/ep1.mp3');
     });
 
