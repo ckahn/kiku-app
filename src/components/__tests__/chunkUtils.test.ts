@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findActiveChunkId, stripFurigana } from '../player/chunkUtils';
+import { chunkStartSec, findActiveChunkId, stripFurigana } from '../player/chunkUtils';
 import type { Chunk } from '@/db/schema';
 
 function makeChunk(id: number, startMs: number, endMs: number): Chunk {
@@ -23,6 +23,17 @@ const CHUNKS = [
   makeChunk(2, 5000, 12000),
   makeChunk(3, 12000, 20000),
 ];
+
+describe('chunkStartSec', () => {
+  it('subtracts CHUNK_PLAYBACK_OFFSET_SEC from startMs converted to seconds', () => {
+    expect(chunkStartSec({ startMs: 5000 })).toBeCloseTo(4.9);
+  });
+
+  it('clamps to 0 when startMs is less than the offset', () => {
+    expect(chunkStartSec({ startMs: 0 })).toBe(0);
+    expect(chunkStartSec({ startMs: 50 })).toBe(0); // 0.05s < 0.1s offset
+  });
+});
 
 describe('findActiveChunkId', () => {
   it('returns the chunk id containing the current time', () => {
