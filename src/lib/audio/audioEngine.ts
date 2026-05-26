@@ -63,7 +63,12 @@ export class AudioEngine {
       return SoundTouchNode.register(ctx, processorUrl);
     })
       .then(() => { this._workletLoaded = true; this._workletLoading = null; })
-      .catch(() => { this._workletLoading = null; });
+      .catch((err: unknown) => {
+        this._workletLoading = null;
+        // Pitch correction will silently fall back to uncompensated playback;
+        // log so the failure is diagnosable without blocking audio.
+        console.warn('SoundTouch worklet failed to load — pitch correction unavailable:', err);
+      });
     this._workletLoading = loading;
     return loading;
   }
