@@ -94,12 +94,17 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
   }, []);
 
   // Surface engine errors as playbackError strings, unless the user has
-  // already dismissed this exact error via clearPlaybackError().
+  // already dismissed this exact error via clearPlaybackError(). Subscribe
+  // directly to the engine so setState is called from a subscription callback
+  // rather than the effect body, avoiding cascading React renders.
   useEffect(() => {
-    if (engine.error && engine.error !== acknowledgedErrorRef.current) {
-      setPlaybackError(engine.error);
-    }
-  }, [engine.error]);
+    return audioEngine.subscribe(() => {
+      const err = audioEngine.error;
+      if (err && err !== acknowledgedErrorRef.current) {
+        setPlaybackError(err);
+      }
+    });
+  }, []);
 
   const controls: PlayerControls = {
     play: useCallback(() => {

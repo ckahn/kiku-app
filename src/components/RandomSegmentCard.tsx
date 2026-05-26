@@ -34,7 +34,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     if (!engine.isPlaying && isPlayingRef.current) {
       setIsPlaying(false);
     }
-  }, [engine.isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [engine.isPlaying]);
 
   // Enforce segment end boundary
   useEffect(() => {
