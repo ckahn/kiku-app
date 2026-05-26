@@ -3,7 +3,7 @@
 // study sessions. If the user switches episodes the old buffer is GC'd and the
 // new one is fetched fresh.
 
-import { SoundTouchNode } from '@soundtouchjs/audio-worklet';
+import type { SoundTouchNode } from '@soundtouchjs/audio-worklet';
 
 export type AudioStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -29,6 +29,7 @@ export class AudioEngine {
   private _workletLoaded = false;
   private _workletLoading: Promise<void> | null = null;
   private _pitchNode: AudioWorkletNode | null = null;
+  private _SoundTouchNode: typeof SoundTouchNode | null = null;
 
   private _getOrCreateContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -55,8 +56,11 @@ export class AudioEngine {
   private _loadWorklet(): void {
     const ctx = this._ctx;
     if (!ctx?.audioWorklet || this._workletLoaded || this._workletLoading) return;
-    const processorUrl = new URL('@soundtouchjs/audio-worklet/processor', import.meta.url);
-    this._workletLoading = SoundTouchNode.register(ctx, processorUrl)
+    this._workletLoading = import('@soundtouchjs/audio-worklet').then(({ SoundTouchNode }) => {
+      this._SoundTouchNode = SoundTouchNode;
+      const processorUrl = new URL('@soundtouchjs/audio-worklet/processor', import.meta.url);
+      return SoundTouchNode.register(ctx, processorUrl);
+    })
       .then(() => { this._workletLoaded = true; this._workletLoading = null; })
       .catch(() => { this._workletLoading = null; });
   }
@@ -119,8 +123,8 @@ export class AudioEngine {
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.value = this._playbackRate;
-    if (this._playbackRate !== 1 && this._workletLoaded) {
-      const pitchNode = new SoundTouchNode({ context: ctx });
+    if (this._playbackRate !== 1 && this._workletLoaded && this._SoundTouchNode) {
+      const pitchNode = new this._SoundTouchNode({ context: ctx });
       // Telling SoundTouch the playbackRate lets it auto-compensate pitch so
       // the output plays at the right speed but retains the original pitch.
       pitchNode.playbackRate.value = this._playbackRate;
