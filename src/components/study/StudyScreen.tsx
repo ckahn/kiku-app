@@ -106,6 +106,12 @@ export default function StudyScreen({
     saveEpisodeFocusState({ episodeHref: backHref, chunkId: chunk.id });
   }, [backHref, chunk.id]);
 
+  // Reset playback rate to 1x when leaving the study screen — the rate is
+  // stored on the singleton engine and should not bleed into the episode page.
+  useEffect(() => {
+    return () => { audioEngine.setPlaybackRate(1); };
+  }, []);
+
   useEffect(() => {
     let isCancelled = false;
 
