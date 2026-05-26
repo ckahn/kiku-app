@@ -12,12 +12,14 @@
     "db:migrate": "drizzle-kit migrate",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "postinstall": "cp node_modules/@soundtouchjs/audio-worklet/.dist/soundtouch-processor.js public/soundtouch-processor.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.66",
     "@ai-sdk/elevenlabs": "^2.0.27",
     "@neondatabase/serverless": "^1.0.2",
+    "@soundtouchjs/audio-worklet": "^2.0.3",
     "@vercel/blob": "^2.3.3",
     "ai": "^6.0.145",
     "drizzle-orm": "^0.45.2",

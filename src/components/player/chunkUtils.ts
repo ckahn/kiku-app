@@ -1,10 +1,22 @@
 import type { Chunk } from '@/db/schema';
+import { CHUNK_PLAYBACK_OFFSET_SEC } from '@/lib/constants';
+
+/**
+ * Convert a chunk's startMs to the audio engine seek position,
+ * applying the pre-roll offset and clamping to 0.
+ */
+export function chunkStartSec(chunk: { startMs: number }): number {
+  return Math.max(0, chunk.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC);
+}
 
 /**
  * Find which chunk is active based on the current playback time.
  * Sorts by startMs defensively — the DB query orders by chunkIndex but
  * this guard makes the function safe against out-of-order input.
  * Uses a linear scan since chunk counts are small (typically <100 per episode).
+ *
+ * Both bounds are shifted back by CHUNK_PLAYBACK_OFFSET_SEC to match the
+ * offset applied during playback, keeping windows non-overlapping.
  */
 export function findActiveChunkId(
   chunks: readonly Chunk[],
@@ -12,10 +24,9 @@ export function findActiveChunkId(
 ): number | null {
   const sorted = [...chunks].sort((a, b) => a.startMs - b.startMs);
   for (const chunk of sorted) {
-    if (
-      currentTimeSec >= chunk.startMs / 1000 &&
-      currentTimeSec < chunk.endMs / 1000
-    ) {
+    const adjustedStart = chunkStartSec(chunk);
+    const adjustedEnd = Math.max(0, chunk.endMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC);
+    if (currentTimeSec >= adjustedStart && currentTimeSec < adjustedEnd) {
       return chunk.id;
     }
   }

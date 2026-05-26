@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findActiveChunkId, stripFurigana } from '../player/chunkUtils';
+import { chunkStartSec, findActiveChunkId, stripFurigana } from '../player/chunkUtils';
 import type { Chunk } from '@/db/schema';
 
 function makeChunk(id: number, startMs: number, endMs: number): Chunk {
@@ -24,14 +24,25 @@ const CHUNKS = [
   makeChunk(3, 12000, 20000),
 ];
 
+describe('chunkStartSec', () => {
+  it('subtracts CHUNK_PLAYBACK_OFFSET_SEC from startMs converted to seconds', () => {
+    expect(chunkStartSec({ startMs: 5000 })).toBeCloseTo(4.9);
+  });
+
+  it('clamps to 0 when startMs is less than the offset', () => {
+    expect(chunkStartSec({ startMs: 0 })).toBe(0);
+    expect(chunkStartSec({ startMs: 50 })).toBe(0); // 0.05s < 0.1s offset
+  });
+});
+
 describe('findActiveChunkId', () => {
   it('returns the chunk id containing the current time', () => {
     expect(findActiveChunkId(CHUNKS, 0)).toBe(1);
     expect(findActiveChunkId(CHUNKS, 2.5)).toBe(1);
     expect(findActiveChunkId(CHUNKS, 5)).toBe(2);
-    expect(findActiveChunkId(CHUNKS, 11.9)).toBe(2);
+    expect(findActiveChunkId(CHUNKS, 11.85)).toBe(2);
     expect(findActiveChunkId(CHUNKS, 12)).toBe(3);
-    expect(findActiveChunkId(CHUNKS, 19.9)).toBe(3);
+    expect(findActiveChunkId(CHUNKS, 19.85)).toBe(3);
   });
 
   it('returns null when time is beyond all chunks', () => {
@@ -50,9 +61,8 @@ describe('findActiveChunkId', () => {
   });
 
   it('end_ms boundary is exclusive (next chunk at start boundary)', () => {
-    // At exactly 5s, chunk 1 ends (endMs=5000) and chunk 2 begins (startMs=5000)
-    // chunk 1: [0, 5) → NOT active at 5
-    // chunk 2: [5, 12) → active at 5
+    // With CHUNK_PLAYBACK_OFFSET_SEC=0.1: chunk 1 window=[0,4.9), chunk 2 window=[4.9,11.9)
+    // At t=5, chunk 1 has already ended and chunk 2 is active.
     expect(findActiveChunkId(CHUNKS, 5)).toBe(2);
   });
 });

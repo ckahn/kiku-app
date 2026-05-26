@@ -92,7 +92,7 @@ describe('RandomSegmentCard', () => {
     // Buffer finishes loading
     act(() => { engineMock._setStatus('ready'); });
 
-    expect(engineMock.play).toHaveBeenCalledWith(SEGMENT.startMs / 1000);
+    expect(engineMock.play).toHaveBeenCalledWith(SEGMENT.startMs / 1000 - 0.1); // minus CHUNK_PLAYBACK_OFFSET_SEC
   });
 
   it('resets isPlaying when load errors while a play is queued', async () => {

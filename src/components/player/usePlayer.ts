@@ -6,6 +6,7 @@ import { playerReducer, initialPlayerState } from './playerReducer';
 import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
+import { findActiveChunkId, chunkStartSec } from './chunkUtils';
 
 export type PlayerControls = {
   play: () => void;
@@ -72,10 +73,11 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
       const t = engine.currentTime;
       if (!loopChunkRef.current) {
         // First tick with loop on: lock onto whatever chunk is playing.
-        loopChunkRef.current =
-          chunksRef.current.find((c) => t >= c.startMs / 1000 && t < c.endMs / 1000) ?? null;
+        // Use findActiveChunkId so the shifted offset windows are respected.
+        const activeId = findActiveChunkId(chunksRef.current, t);
+        loopChunkRef.current = chunksRef.current.find((c) => c.id === activeId) ?? null;
       } else if (t >= loopChunkRef.current.endMs / 1000) {
-        audioEngine.seek(loopChunkRef.current.startMs / 1000);
+        audioEngine.seek(chunkStartSec(loopChunkRef.current));
       }
     } else if (!stateRef.current.isLooping) {
       loopChunkRef.current = null;
@@ -88,7 +90,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
   useEffect(() => {
     return audioEngine.subscribeToEnd(() => {
       if (stateRef.current.isLooping && loopChunkRef.current) {
-        audioEngine.play(loopChunkRef.current.startMs / 1000);
+        audioEngine.play(chunkStartSec(loopChunkRef.current));
       }
     });
   }, []);
@@ -156,7 +158,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
     seekToChunk: useCallback((chunkId: number) => {
       const chunk = chunks.find((c) => c.id === chunkId);
       if (chunk) {
-        const startSec = chunk.startMs / 1000;
+        const startSec = chunkStartSec(chunk);
         audioEngine.seek(startSec);
         loopChunkRef.current = chunk;
         // Update state synchronously so the active-chunk highlight applies

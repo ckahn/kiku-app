@@ -3,6 +3,37 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AudioEngine } from './audioEngine';
 
 // ---------------------------------------------------------------------------
+// SoundTouchNode mock
+// ---------------------------------------------------------------------------
+
+interface MockPitchNode {
+  playbackRate: { value: number };
+  connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+}
+
+const soundTouchMock = vi.hoisted(() => {
+  const instances: MockPitchNode[] = [];
+  return {
+    instances,
+    clear() { instances.length = 0; },
+    last(): MockPitchNode | null { return instances.at(-1) ?? null; },
+  };
+});
+
+vi.mock('@soundtouchjs/audio-worklet', () => {
+  function MockSoundTouchNode(this: MockPitchNode) {
+    this.playbackRate = { value: 1 };
+    this.connect = vi.fn();
+    this.disconnect = vi.fn();
+    soundTouchMock.instances.push(this);
+  }
+  (MockSoundTouchNode as unknown as { register: ReturnType<typeof vi.fn> }).register =
+    vi.fn().mockResolvedValue(undefined);
+  return { SoundTouchNode: MockSoundTouchNode };
+});
+
+// ---------------------------------------------------------------------------
 // Web Audio API mocks
 // ---------------------------------------------------------------------------
 
@@ -44,6 +75,7 @@ interface MockAudioContext {
   currentTime: number;
   state: AudioContextState;
   destination: Record<string, never>;
+  audioWorklet: { addModule: ReturnType<typeof vi.fn> };
   resume: ReturnType<typeof vi.fn>;
   createBufferSource: ReturnType<typeof vi.fn>;
   decodeAudioData: ReturnType<typeof vi.fn>;
@@ -58,6 +90,7 @@ function makeMockAudioContext(bufferDuration = 10): MockAudioContext {
     get currentTime() { return time; },
     state: 'running' as AudioContextState,
     destination: {},
+    audioWorklet: { addModule: vi.fn().mockResolvedValue(undefined) },
     resume: vi.fn().mockResolvedValue(undefined),
     createBufferSource: vi.fn(() => {
       const node = makeMockSourceNode();
@@ -88,6 +121,7 @@ describe('AudioEngine', () => {
   let CtorMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    soundTouchMock.clear();
     engine = new AudioEngine();
     mockCtx = makeMockAudioContext();
     CtorMock = vi.fn(function () { return mockCtx; });
@@ -544,6 +578,21 @@ describe('AudioEngine', () => {
       expect(CtorMock).toHaveBeenCalledTimes(1);
     });
 
+    it('workletReady is false before unlock() and true after it resolves', async () => {
+      const fresh = new AudioEngine();
+      expect(fresh.workletReady).toBe(false);
+      await fresh.unlock();
+      expect(fresh.workletReady).toBe(true);
+    });
+
+    it('notifies subscribers when the worklet finishes loading', async () => {
+      const fresh = new AudioEngine();
+      const fn = vi.fn();
+      fresh.subscribe(fn);
+      await fresh.unlock();
+      expect(fn).toHaveBeenCalled();
+    });
+
     it('calls ctx.resume() when the context is suspended', () => {
       mockCtx.state = 'suspended';
       engine.unlock(); // creates context
@@ -554,6 +603,77 @@ describe('AudioEngine', () => {
       mockCtx.state = 'running';
       engine.unlock();
       expect(mockCtx.resume).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // SoundTouch pitch correction
+  // -------------------------------------------------------------------------
+
+  describe('SoundTouch pitch correction', () => {
+    beforeEach(async () => {
+      await engine.unlock();
+      await engine.load('/audio/ep1.mp3');
+    });
+
+    it('inserts a SoundTouch pitch node in the signal chain at non-1× speed', () => {
+      engine.setPlaybackRate(0.75);
+      engine.play(0);
+
+      const source = mockCtx._lastSource();
+      const pitchNode = soundTouchMock.last();
+      expect(pitchNode).not.toBeNull();
+      expect(pitchNode!.playbackRate.value).toBe(0.75);
+      expect(source.connect).toHaveBeenCalledWith(pitchNode);
+    });
+
+    it('connects source directly to destination at 1× speed (no pitch node)', () => {
+      engine.play(0);
+
+      expect(soundTouchMock.last()).toBeNull();
+      expect(mockCtx._lastSource().connect).toHaveBeenCalledWith(mockCtx.destination);
+    });
+
+    it('does not create a pitch node when the worklet has not loaded', async () => {
+      // load() creates the context but skips worklet loading (unlock() not called)
+      const fresh = new AudioEngine();
+      await fresh.load('/audio/ep1.mp3');
+      fresh.setPlaybackRate(0.5);
+
+      const instancesBefore = soundTouchMock.instances.length;
+      fresh.play(0);
+
+      expect(soundTouchMock.instances.length).toBe(instancesBefore);
+    });
+
+    it('disconnects the pitch node when pause() stops playback', () => {
+      engine.setPlaybackRate(0.75);
+      engine.play(0);
+      const pitchNode = soundTouchMock.last()!;
+
+      engine.pause();
+
+      expect(pitchNode.disconnect).toHaveBeenCalled();
+    });
+
+    it('disconnects the pitch node when seek() replaces the source', () => {
+      engine.setPlaybackRate(0.75);
+      engine.play(0);
+      const pitchNode = soundTouchMock.last()!;
+
+      engine.seek(5);
+
+      expect(pitchNode.disconnect).toHaveBeenCalled();
+    });
+
+    it('disconnects the pitch node on natural file end', () => {
+      engine.setPlaybackRate(0.75);
+      engine.play(0);
+      const pitchNode = soundTouchMock.last()!;
+
+      mockCtx._lastSource()._fireEnded();
+
+      expect(pitchNode.disconnect).toHaveBeenCalled();
     });
   });
 });

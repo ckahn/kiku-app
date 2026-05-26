@@ -3,6 +3,8 @@
 // study sessions. If the user switches episodes the old buffer is GC'd and the
 // new one is fetched fresh.
 
+import type { SoundTouchNode } from '@soundtouchjs/audio-worklet';
+
 export type AudioStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 function getAudioContext(): typeof AudioContext | null {
@@ -24,6 +26,10 @@ export class AudioEngine {
   private _subscribers = new Set<() => void>();
   private _endSubscribers = new Set<() => void>();
   private _loadingUrl: string | null = null;
+  private _workletLoaded = false;
+  private _workletLoading: Promise<void> | null = null;
+  private _pitchNode: AudioWorkletNode | null = null;
+  private _SoundTouchNode: typeof SoundTouchNode | null = null;
 
   private _getOrCreateContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -39,11 +45,34 @@ export class AudioEngine {
     this._subscribers.forEach((fn) => fn());
   }
 
-  unlock(): void {
+  unlock(): Promise<void> {
     const ctx = this._getOrCreateContext();
     if (ctx && ctx.state === 'suspended') {
       ctx.resume().catch(() => undefined);
     }
+    return this._loadWorklet();
+  }
+
+  private _loadWorklet(): Promise<void> {
+    const ctx = this._ctx;
+    if (!ctx?.audioWorklet || this._workletLoaded) return Promise.resolve();
+    if (this._workletLoading) return this._workletLoading;
+    const loading = import('@soundtouchjs/audio-worklet').then(({ SoundTouchNode }) => {
+      this._SoundTouchNode = SoundTouchNode;
+      // Reference the processor by its public/ path. new URL(bareSpecifier,
+      // import.meta.url) does not resolve package exports — it produces a
+      // path relative to the bundle file which 404s in production.
+      return SoundTouchNode.register(ctx, '/soundtouch-processor.js');
+    })
+      .then(() => { this._workletLoaded = true; this._workletLoading = null; this._notify(); })
+      .catch((err: unknown) => {
+        this._workletLoading = null;
+        // Pitch correction will silently fall back to uncompensated playback;
+        // log so the failure is diagnosable without blocking audio.
+        console.warn('SoundTouch worklet failed to load — pitch correction unavailable:', err);
+      });
+    this._workletLoading = loading;
+    return loading;
   }
 
   async load(url: string): Promise<void> {
@@ -104,12 +133,26 @@ export class AudioEngine {
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.value = this._playbackRate;
-    source.connect(ctx.destination);
+    if (this._playbackRate !== 1 && this._workletLoaded && this._SoundTouchNode) {
+      const pitchNode = new this._SoundTouchNode({ context: ctx });
+      // Telling SoundTouch the playbackRate lets it auto-compensate pitch so
+      // the output plays at the right speed but retains the original pitch.
+      pitchNode.playbackRate.value = this._playbackRate;
+      source.connect(pitchNode);
+      pitchNode.connect(ctx.destination);
+      this._pitchNode = pitchNode;
+    } else {
+      source.connect(ctx.destination);
+    }
     source.onended = () => {
       // onended fires on natural end AND on explicit stop(). Distinguish by
       // checking whether we are still tracking this node as current.
       if (this._sourceNode === source) {
         this._sourceNode = null;
+        if (this._pitchNode) {
+          this._pitchNode.disconnect();
+          this._pitchNode = null;
+        }
         this._startOffset = 0;
         this._isPlaying = false;
         // Notify general subscribers first, then end subscribers.
@@ -203,12 +246,20 @@ export class AudioEngine {
     return this._error;
   }
 
+  get workletReady(): boolean {
+    return this._workletLoaded;
+  }
+
   private _stopSource(): void {
     if (this._sourceNode) {
       const node = this._sourceNode;
       // Null out first so onended skips its bookkeeping for this stop
       this._sourceNode = null;
       try { node.stop(); } catch { /* already stopped */ }
+    }
+    if (this._pitchNode) {
+      this._pitchNode.disconnect();
+      this._pitchNode = null;
     }
   }
 }

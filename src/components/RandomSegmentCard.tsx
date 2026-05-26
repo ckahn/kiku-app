@@ -6,6 +6,7 @@ import { Loader2, Play, Shuffle, Square } from 'lucide-react';
 import type { RandomSegmentData } from '@/db/chunks';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
+import { chunkStartSec } from '@/components/player/chunkUtils';
 
 interface RandomSegmentCardProps {
   readonly initialSegment: RandomSegmentData;
@@ -33,7 +34,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
   useEffect(() => {
     if (engine.status === 'ready' && pendingPlayRef.current) {
       pendingPlayRef.current = false;
-      audioEngine.play(segment.startMs / 1000);
+      audioEngine.play(chunkStartSec(segment));
     }
   }, [engine.status, segment.startMs]);
 
@@ -76,7 +77,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     } else {
       setIsPlaying(true);
       if (audioEngine.status === 'ready') {
-        audioEngine.play(segment.startMs / 1000);
+        audioEngine.play(chunkStartSec(segment));
       } else {
         // Buffer still loading (or errored) — queue play and trigger/retry load.
         // The auto-play effect above fires it once status becomes 'ready'.

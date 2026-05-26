@@ -168,7 +168,7 @@ describe('StudyScreen', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
 
-    expect(engineMock.play).toHaveBeenCalledWith(1); // 1000ms / 1000 = 1s
+    expect(engineMock.play).toHaveBeenCalledWith(0.9); // 1000ms / 1000 - 0.1s offset
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Stop audio' })).toBeInTheDocument();
     });
@@ -510,6 +510,39 @@ describe('StudyScreen', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 0.5×' }));
       expect(engineMock.setPlaybackRate).toHaveBeenLastCalledWith(1);
       expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
+    });
+
+    it('calls unlock() on mount to eager-load the worklet', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      expect(engineMock.unlock).toHaveBeenCalled();
+    });
+
+    it('speed button is disabled while worklet is loading and enabled once ready', () => {
+      engineMock._setWorkletReady(false);
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeDisabled();
+
+      act(() => { engineMock._setWorkletReady(true); });
+
+      expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).not.toBeDisabled();
     });
 
     it('retains selected speed across play/stop cycles within the same segment', async () => {

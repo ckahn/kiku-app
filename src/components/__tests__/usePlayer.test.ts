@@ -137,7 +137,7 @@ describe('usePlayer', () => {
     it('seekToChunk seeks engine to chunk start', () => {
       const { result } = setup();
       act(() => { result.current.controls.seekToChunk(2); });
-      expect(engineMock.seek).toHaveBeenCalledWith(5); // 5000ms / 1000
+      expect(engineMock.seek).toHaveBeenCalledWith(4.9); // 5000ms / 1000 - 0.1s offset
     });
 
     it('seekToChunk to first chunk seeks to 0', () => {
@@ -155,7 +155,7 @@ describe('usePlayer', () => {
     it('seekToChunk updates state.currentTime synchronously without waiting for rAF', () => {
       const { result } = setup();
       act(() => { result.current.controls.seekToChunk(2); });
-      expect(result.current.state.currentTime).toBe(5); // 5000ms / 1000
+      expect(result.current.state.currentTime).toBe(4.9); // 5000ms / 1000 - 0.1s offset
     });
   });
 
@@ -180,8 +180,8 @@ describe('usePlayer', () => {
       // Advance past chunk 2's end
       act(() => { engineMock._setTime(12.1); });
 
-      // Should have seeked back to chunk 2's start (5s)
-      expect(engineMock.seek).toHaveBeenLastCalledWith(5);
+      // Should have seeked back to chunk 2's start (5s - 0.1s offset = 4.9s)
+      expect(engineMock.seek).toHaveBeenLastCalledWith(4.9);
     });
 
     it('does not seek back when looping is off', () => {
@@ -209,7 +209,7 @@ describe('usePlayer', () => {
       // Advance past chunk 3's end
       act(() => { engineMock._setTime(20.1); });
 
-      expect(engineMock.seek).toHaveBeenLastCalledWith(12); // 12000ms / 1000
+      expect(engineMock.seek).toHaveBeenLastCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
     });
 
     it('loops chunk on natural file end when looping is active', () => {
@@ -222,8 +222,8 @@ describe('usePlayer', () => {
       // Simulate the audio file reaching its natural end
       act(() => { engineMock._triggerNaturalEnd(); });
 
-      // Should have restarted from chunk 3's start
-      expect(engineMock.play).toHaveBeenCalledWith(12); // 12000ms / 1000
+      // Should have restarted from chunk 3's start (12s - 0.1s offset = 11.9s)
+      expect(engineMock.play).toHaveBeenCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
     });
 
     it('pauses on natural file end when looping is off', () => {

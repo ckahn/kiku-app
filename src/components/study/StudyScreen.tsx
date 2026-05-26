@@ -10,6 +10,7 @@ import type { StudyGuideContent } from '@/lib/api/types';
 import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
+import { chunkStartSec } from '@/components/player/chunkUtils';
 
 // LLM sometimes echoes kana words as their own reading — skip when redundant
 function hasDistinctReading(reading: string | undefined, text: string): boolean {
@@ -106,6 +107,12 @@ export default function StudyScreen({
     saveEpisodeFocusState({ episodeHref: backHref, chunkId: chunk.id });
   }, [backHref, chunk.id]);
 
+  // Eager-load the SoundTouch worklet so the speed selector is available
+  // before the user taps Play (unlock() is otherwise deferred to first play).
+  useEffect(() => {
+    void audioEngine.unlock();
+  }, []);
+
   // Reset playback rate to 1x when leaving the study screen — the rate is
   // stored on the singleton engine and should not bleed into the episode page.
   useEffect(() => {
@@ -159,7 +166,7 @@ export default function StudyScreen({
   // Enforce chunk boundary: loop or stop when currentTime passes endMs
   useEffect(() => {
     if (!engine.isPlaying || engine.currentTime < chunk.endMs / 1000) return;
-    audioEngine.seek(chunk.startMs / 1000);
+    audioEngine.seek(chunkStartSec(chunk));
     if (!isLooping) {
       audioEngine.pause();
       setIsPlaying(false);
@@ -167,7 +174,7 @@ export default function StudyScreen({
   }, [engine.currentTime, engine.isPlaying, isLooping, chunk]);
 
   const stopPlayback = useCallback(() => {
-    audioEngine.seek(chunk.startMs / 1000);
+    audioEngine.seek(chunkStartSec(chunk));
     audioEngine.pause();
     setIsPlaying(false);
   }, [chunk.startMs]);
@@ -176,7 +183,7 @@ export default function StudyScreen({
     setErrorMessage(null);
     setIsPlaying(true);
     audioEngine.unlock();
-    audioEngine.play(chunk.startMs / 1000);
+    audioEngine.play(chunkStartSec(chunk));
   }
 
   function cyclePlaybackRate() {
@@ -270,8 +277,9 @@ export default function StudyScreen({
               <button
                 type="button"
                 onClick={cyclePlaybackRate}
+                disabled={!engine.workletReady}
                 aria-label={`Playback speed: ${playbackRate}×`}
-                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md text-xs font-medium tabular-nums ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md text-xs font-medium tabular-nums ${!engine.workletReady ? 'opacity-40 cursor-not-allowed text-muted' : playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 {playbackRate}×
               </button>

@@ -6,6 +6,7 @@ export const CLAUDE_FURIGANA_MODEL = 'claude-haiku-4-5-20251001';
 export const CLAUDE_STUDY_GUIDE_MODEL = 'claude-sonnet-4-20250514';
 export const TRANSCRIPT_SEGMENTATION_STRATEGY = 'deterministic';
 export const MINIMUM_CHUNK_CHARACTERS = 30;
+export const CHUNK_PLAYBACK_OFFSET_SEC = 0.1; // start playback slightly before the stored timestamp
 export const STUDY_GUIDE_CONTEXT_CHUNKS = 10;
 export const STUDY_GUIDE_CURRENT_VERSION = 2;
 
