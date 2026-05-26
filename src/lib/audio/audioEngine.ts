@@ -3,6 +3,8 @@
 // study sessions. If the user switches episodes the old buffer is GC'd and the
 // new one is fetched fresh.
 
+import { SoundTouchNode } from '@soundtouchjs/audio-worklet';
+
 export type AudioStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 function getAudioContext(): typeof AudioContext | null {
@@ -24,6 +26,9 @@ export class AudioEngine {
   private _subscribers = new Set<() => void>();
   private _endSubscribers = new Set<() => void>();
   private _loadingUrl: string | null = null;
+  private _workletLoaded = false;
+  private _workletLoading: Promise<void> | null = null;
+  private _pitchNode: AudioWorkletNode | null = null;
 
   private _getOrCreateContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -44,6 +49,16 @@ export class AudioEngine {
     if (ctx && ctx.state === 'suspended') {
       ctx.resume().catch(() => undefined);
     }
+    this._loadWorklet();
+  }
+
+  private _loadWorklet(): void {
+    const ctx = this._ctx;
+    if (!ctx?.audioWorklet || this._workletLoaded || this._workletLoading) return;
+    const processorUrl = new URL('@soundtouchjs/audio-worklet/processor', import.meta.url);
+    this._workletLoading = SoundTouchNode.register(ctx, processorUrl)
+      .then(() => { this._workletLoaded = true; this._workletLoading = null; })
+      .catch(() => { this._workletLoading = null; });
   }
 
   async load(url: string): Promise<void> {
@@ -209,6 +224,10 @@ export class AudioEngine {
       // Null out first so onended skips its bookkeeping for this stop
       this._sourceNode = null;
       try { node.stop(); } catch { /* already stopped */ }
+    }
+    if (this._pitchNode) {
+      this._pitchNode.disconnect();
+      this._pitchNode = null;
     }
   }
 }
