@@ -107,6 +107,12 @@ export default function StudyScreen({
     saveEpisodeFocusState({ episodeHref: backHref, chunkId: chunk.id });
   }, [backHref, chunk.id]);
 
+  // Eager-load the SoundTouch worklet so the speed selector is available
+  // before the user taps Play (unlock() is otherwise deferred to first play).
+  useEffect(() => {
+    void audioEngine.unlock();
+  }, []);
+
   // Reset playback rate to 1x when leaving the study screen — the rate is
   // stored on the singleton engine and should not bleed into the episode page.
   useEffect(() => {

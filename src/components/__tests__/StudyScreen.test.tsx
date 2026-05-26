@@ -512,6 +512,20 @@ describe('StudyScreen', () => {
       expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
     });
 
+    it('calls unlock() on mount to eager-load the worklet', () => {
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      expect(engineMock.unlock).toHaveBeenCalled();
+    });
+
     it('speed button is disabled while worklet is loading and enabled once ready', () => {
       engineMock._setWorkletReady(false);
       render(
