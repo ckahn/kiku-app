@@ -18,12 +18,20 @@ export default function AudioPlayer({ player }: AudioPlayerProps) {
     >
       <div className="max-w-2xl mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
         {playbackError && (
-          <p
+          <div
             role="alert"
-            className="rounded-md border border-error-subtle bg-error-subtle px-3 py-2 text-sm text-error-on-subtle sm:basis-full"
+            className="flex items-center justify-between gap-2 rounded-md border border-error-subtle bg-error-subtle px-3 py-2 text-sm text-error-on-subtle sm:basis-full"
           >
-            {playbackError}
-          </p>
+            <span>{playbackError}</span>
+            <button
+              type="button"
+              onClick={player.clearPlaybackError}
+              aria-label="Dismiss error"
+              className="shrink-0 cursor-pointer opacity-60 hover:opacity-100"
+            >
+              ×
+            </button>
+          </div>
         )}
         <PlayerControls
           isPlaying={state.isPlaying}

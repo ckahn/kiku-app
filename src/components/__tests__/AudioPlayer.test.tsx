@@ -133,4 +133,12 @@ describe('AudioPlayer', () => {
     render(<AudioPlayer player={player} />);
     expect(screen.getByRole('alert')).toHaveTextContent('Could not play this episode audio.');
   });
+
+  it('clicking the dismiss button calls clearPlaybackError', () => {
+    const player = makePlayer();
+    player.playbackError = 'Could not play this episode audio.';
+    render(<AudioPlayer player={player} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss error' }));
+    expect(player.clearPlaybackError).toHaveBeenCalledOnce();
+  });
 });
