@@ -56,9 +56,15 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
       setIsPlaying(false);
     } else {
       setIsPlaying(true);
-      // load() is idempotent — no-op if already loaded for this URL
+      // load() is idempotent — no-op if already loaded for this URL.
+      // If it returns early (same URL still in-flight), the buffer won't be
+      // ready yet and play() would silently no-op, leaving isPlaying stuck true.
       void audioEngine.load(audioUrl).then(() => {
-        audioEngine.play(segment.startMs / 1000);
+        if (audioEngine.status === 'ready') {
+          audioEngine.play(segment.startMs / 1000);
+        } else {
+          setIsPlaying(false);
+        }
       });
     }
   }

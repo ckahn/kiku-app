@@ -67,6 +67,20 @@ describe('RandomSegmentCard', () => {
     expect(screen.getByRole('button', { name: 'Show a different random segment' })).toBeInTheDocument();
   });
 
+  it('resets isPlaying when load() resolves but engine status is still loading', async () => {
+    // Simulate the engine still decoding (same URL in-flight): load() resolves
+    // early but status remains 'loading', so play() would be a silent no-op.
+    engineMock._setStatus('loading');
+
+    render(<RandomSegmentCard initialSegment={SEGMENT} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+
+    expect(engineMock.play).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Play segment' })).toBeInTheDocument();
+  });
+
   it('shows Stop aria-label immediately after clicking play', async () => {
     render(<RandomSegmentCard initialSegment={SEGMENT} />);
     await act(async () => {
