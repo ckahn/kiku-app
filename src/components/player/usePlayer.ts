@@ -7,6 +7,7 @@ import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { CHUNK_PLAYBACK_OFFSET_SEC } from '@/lib/constants';
+import { findActiveChunkId } from './chunkUtils';
 
 export type PlayerControls = {
   play: () => void;
@@ -73,8 +74,9 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
       const t = engine.currentTime;
       if (!loopChunkRef.current) {
         // First tick with loop on: lock onto whatever chunk is playing.
-        loopChunkRef.current =
-          chunksRef.current.find((c) => t >= c.startMs / 1000 && t < c.endMs / 1000) ?? null;
+        // Use findActiveChunkId so the shifted offset windows are respected.
+        const activeId = findActiveChunkId(chunksRef.current, t);
+        loopChunkRef.current = chunksRef.current.find((c) => c.id === activeId) ?? null;
       } else if (t >= loopChunkRef.current.endMs / 1000) {
         audioEngine.seek(Math.max(0, loopChunkRef.current.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC));
       }
