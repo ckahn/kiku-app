@@ -20,7 +20,9 @@ export type UseAudioEngineReturn = {
 
 export function useAudioEngine(url: string): UseAudioEngineReturn {
   const [status, setStatus] = useState<AudioStatus>(audioEngine.status);
-  const [isPlaying, setIsPlaying] = useState(audioEngine.isPlaying);
+  // Always initialize to false — reading audioEngine.isPlaying here would
+  // capture stale state from a previous page that hasn't unmounted yet.
+  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(audioEngine.currentTime);
   const [durationSec, setDurationSec] = useState(audioEngine.duration);
   const [error, setError] = useState<string | null>(audioEngine.error);
