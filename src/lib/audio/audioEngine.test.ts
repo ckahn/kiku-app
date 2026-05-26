@@ -261,6 +261,19 @@ describe('AudioEngine', () => {
       expect(fresh.isPlaying).toBe(false);
     });
 
+    it('surfaces error via engine.error when source.start() throws (e.g. iOS autoplay block)', () => {
+      mockCtx.createBufferSource = vi.fn(() => {
+        const node = makeMockSourceNode();
+        node.start = vi.fn(() => { throw new Error('InvalidStateError'); });
+        return node;
+      });
+
+      engine.play();
+
+      expect(engine.isPlaying).toBe(false);
+      expect(engine.error).toBe('InvalidStateError');
+    });
+
     it('pause() records current position and stops playback', () => {
       engine.play(2);
       mockCtx._advance(3); // 3s real time at 1× = 3s audio advance

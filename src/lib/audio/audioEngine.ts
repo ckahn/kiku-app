@@ -114,7 +114,16 @@ export class AudioEngine {
         this._endSubscribers.forEach((fn) => fn());
       }
     };
-    source.start(0, offset);
+    try {
+      source.start(0, offset);
+    } catch (err) {
+      // source.start() can throw InvalidStateError on iOS Safari when the
+      // AudioContext is suspended and resume() silently failed.
+      this._isPlaying = false;
+      this._error = err instanceof Error ? err.message : 'Playback failed';
+      this._notify();
+      return;
+    }
 
     this._sourceNode = source;
     this._startOffset = offset;
