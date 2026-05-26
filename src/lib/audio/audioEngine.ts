@@ -135,6 +135,10 @@ export class AudioEngine {
       // checking whether we are still tracking this node as current.
       if (this._sourceNode === source) {
         this._sourceNode = null;
+        if (this._pitchNode) {
+          this._pitchNode.disconnect();
+          this._pitchNode = null;
+        }
         this._startOffset = 0;
         this._isPlaying = false;
         // Notify general subscribers first, then end subscribers.
