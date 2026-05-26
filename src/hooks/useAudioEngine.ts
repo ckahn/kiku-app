@@ -62,6 +62,11 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
     };
   }, [isPlaying]);
 
+  // Pause on unmount so audio stops when navigating away.
+  useEffect(() => {
+    return () => { audioEngine.pause(); };
+  }, []);
+
   // Load when URL changes
   useEffect(() => {
     if (!url) return;
