@@ -17,7 +17,7 @@ export function findActiveChunkId(
   const sorted = [...chunks].sort((a, b) => a.startMs - b.startMs);
   for (const chunk of sorted) {
     const adjustedStart = Math.max(0, chunk.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC);
-    const adjustedEnd = chunk.endMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC;
+    const adjustedEnd = Math.max(0, chunk.endMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC);
     if (currentTimeSec >= adjustedStart && currentTimeSec < adjustedEnd) {
       return chunk.id;
     }
