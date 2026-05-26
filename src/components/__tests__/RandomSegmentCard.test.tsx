@@ -4,6 +4,19 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import RandomSegmentCard from '../RandomSegmentCard';
 import type { RandomSegmentData } from '@/db/chunks';
 
+vi.mock('@/lib/audio/audioEngine', async () => {
+  const { createMockAudioEngine } = await import('@/lib/audio/__tests__/mockAudioEngine');
+  return { audioEngine: createMockAudioEngine() };
+});
+
+import { audioEngine } from '@/lib/audio/audioEngine';
+import type { MockAudioEngine } from '@/lib/audio/__tests__/mockAudioEngine';
+const engineMock = audioEngine as unknown as MockAudioEngine;
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
 const SEGMENT: RandomSegmentData = {
   chunkId: 5,
   chunkIndex: 2,
@@ -24,34 +37,22 @@ const SEGMENT_2: RandomSegmentData = {
   textRaw: '別の文です。',
 };
 
+beforeEach(() => {
+  vi.restoreAllMocks();
+  engineMock._reset();
+  vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0 as unknown as ReturnType<typeof requestAnimationFrame>);
+  vi.spyOn(window, 'cancelAnimationFrame').mockReturnValue(undefined);
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ data: SEGMENT_2 }),
+  }));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('RandomSegmentCard', () => {
-  beforeEach(() => {
-    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
-      value: vi.fn().mockResolvedValue(undefined),
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
-      value: vi.fn(),
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(HTMLMediaElement.prototype, 'load', {
-      value: vi.fn(),
-      writable: true,
-      configurable: true,
-    });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: SEGMENT_2 }),
-    }));
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-  });
-
   it('renders the segment text and metadata', () => {
     render(<RandomSegmentCard initialSegment={SEGMENT} />);
     expect(screen.getByText('日本語の文です。')).toBeInTheDocument();
@@ -66,17 +67,61 @@ describe('RandomSegmentCard', () => {
     expect(screen.getByRole('button', { name: 'Show a different random segment' })).toBeInTheDocument();
   });
 
-  it('shows Stop aria-label immediately after clicking play', () => {
+  it('shows buffering spinner and queues play when buffer is still loading on click', async () => {
+    engineMock._setStatus('loading');
+
     render(<RandomSegmentCard initialSegment={SEGMENT} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+
+    // play() not called yet — buffering spinner should be visible
+    expect(engineMock.play).not.toHaveBeenCalled();
+    // Button label stays 'Stop' (aria) while buffering — UI should not revert to Play
     expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
   });
 
-  it('resumes stopped state after audio pause event', () => {
+  it('auto-plays at segment start when buffer becomes ready after a queued click', async () => {
+    engineMock._setStatus('loading');
+
     render(<RandomSegmentCard initialSegment={SEGMENT} />);
-    const audio = document.querySelector('audio')!;
-    fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
-    fireEvent.pause(audio);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+
+    // Buffer finishes loading
+    act(() => { engineMock._setStatus('ready'); });
+
+    expect(engineMock.play).toHaveBeenCalledWith(SEGMENT.startMs / 1000);
+  });
+
+  it('resets isPlaying when load errors while a play is queued', async () => {
+    engineMock._setStatus('loading');
+
+    render(<RandomSegmentCard initialSegment={SEGMENT} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+
+    act(() => { engineMock._setError('Audio fetch failed: 404'); });
+
+    expect(screen.getByRole('button', { name: 'Play segment' })).toBeInTheDocument();
+  });
+
+  it('shows Stop aria-label immediately after clicking play', async () => {
+    render(<RandomSegmentCard initialSegment={SEGMENT} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+  });
+
+  it('resumes stopped state after engine stops externally', async () => {
+    render(<RandomSegmentCard initialSegment={SEGMENT} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+    act(() => { engineMock._setIsPlaying(false); });
     expect(screen.getByRole('button', { name: 'Play segment' })).toBeInTheDocument();
   });
 

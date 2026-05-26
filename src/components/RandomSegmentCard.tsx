@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, Play, Shuffle, Square } from 'lucide-react';
 import type { RandomSegmentData } from '@/db/chunks';
+import { useAudioEngine } from '@/hooks/useAudioEngine';
+import { audioEngine } from '@/lib/audio/audioEngine';
 
 interface RandomSegmentCardProps {
   readonly initialSegment: RandomSegmentData;
@@ -11,70 +13,76 @@ interface RandomSegmentCardProps {
 
 export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardProps) {
   const [segment, setSegment] = useState(initialSegment);
+  // Local isPlaying is set optimistically on click so the UI responds
+  // immediately, even while the engine is still fetching/decoding the buffer.
+  // engine.isPlaying syncs it back when the engine eventually stops.
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isBuffering, setIsBuffering] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [shuffleError, setShuffleError] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const audioUrl = `/api/episodes/${segment.episodeId}/audio`;
+  const engine = useAudioEngine(audioUrl);
 
   const studyHref = `/podcasts/${segment.podcastSlug}/episodes/${segment.episodeNumber}/segments/${segment.chunkIndex}/study`;
 
+  // When user clicks Play before the buffer is ready, queue the play here so
+  // the auto-play effect below can fire it once the buffer finishes loading.
+  const pendingPlayRef = useRef(false);
+
+  // Auto-play as soon as the buffer is ready if one was queued.
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    function handleTimeUpdate() {
-      if (audio && audio.currentTime >= segment.endMs / 1000) {
-        audio.pause();
-      }
+    if (engine.status === 'ready' && pendingPlayRef.current) {
+      pendingPlayRef.current = false;
+      audioEngine.play(segment.startMs / 1000);
     }
+  }, [engine.status, segment.startMs]);
 
-    function handlePauseOrEnd() {
+  // Reset UI if loading fails while a play is queued.
+  useEffect(() => {
+    if (engine.error && pendingPlayRef.current) {
+      pendingPlayRef.current = false;
       setIsPlaying(false);
     }
+  }, [engine.error]);
 
-    function handleWaiting() { setIsBuffering(true); }
-    function handlePlaying() { setIsBuffering(false); }
+  // Sync external stops (engine file ended, etc.) back to local state.
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+  useEffect(() => {
+    if (!engine.isPlaying && isPlayingRef.current) {
+      setIsPlaying(false);
+    }
+  }, [engine.isPlaying]);
 
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('pause', handlePauseOrEnd);
-    audio.addEventListener('ended', handlePauseOrEnd);
-    audio.addEventListener('waiting', handleWaiting);
-    audio.addEventListener('playing', handlePlaying);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('pause', handlePauseOrEnd);
-      audio.removeEventListener('ended', handlePauseOrEnd);
-      audio.removeEventListener('waiting', handleWaiting);
-      audio.removeEventListener('playing', handlePlaying);
-    };
-  }, [segment]);
+  // Enforce segment end boundary
+  useEffect(() => {
+    if (!engine.isPlaying) return;
+    if (engine.currentTime >= segment.endMs / 1000) {
+      audioEngine.pause();
+      setIsPlaying(false);
+    }
+  }, [engine.currentTime, engine.isPlaying, segment.endMs]);
 
   function handlePlayPause(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
 
-    const audio = audioRef.current;
-    if (!audio) return;
+    audioEngine.unlock();
 
     if (isPlaying) {
-      audio.pause();
-      setIsBuffering(false);
+      pendingPlayRef.current = false;
+      audioEngine.pause();
+      setIsPlaying(false);
     } else {
       setIsPlaying(true);
-      audio.src = `/api/episodes/${segment.episodeId}/audio`;
-      audio.load();
-      // Setting currentTime synchronously after load() is unreliable — Firefox and
-      // mobile Safari reset it to 0 during the HAVE_NOTHING state transition.
-      // Wait for loadedmetadata before seeking.
-      const startMs = segment.startMs;
-      const onLoaded = () => {
-        audio.removeEventListener('loadedmetadata', onLoaded);
-        audio.currentTime = startMs / 1000;
-        audio.play().catch(() => setIsPlaying(false));
-      };
-      audio.addEventListener('loadedmetadata', onLoaded);
+      if (audioEngine.status === 'ready') {
+        audioEngine.play(segment.startMs / 1000);
+      } else {
+        // Buffer still loading (or errored) — queue play and trigger/retry load.
+        // The auto-play effect above fires it once status becomes 'ready'.
+        pendingPlayRef.current = true;
+        void audioEngine.load(audioUrl);
+      }
     }
   }
 
@@ -82,9 +90,9 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     e.preventDefault();
     e.stopPropagation();
 
-    audioRef.current?.pause();
+    audioEngine.pause();
+    pendingPlayRef.current = false;
     setIsPlaying(false);
-    setIsBuffering(false);
     setShuffleError(false);
     setIsLoading(true);
 
@@ -102,11 +110,11 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     }
   }
 
+  const isBuffering = engine.status === 'loading' && isPlaying;
+
   return (
     <div className="flex flex-col gap-1">
     <div className="flex items-start gap-4 rounded-lg border border-border bg-surface p-4">
-      <audio ref={audioRef} preload="metadata" className="hidden" />
-
       <Link href={studyHref} className="flex-1 min-w-0 hover:opacity-70 transition-opacity">
         <p className="text-lg text-ink font-jp leading-loose">{segment.textRaw}</p>
         <p className="text-xs text-muted mt-1">

@@ -28,12 +28,12 @@ export default function EpisodePlayer({
   episodeNumber,
   episodeHref,
 }: EpisodePlayerProps) {
-  const player = usePlayer(chunks, durationMs);
+  const player = usePlayer(chunks, durationMs, audioUrl);
   const { toggle, rewind, forward, toggleLoop } = player.controls;
   useManualScrollRestoration();
   useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop });
 
-  const { seekToChunk } = player.controls;
+  const { seekToChunk, pause } = player.controls;
   const activeChunkId = findActiveChunkId(chunks, player.state.currentTime);
 
   // Restore the focused segment when returning from study or refreshing.
@@ -52,9 +52,13 @@ export default function EpisodePlayer({
       return;
     }
 
+    // Pause before seeking so seek() doesn't trigger play() when audio from
+    // a previous page is still playing (the old page's cleanup may not have
+    // run yet at this point in the navigation lifecycle).
+    pause();
     seekToChunk(matchingChunk.id);
     scrollChunkToTop(matchingChunk.id);
-  }, [chunks, episodeHref, seekToChunk]);
+  }, [chunks, episodeHref, pause, seekToChunk]);
 
   // Persist the active chunk so a refresh can restore it. Skip the initial
   // mount because currentTime starts at 0, so activeChunkId is the first
@@ -80,7 +84,7 @@ export default function EpisodePlayer({
         episodeNumber={episodeNumber}
         episodeHref={episodeHref}
       />
-      <AudioPlayer audioUrl={audioUrl} durationMs={durationMs} player={player} />
+      <AudioPlayer player={player} />
     </>
   );
 }

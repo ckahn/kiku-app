@@ -1,45 +1,37 @@
 'use client';
 
-import { useState } from 'react';
 import type { UsePlayerReturn } from './usePlayer';
 import PlayerControls from './PlayerControls';
 import ProgressBar from './ProgressBar';
 
 interface AudioPlayerProps {
-  readonly audioUrl: string;
-  readonly durationMs: number;
   readonly player: UsePlayerReturn;
 }
 
-export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlayerProps) {
-  const { state, controls, setAudioEl, playbackError, clearPlaybackError } = player;
-  const [audioDurationSec, setAudioDurationSec] = useState(durationMs > 0 ? durationMs / 1000 : 0);
+export default function AudioPlayer({ player }: AudioPlayerProps) {
+  const { state, controls, isLoading, durationSec, playbackError } = player;
 
   return (
     <div
       data-sticky-player
       className="sticky bottom-0 z-10 bg-surface border-t border-border px-4 pt-3 pb-6 sm:pb-3 shadow-sm"
     >
-      {/* Hidden audio element — the single source of truth for playback */}
-      <audio
-        ref={setAudioEl}
-        src={audioUrl}
-        preload="metadata"
-        onLoadedMetadata={(e) => {
-          setAudioDurationSec((e.target as HTMLAudioElement).duration);
-          clearPlaybackError();
-        }}
-        aria-hidden="true"
-        className="hidden"
-      />
       <div className="max-w-2xl mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
         {playbackError && (
-          <p
+          <div
             role="alert"
-            className="rounded-md border border-error-subtle bg-error-subtle px-3 py-2 text-sm text-error-on-subtle sm:basis-full"
+            className="flex items-center justify-between gap-2 rounded-md border border-error-subtle bg-error-subtle px-3 py-2 text-sm text-error-on-subtle sm:basis-full"
           >
-            {playbackError}
-          </p>
+            <span>{playbackError}</span>
+            <button
+              type="button"
+              onClick={player.clearPlaybackError}
+              aria-label="Dismiss error"
+              className="shrink-0 cursor-pointer opacity-60 hover:opacity-100"
+            >
+              ×
+            </button>
+          </div>
         )}
         <PlayerControls
           isPlaying={state.isPlaying}
@@ -50,12 +42,20 @@ export default function AudioPlayer({ audioUrl, durationMs, player }: AudioPlaye
           onForward={controls.forward}
           onToggleLoop={controls.toggleLoop}
           onRestart={controls.restart}
+          disabled={isLoading}
         />
-        <ProgressBar
-          currentTime={state.currentTime}
-          durationSec={audioDurationSec}
-          onSeek={controls.seek}
-        />
+        {isLoading ? (
+          <div className="flex flex-1 items-center gap-2 text-sm text-muted">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+            Loading audio…
+          </div>
+        ) : (
+          <ProgressBar
+            currentTime={state.currentTime}
+            durationSec={durationSec}
+            onSeek={controls.seek}
+          />
+        )}
       </div>
     </div>
   );

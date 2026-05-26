@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import studyGuideFixture from '@fixtures/study-guide.json';
 import type { Chunk } from '@/db/schema';
 import StudyScreen from '../study/StudyScreen';
@@ -19,6 +19,19 @@ vi.mock('next/link', () => ({
     <a href={href} className={className}>{children}</a>
   ),
 }));
+
+vi.mock('@/lib/audio/audioEngine', async () => {
+  const { createMockAudioEngine } = await import('@/lib/audio/__tests__/mockAudioEngine');
+  return { audioEngine: createMockAudioEngine() };
+});
+
+import { audioEngine } from '@/lib/audio/audioEngine';
+import type { MockAudioEngine } from '@/lib/audio/__tests__/mockAudioEngine';
+const engineMock = audioEngine as unknown as MockAudioEngine;
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
 
 function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
   return {
@@ -40,24 +53,9 @@ function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
 describe('StudyScreen', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
-      configurable: true,
-      value: vi.fn().mockResolvedValue(undefined),
-    });
-    Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
-      configurable: true,
-      value: vi.fn(),
-    });
-    Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
-      configurable: true,
-      writable: true,
-      value: 0,
-    });
-    Object.defineProperty(HTMLMediaElement.prototype, 'playbackRate', {
-      configurable: true,
-      writable: true,
-      value: 1,
-    });
+    engineMock._reset();
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0 as unknown as ReturnType<typeof requestAnimationFrame>);
+    vi.spyOn(window, 'cancelAnimationFrame').mockReturnValue(undefined);
   });
 
   it('renders the anchor card immediately and shows a loading state while fetching', () => {
@@ -170,9 +168,7 @@ describe('StudyScreen', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
 
-    const audio = document.querySelector('audio') as HTMLAudioElement;
-    expect(audio.currentTime).toBe(1);
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(engineMock.play).toHaveBeenCalledWith(1); // 1000ms / 1000 = 1s
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Stop audio' })).toBeInTheDocument();
     });
@@ -182,10 +178,6 @@ describe('StudyScreen', () => {
     vi.spyOn(global, 'fetch').mockImplementation(
       () => new Promise(() => undefined) as Promise<Response>
     );
-    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
-      configurable: true,
-      value: vi.fn(() => new Promise(() => undefined)),
-    });
 
     render(
       <StudyScreen
@@ -220,12 +212,10 @@ describe('StudyScreen', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
 
-    const audio = document.querySelector('audio') as HTMLAudioElement;
-    audio.currentTime = 3.5;
-    fireEvent(audio, new Event('timeupdate'));
+    // Advance time past chunk endMs (3400ms → 3.4s)
+    act(() => { engineMock._setTime(3.5); });
 
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
-    expect(audio.currentTime).toBe(1);
+    expect(engineMock.pause).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Play audio' })).toBeInTheDocument();
   });
 
@@ -246,24 +236,17 @@ describe('StudyScreen', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
-    const audio = document.querySelector('audio') as HTMLAudioElement;
-    audio.currentTime = 2.2;
-
+    act(() => { engineMock._setTime(2.2); });
     fireEvent.click(await screen.findByRole('button', { name: 'Stop audio' }));
 
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
-    expect(audio.currentTime).toBe(1);
+    expect(engineMock.pause).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Play audio' })).toBeInTheDocument();
   });
 
-  it('shows an error when audio.play() rejects', async () => {
+  it('shows an error when the engine fails to load audio', async () => {
     vi.spyOn(global, 'fetch').mockImplementation(
       () => new Promise(() => undefined) as Promise<Response>
     );
-    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
-      configurable: true,
-      value: vi.fn().mockRejectedValue(new DOMException('blocked', 'NotAllowedError')),
-    });
 
     render(
       <StudyScreen
@@ -275,10 +258,10 @@ describe('StudyScreen', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Play audio' }));
+    act(() => { engineMock._setError('Audio fetch failed: 403'); });
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/could not play this chunk audio/i);
+      expect(screen.getByRole('alert')).toHaveTextContent(/403/i);
     });
   });
 
@@ -306,7 +289,6 @@ describe('StudyScreen', () => {
 
     await screen.findByRole('button', { name: 'Vocabulary' });
     const items = screen.getAllByText('きれい');
-    // Only the japanese text should appear — not duplicated as a reading
     expect(items).toHaveLength(1);
   });
 
@@ -402,7 +384,6 @@ describe('StudyScreen', () => {
     const structureToggle = await screen.findByRole('button', { name: 'Grammar' });
     fireEvent.click(structureToggle);
     const items = screen.getAllByText('てみる');
-    // Only the pattern text should appear — not duplicated as a reading
     expect(items).toHaveLength(1);
   });
 
@@ -518,18 +499,16 @@ describe('StudyScreen', () => {
         />
       );
 
-      const audio = document.querySelector('audio') as HTMLAudioElement;
-
       fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 1×' }));
-      expect(audio.playbackRate).toBe(0.75);
+      expect(engineMock.setPlaybackRate).toHaveBeenLastCalledWith(0.75);
       expect(screen.getByRole('button', { name: 'Playback speed: 0.75×' })).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 0.75×' }));
-      expect(audio.playbackRate).toBe(0.5);
+      expect(engineMock.setPlaybackRate).toHaveBeenLastCalledWith(0.5);
       expect(screen.getByRole('button', { name: 'Playback speed: 0.5×' })).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 0.5×' }));
-      expect(audio.playbackRate).toBe(1);
+      expect(engineMock.setPlaybackRate).toHaveBeenLastCalledWith(1);
       expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
     });
 
@@ -545,12 +524,13 @@ describe('StudyScreen', () => {
       );
 
       fireEvent.click(screen.getByRole('button', { name: 'Playback speed: 1×' }));
+      expect(engineMock.setPlaybackRate).toHaveBeenLastCalledWith(0.75);
+
       fireEvent.click(screen.getByRole('button', { name: 'Play audio' }));
       await screen.findByRole('button', { name: 'Stop audio' });
       fireEvent.click(screen.getByRole('button', { name: 'Stop audio' }));
 
       expect(screen.getByRole('button', { name: 'Playback speed: 0.75×' })).toBeInTheDocument();
-      expect(document.querySelector('audio')!.playbackRate).toBe(0.75);
     });
   });
 

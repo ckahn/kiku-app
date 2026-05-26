@@ -11,6 +11,7 @@ interface PlayerControlsProps {
   readonly onForward: () => void;
   readonly onToggleLoop: () => void;
   readonly onRestart: () => void;
+  readonly disabled?: boolean;
 }
 
 const PLAYER_CONTROL_BUTTON_CLASS = 'cursor-pointer p-3 transition-colors sm:p-1.5';
@@ -24,6 +25,7 @@ export default function PlayerControls({
   onForward,
   onToggleLoop,
   onRestart,
+  disabled = false,
 }: PlayerControlsProps) {
   return (
     <div className="flex items-center justify-between w-full sm:w-auto sm:justify-start sm:gap-1">
@@ -31,7 +33,8 @@ export default function PlayerControls({
         type="button"
         onClick={onRestart}
         aria-label="Restart"
-        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded text-muted hover:bg-canvas-subtle hover:text-ink`}
+        disabled={disabled}
+        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded text-muted hover:bg-canvas-subtle hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed`}
       >
         <SkipBack className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
@@ -39,7 +42,8 @@ export default function PlayerControls({
         type="button"
         onClick={onRewind}
         aria-label="Rewind 5 seconds"
-        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded text-muted hover:bg-canvas-subtle hover:text-ink`}
+        disabled={disabled}
+        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded text-muted hover:bg-canvas-subtle hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed`}
       >
         <Rewind className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
@@ -47,7 +51,8 @@ export default function PlayerControls({
         type="button"
         onClick={isPlaying ? onPause : onPlay}
         aria-label={isPlaying ? 'Pause' : 'Play'}
-        className="cursor-pointer rounded-full bg-primary p-3 text-white transition-colors hover:bg-primary-hover sm:p-2"
+        disabled={disabled}
+        className="cursor-pointer rounded-full bg-primary p-3 text-white transition-colors hover:bg-primary-hover sm:p-2 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {isPlaying ? (
           <Pause className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
@@ -59,7 +64,8 @@ export default function PlayerControls({
         type="button"
         onClick={onForward}
         aria-label="Forward 5 seconds"
-        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded text-muted hover:bg-canvas-subtle hover:text-ink`}
+        disabled={disabled}
+        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded text-muted hover:bg-canvas-subtle hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed`}
       >
         <FastForward className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
@@ -68,7 +74,8 @@ export default function PlayerControls({
         onClick={onToggleLoop}
         aria-label="Toggle loop"
         aria-pressed={isLooping}
-        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded ${
+        disabled={disabled}
+        className={`${PLAYER_CONTROL_BUTTON_CLASS} rounded disabled:opacity-40 disabled:cursor-not-allowed ${
           isLooping
             ? 'text-primary bg-primary-subtle'
             : 'text-muted hover:bg-canvas-subtle hover:text-ink'
