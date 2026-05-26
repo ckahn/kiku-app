@@ -119,7 +119,17 @@ export class AudioEngine {
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.value = this._playbackRate;
-    source.connect(ctx.destination);
+    if (this._playbackRate !== 1 && this._workletLoaded) {
+      const pitchNode = new SoundTouchNode({ context: ctx });
+      // Telling SoundTouch the playbackRate lets it auto-compensate pitch so
+      // the output plays at the right speed but retains the original pitch.
+      pitchNode.playbackRate.value = this._playbackRate;
+      source.connect(pitchNode);
+      pitchNode.connect(ctx.destination);
+      this._pitchNode = pitchNode;
+    } else {
+      source.connect(ctx.destination);
+    }
     source.onended = () => {
       // onended fires on natural end AND on explicit stop(). Distinguish by
       // checking whether we are still tracking this node as current.
