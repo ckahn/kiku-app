@@ -10,6 +10,7 @@ import type { StudyGuideContent } from '@/lib/api/types';
 import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
+import { CHUNK_PLAYBACK_OFFSET_SEC } from '@/lib/constants';
 
 // LLM sometimes echoes kana words as their own reading — skip when redundant
 function hasDistinctReading(reading: string | undefined, text: string): boolean {
@@ -159,7 +160,7 @@ export default function StudyScreen({
   // Enforce chunk boundary: loop or stop when currentTime passes endMs
   useEffect(() => {
     if (!engine.isPlaying || engine.currentTime < chunk.endMs / 1000) return;
-    audioEngine.seek(chunk.startMs / 1000);
+    audioEngine.seek(Math.max(0, chunk.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC));
     if (!isLooping) {
       audioEngine.pause();
       setIsPlaying(false);
@@ -167,7 +168,7 @@ export default function StudyScreen({
   }, [engine.currentTime, engine.isPlaying, isLooping, chunk]);
 
   const stopPlayback = useCallback(() => {
-    audioEngine.seek(chunk.startMs / 1000);
+    audioEngine.seek(Math.max(0, chunk.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC));
     audioEngine.pause();
     setIsPlaying(false);
   }, [chunk.startMs]);
@@ -176,7 +177,7 @@ export default function StudyScreen({
     setErrorMessage(null);
     setIsPlaying(true);
     audioEngine.unlock();
-    audioEngine.play(chunk.startMs / 1000);
+    audioEngine.play(Math.max(0, chunk.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC));
   }
 
   function cyclePlaybackRate() {

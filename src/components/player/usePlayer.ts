@@ -6,6 +6,7 @@ import { playerReducer, initialPlayerState } from './playerReducer';
 import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
+import { CHUNK_PLAYBACK_OFFSET_SEC } from '@/lib/constants';
 
 export type PlayerControls = {
   play: () => void;
@@ -75,7 +76,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
         loopChunkRef.current =
           chunksRef.current.find((c) => t >= c.startMs / 1000 && t < c.endMs / 1000) ?? null;
       } else if (t >= loopChunkRef.current.endMs / 1000) {
-        audioEngine.seek(loopChunkRef.current.startMs / 1000);
+        audioEngine.seek(Math.max(0, loopChunkRef.current.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC));
       }
     } else if (!stateRef.current.isLooping) {
       loopChunkRef.current = null;
@@ -88,7 +89,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
   useEffect(() => {
     return audioEngine.subscribeToEnd(() => {
       if (stateRef.current.isLooping && loopChunkRef.current) {
-        audioEngine.play(loopChunkRef.current.startMs / 1000);
+        audioEngine.play(Math.max(0, loopChunkRef.current.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC));
       }
     });
   }, []);
@@ -156,7 +157,7 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
     seekToChunk: useCallback((chunkId: number) => {
       const chunk = chunks.find((c) => c.id === chunkId);
       if (chunk) {
-        const startSec = chunk.startMs / 1000;
+        const startSec = Math.max(0, chunk.startMs / 1000 - CHUNK_PLAYBACK_OFFSET_SEC);
         audioEngine.seek(startSec);
         loopChunkRef.current = chunk;
         // Update state synchronously so the active-chunk highlight applies
