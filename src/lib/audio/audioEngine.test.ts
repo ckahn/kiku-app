@@ -345,6 +345,37 @@ describe('AudioEngine', () => {
       const fresh = new AudioEngine();
       expect(() => fresh.seek(5)).not.toThrow();
     });
+
+    it('pending seek applied to startOffset when buffer finishes loading', async () => {
+      // Simulates: user refreshes, restore effect calls seekToChunk before buffer loads
+      const fresh = new AudioEngine();
+      fresh.unlock();
+
+      let resolveLoad!: (b: AudioBuffer) => void;
+      mockCtx.decodeAudioData = vi.fn().mockReturnValue(
+        new Promise<AudioBuffer>((resolve) => { resolveLoad = resolve; }),
+      );
+
+      const loadPromise = fresh.load('/audio/ep1.mp3');
+      // Buffer not ready yet — seek should queue rather than no-op
+      fresh.seek(4);
+      expect(fresh.currentTime).toBe(0); // engine doesn't know position yet
+
+      // Now let the buffer finish loading
+      resolveLoad(makeMockAudioBuffer(10));
+      await loadPromise;
+
+      // startOffset should now reflect the queued seek
+      expect(fresh.currentTime).toBe(4);
+    });
+
+    it('seek while playing still works normally after a previous pending seek', async () => {
+      engine.play(2);
+      engine.seek(6);
+
+      expect(engine.isPlaying).toBe(true);
+      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 6);
+    });
   });
 
   // -------------------------------------------------------------------------

@@ -20,6 +20,7 @@ export class AudioEngine {
   private _startOffset = 0;       // seconds into the buffer when play began
   private _startedAt = 0;         // ctx.currentTime when play began
   private _playbackRate = 1;
+  private _pendingSeek: number | null = null;
   private _subscribers = new Set<() => void>();
   private _endSubscribers = new Set<() => void>();
   private _loadingUrl: string | null = null;
@@ -74,6 +75,10 @@ export class AudioEngine {
       this._cache = { url, buffer };
       this._status = 'ready';
       this._loadingUrl = null;
+      if (this._pendingSeek !== null) {
+        this._startOffset = Math.max(0, Math.min(buffer.duration, this._pendingSeek));
+        this._pendingSeek = null;
+      }
       this._notify();
     } catch (err: unknown) {
       if (this._loadingUrl !== url) return;
@@ -142,7 +147,11 @@ export class AudioEngine {
 
   seek(sec: number): void {
     const buffer = this._cache?.buffer;
-    if (!buffer) return;
+    if (!buffer) {
+      this._pendingSeek = sec;
+      return;
+    }
+    this._pendingSeek = null;
     const clamped = Math.max(0, Math.min(buffer.duration, sec));
     if (this._isPlaying) {
       this.play(clamped);
