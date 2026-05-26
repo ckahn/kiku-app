@@ -59,8 +59,10 @@ export class AudioEngine {
     if (this._workletLoading) return this._workletLoading;
     const loading = import('@soundtouchjs/audio-worklet').then(({ SoundTouchNode }) => {
       this._SoundTouchNode = SoundTouchNode;
-      const processorUrl = new URL('@soundtouchjs/audio-worklet/processor', import.meta.url);
-      return SoundTouchNode.register(ctx, processorUrl);
+      // Reference the processor by its public/ path. new URL(bareSpecifier,
+      // import.meta.url) does not resolve package exports — it produces a
+      // path relative to the bundle file which 404s in production.
+      return SoundTouchNode.register(ctx, '/soundtouch-processor.js');
     })
       .then(() => { this._workletLoaded = true; this._workletLoading = null; })
       .catch((err: unknown) => {
