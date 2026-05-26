@@ -7,6 +7,7 @@ export interface MockAudioEngineState {
   isPlaying: boolean;
   error: string | null;
   status: AudioStatus;
+  workletReady: boolean;
 }
 
 export interface MockAudioEngine {
@@ -23,6 +24,7 @@ export interface MockAudioEngine {
   _setIsPlaying: (v: boolean) => void;
   _setError: (e: string | null) => void;
   _setStatus: (s: AudioStatus) => void;
+  _setWorkletReady: (v: boolean) => void;
   _triggerNaturalEnd: () => void;
   _reset: () => void;
   readonly currentTime: number;
@@ -30,6 +32,7 @@ export interface MockAudioEngine {
   readonly status: AudioStatus;
   readonly isPlaying: boolean;
   readonly error: string | null;
+  readonly workletReady: boolean;
 }
 
 export function createMockAudioEngine(): MockAudioEngine {
@@ -38,6 +41,7 @@ export function createMockAudioEngine(): MockAudioEngine {
     isPlaying: false,
     error: null,
     status: 'ready',
+    workletReady: true,
   };
   const generalSubs = new Set<() => void>();
   const endSubs = new Set<() => void>();
@@ -75,6 +79,7 @@ export function createMockAudioEngine(): MockAudioEngine {
     _setIsPlaying(v: boolean) { state.isPlaying = v; notifyGeneral(); },
     _setError(e: string | null) { state.error = e; notifyGeneral(); },
     _setStatus(s: AudioStatus) { state.status = s; notifyGeneral(); },
+    _setWorkletReady(v: boolean) { state.workletReady = v; notifyGeneral(); },
     _triggerNaturalEnd() {
       state.isPlaying = false;
       notifyGeneral();
@@ -85,6 +90,7 @@ export function createMockAudioEngine(): MockAudioEngine {
       state.isPlaying = false;
       state.error = null;
       state.status = 'ready';
+      state.workletReady = true;
       generalSubs.clear();
       endSubs.clear();
       vi.clearAllMocks();
@@ -94,6 +100,7 @@ export function createMockAudioEngine(): MockAudioEngine {
     get status() { return state.status; },
     get isPlaying() { return state.isPlaying; },
     get error() { return state.error; },
+    get workletReady() { return state.workletReady; },
   };
 
   return mock;

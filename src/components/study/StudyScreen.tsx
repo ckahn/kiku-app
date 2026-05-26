@@ -271,8 +271,9 @@ export default function StudyScreen({
               <button
                 type="button"
                 onClick={cyclePlaybackRate}
+                disabled={!engine.workletReady}
                 aria-label={`Playback speed: ${playbackRate}×`}
-                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md text-xs font-medium tabular-nums ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md text-xs font-medium tabular-nums ${!engine.workletReady ? 'opacity-40 cursor-not-allowed text-muted' : playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 {playbackRate}×
               </button>

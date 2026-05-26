@@ -578,6 +578,21 @@ describe('AudioEngine', () => {
       expect(CtorMock).toHaveBeenCalledTimes(1);
     });
 
+    it('workletReady is false before unlock() and true after it resolves', async () => {
+      const fresh = new AudioEngine();
+      expect(fresh.workletReady).toBe(false);
+      await fresh.unlock();
+      expect(fresh.workletReady).toBe(true);
+    });
+
+    it('notifies subscribers when the worklet finishes loading', async () => {
+      const fresh = new AudioEngine();
+      const fn = vi.fn();
+      fresh.subscribe(fn);
+      await fresh.unlock();
+      expect(fn).toHaveBeenCalled();
+    });
+
     it('calls ctx.resume() when the context is suspended', () => {
       mockCtx.state = 'suspended';
       engine.unlock(); // creates context

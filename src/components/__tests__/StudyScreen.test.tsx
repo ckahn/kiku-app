@@ -512,6 +512,25 @@ describe('StudyScreen', () => {
       expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeInTheDocument();
     });
 
+    it('speed button is disabled while worklet is loading and enabled once ready', () => {
+      engineMock._setWorkletReady(false);
+      render(
+        <StudyScreen
+          chunk={makeChunk()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+
+      expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).toBeDisabled();
+
+      act(() => { engineMock._setWorkletReady(true); });
+
+      expect(screen.getByRole('button', { name: 'Playback speed: 1×' })).not.toBeDisabled();
+    });
+
     it('retains selected speed across play/stop cycles within the same segment', async () => {
       render(
         <StudyScreen

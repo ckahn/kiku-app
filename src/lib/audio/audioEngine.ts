@@ -64,7 +64,7 @@ export class AudioEngine {
       // path relative to the bundle file which 404s in production.
       return SoundTouchNode.register(ctx, '/soundtouch-processor.js');
     })
-      .then(() => { this._workletLoaded = true; this._workletLoading = null; })
+      .then(() => { this._workletLoaded = true; this._workletLoading = null; this._notify(); })
       .catch((err: unknown) => {
         this._workletLoading = null;
         // Pitch correction will silently fall back to uncompensated playback;
@@ -244,6 +244,10 @@ export class AudioEngine {
 
   get error(): string | null {
     return this._error;
+  }
+
+  get workletReady(): boolean {
+    return this._workletLoaded;
   }
 
   private _stopSource(): void {
