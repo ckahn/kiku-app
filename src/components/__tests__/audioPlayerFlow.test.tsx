@@ -59,7 +59,7 @@ describe('click chunk → seek to start', () => {
     );
     const items = screen.getAllByRole('listitem');
     fireEvent.click(items[1]); // click chunk 2
-    expect(engineMock.seek).toHaveBeenCalledWith(5); // 5000ms / 1000
+    expect(engineMock.seek).toHaveBeenCalledWith(4.9); // 5000ms / 1000 - 0.1s offset
   });
 
   it('clicking chunk 1 seeks to 0', () => {

@@ -168,7 +168,7 @@ describe('StudyScreen', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
 
-    expect(engineMock.play).toHaveBeenCalledWith(1); // 1000ms / 1000 = 1s
+    expect(engineMock.play).toHaveBeenCalledWith(0.9); // 1000ms / 1000 - 0.1s offset
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Stop audio' })).toBeInTheDocument();
     });
