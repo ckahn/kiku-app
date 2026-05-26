@@ -173,15 +173,10 @@ export default function StudyScreen({
   }, [chunk.startMs]);
 
   function playFromChunkStart() {
-    try {
-      setErrorMessage(null);
-      setIsPlaying(true);
-      audioEngine.unlock();
-      audioEngine.play(chunk.startMs / 1000);
-    } catch {
-      setIsPlaying(false);
-      setErrorMessage('Could not play this chunk audio.');
-    }
+    setErrorMessage(null);
+    setIsPlaying(true);
+    audioEngine.unlock();
+    audioEngine.play(chunk.startMs / 1000);
   }
 
   function cyclePlaybackRate() {
