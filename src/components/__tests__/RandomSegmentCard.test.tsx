@@ -67,9 +67,7 @@ describe('RandomSegmentCard', () => {
     expect(screen.getByRole('button', { name: 'Show a different random segment' })).toBeInTheDocument();
   });
 
-  it('resets isPlaying when load() resolves but engine status is still loading', async () => {
-    // Simulate the engine still decoding (same URL in-flight): load() resolves
-    // early but status remains 'loading', so play() would be a silent no-op.
+  it('shows buffering spinner and queues play when buffer is still loading on click', async () => {
     engineMock._setStatus('loading');
 
     render(<RandomSegmentCard initialSegment={SEGMENT} />);
@@ -77,7 +75,36 @@ describe('RandomSegmentCard', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
     });
 
+    // play() not called yet — buffering spinner should be visible
     expect(engineMock.play).not.toHaveBeenCalled();
+    // Button label stays 'Stop' (aria) while buffering — UI should not revert to Play
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+  });
+
+  it('auto-plays at segment start when buffer becomes ready after a queued click', async () => {
+    engineMock._setStatus('loading');
+
+    render(<RandomSegmentCard initialSegment={SEGMENT} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+
+    // Buffer finishes loading
+    act(() => { engineMock._setStatus('ready'); });
+
+    expect(engineMock.play).toHaveBeenCalledWith(SEGMENT.startMs / 1000);
+  });
+
+  it('resets isPlaying when load errors while a play is queued', async () => {
+    engineMock._setStatus('loading');
+
+    render(<RandomSegmentCard initialSegment={SEGMENT} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+
+    act(() => { engineMock._setError('Audio fetch failed: 404'); });
+
     expect(screen.getByRole('button', { name: 'Play segment' })).toBeInTheDocument();
   });
 

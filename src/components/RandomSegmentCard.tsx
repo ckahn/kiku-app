@@ -25,9 +25,27 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
 
   const studyHref = `/podcasts/${segment.podcastSlug}/episodes/${segment.episodeNumber}/segments/${segment.chunkIndex}/study`;
 
+  // When user clicks Play before the buffer is ready, queue the play here so
+  // the auto-play effect below can fire it once the buffer finishes loading.
+  const pendingPlayRef = useRef(false);
+
+  // Auto-play as soon as the buffer is ready if one was queued.
+  useEffect(() => {
+    if (engine.status === 'ready' && pendingPlayRef.current) {
+      pendingPlayRef.current = false;
+      audioEngine.play(segment.startMs / 1000);
+    }
+  }, [engine.status, segment.startMs]);
+
+  // Reset UI if loading fails while a play is queued.
+  useEffect(() => {
+    if (engine.error && pendingPlayRef.current) {
+      pendingPlayRef.current = false;
+      setIsPlaying(false);
+    }
+  }, [engine.error]);
+
   // Sync external stops (engine file ended, etc.) back to local state.
-  // Only depends on engine.isPlaying so the optimistic setIsPlaying(true) from
-  // handlePlayPause doesn't trigger this before the load promise resolves.
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
   useEffect(() => {
@@ -52,20 +70,19 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     audioEngine.unlock();
 
     if (isPlaying) {
+      pendingPlayRef.current = false;
       audioEngine.pause();
       setIsPlaying(false);
     } else {
       setIsPlaying(true);
-      // load() is idempotent — no-op if already loaded for this URL.
-      // If it returns early (same URL still in-flight), the buffer won't be
-      // ready yet and play() would silently no-op, leaving isPlaying stuck true.
-      void audioEngine.load(audioUrl).then(() => {
-        if (audioEngine.status === 'ready') {
-          audioEngine.play(segment.startMs / 1000);
-        } else {
-          setIsPlaying(false);
-        }
-      });
+      if (audioEngine.status === 'ready') {
+        audioEngine.play(segment.startMs / 1000);
+      } else {
+        // Buffer still loading (or errored) — queue play and trigger/retry load.
+        // The auto-play effect above fires it once status becomes 'ready'.
+        pendingPlayRef.current = true;
+        void audioEngine.load(audioUrl);
+      }
     }
   }
 
@@ -74,6 +91,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     e.stopPropagation();
 
     audioEngine.pause();
+    pendingPlayRef.current = false;
     setIsPlaying(false);
     setShuffleError(false);
     setIsLoading(true);
