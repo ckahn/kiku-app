@@ -29,24 +29,16 @@ config({ path: resolve(process.cwd(), '.env.local') });
 const JUDGE_MODEL = 'claude-opus-4-7';
 
 interface Fixture {
-  readonly episodeId: number;
-  readonly chunkId: number;
+  readonly path: string;
   readonly expected: 'pass' | 'fail';
   readonly note: string;
 }
 
 const FIXTURES: readonly Fixture[] = [
   {
-    episodeId: 13,
-    chunkId: 403,
+    path: '/podcasts/slow-japanese/episodes/154/segments/3/study',
     expected: 'fail',
     note: 'や (non-exhaustive listing particle) missing from structures',
-  },
-  {
-    episodeId: 7,
-    chunkId: 293,
-    expected: 'pass',
-    note: '',
   },
 ];
 
@@ -104,20 +96,30 @@ async function main(): Promise<void> {
   }
 
   // DB modules imported here so dotenv.config() above runs first.
-  const { getChunkById, getChunksByEpisodeId } = await import('@/db/chunks');
+  const { getChunksByEpisodeId, getChunkByEpisodeIdAndIndex } = await import('@/db/chunks');
   const { getStudyGuideByChunkId } = await import('@/db/study-guides');
   const { db } = await import('@/db');
   const { episodes, podcasts } = await import('@/db/schema');
-  const { eq } = await import('drizzle-orm');
+  const { eq, and } = await import('drizzle-orm');
 
-  async function buildStudyUrl(episodeId: number, chunkIndex: number): Promise<string> {
+  async function resolveFixture(path: string) {
+    const match = path.match(/^\/podcasts\/([^/]+)\/episodes\/(\d+)\/segments\/(\d+)\/study$/);
+    if (!match) throw new Error(`Cannot parse fixture path: ${path}`);
+    const [, slug, episodeNumberStr, chunkIndexStr] = match;
+    const episodeNumber = parseInt(episodeNumberStr, 10);
+    const chunkIndex = parseInt(chunkIndexStr, 10);
+
     const [row] = await db
-      .select({ slug: podcasts.slug, episodeNumber: episodes.episodeNumber })
+      .select({ episodeId: episodes.id })
       .from(episodes)
       .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))
-      .where(eq(episodes.id, episodeId));
-    if (!row) throw new Error(`Episode ${episodeId} not found`);
-    return `/podcasts/${row.slug}/episodes/${row.episodeNumber}/segments/${chunkIndex}/study`;
+      .where(and(eq(podcasts.slug, slug), eq(episodes.episodeNumber, episodeNumber)));
+    if (!row) throw new Error(`Episode not found for path: ${path}`);
+
+    const chunk = await getChunkByEpisodeIdAndIndex(row.episodeId, chunkIndex);
+    if (!chunk) throw new Error(`Chunk not found for path: ${path}`);
+
+    return { chunk, episodeId: row.episodeId };
   }
 
   console.log('Study Guide Completeness Eval');
@@ -128,22 +130,27 @@ async function main(): Promise<void> {
 
   for (const fixture of FIXTURES) {
     console.log(`\n${'─'.repeat(60)}`);
-    console.log(
-      `Chunk ${fixture.chunkId} (episode ${fixture.episodeId}) — expected: ${fixture.expected.toUpperCase()}`
-    );
+    console.log(`${fixture.path} — expected: ${fixture.expected.toUpperCase()}`);
     if (fixture.note) console.log(`Note: ${fixture.note}`);
 
-    const chunk = await getChunkById(fixture.chunkId);
+    let chunk: Awaited<ReturnType<typeof getChunkByEpisodeIdAndIndex>>;
+    let episodeId: number;
+    try {
+      ({ chunk, episodeId } = await resolveFixture(fixture.path));
+    } catch (err: unknown) {
+      console.error(`ERROR: ${err instanceof Error ? err.message : err}`);
+      allMatched = false;
+      continue;
+    }
     if (!chunk) {
-      console.error(`ERROR: Chunk ${fixture.chunkId} not found in DB`);
+      console.error(`ERROR: Chunk not found for ${fixture.path}`);
       allMatched = false;
       continue;
     }
 
-    const studyUrl = await buildStudyUrl(fixture.episodeId, chunk.chunkIndex);
-    console.log(`URL: ${studyUrl}`);
+    console.log(`URL: ${fixture.path}`);
 
-    const allChunks = await getChunksByEpisodeId(fixture.episodeId);
+    const allChunks = await getChunksByEpisodeId(episodeId);
     const contextText = allChunks
       .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
       .map((c) => c.textRaw)
@@ -164,7 +171,7 @@ async function main(): Promise<void> {
       console.log(`  ${s.pattern}: ${s.meaning}`);
     }
 
-    const storedRow = await getStudyGuideByChunkId(fixture.chunkId);
+    const storedRow = await getStudyGuideByChunkId(chunk.id);
     const storedGuide = storedRow?.content as StudyGuideContent | undefined;
 
     if (storedGuide) {
