@@ -606,7 +606,7 @@ describe('StudyScreen', () => {
         />
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /transcript/i }));
+      fireEvent.click(screen.getByRole('button', { name: /full episode/i }));
 
       expect(saveSpy).toHaveBeenLastCalledWith({
         episodeHref: '/podcasts/slow-japanese/episodes/7',
