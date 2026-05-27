@@ -7,12 +7,16 @@ import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
 import { STUDY_GUIDE_CONTEXT_CHUNKS } from '@/lib/constants';
 import type { StudyGuideContent } from '@/lib/api/types';
 
-export async function generateAndSaveStudyGuide(chunk: Chunk): Promise<StudyGuideContent> {
-  const episodeChunks = await getChunksByEpisodeId(chunk.episodeId);
-  const contextText = episodeChunks
+export async function buildStudyGuideContext(episodeId: number): Promise<string> {
+  const episodeChunks = await getChunksByEpisodeId(episodeId);
+  return episodeChunks
     .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
     .map((c) => c.textRaw)
     .join('\n');
+}
+
+export async function generateAndSaveStudyGuide(chunk: Chunk): Promise<StudyGuideContent> {
+  const contextText = await buildStudyGuideContext(chunk.episodeId);
 
   const result = normalizeStudyGuideVocabularySurfaces(
     parseStudyGuideContent(await generateStudyGuideFromProvider(chunk.textRaw, contextText))
