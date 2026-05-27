@@ -20,7 +20,6 @@ import { generateText, Output } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
-import { STUDY_GUIDE_CONTEXT_CHUNKS } from '@/lib/constants';
 import type { StudyGuideContent } from '@/lib/api/types';
 
 // Must run before DB modules are imported — db/index.ts reads env at init time.
@@ -96,7 +95,8 @@ async function main(): Promise<void> {
   }
 
   // DB modules imported here so dotenv.config() above runs first.
-  const { getChunksByEpisodeId, getChunkByEpisodeIdAndIndex } = await import('@/db/chunks');
+  const { getChunkByEpisodeIdAndIndex } = await import('@/db/chunks');
+  const { buildStudyGuideContext } = await import('@/lib/api/study-guide-service');
   const { getStudyGuideByChunkId } = await import('@/db/study-guides');
   const { db } = await import('@/db');
   const { episodes, podcasts } = await import('@/db/schema');
@@ -145,16 +145,12 @@ async function main(): Promise<void> {
 
     console.log(`URL: ${fixture.path}`);
 
-    const allChunks = await getChunksByEpisodeId(episodeId);
-    if (allChunks.length === 0) {
+    const contextText = await buildStudyGuideContext(episodeId);
+    if (!contextText) {
       console.error(`ERROR: Episode has no chunks for ${fixture.path}`);
       allMatched = false;
       continue;
     }
-    const contextText = allChunks
-      .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
-      .map((c) => c.textRaw)
-      .join('\n');
 
     console.log(`\nChunk text:\n${chunk.textRaw}`);
 
