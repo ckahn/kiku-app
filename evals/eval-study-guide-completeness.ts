@@ -142,15 +142,15 @@ async function main(): Promise<void> {
       allMatched = false;
       continue;
     }
-    if (!chunk) {
-      console.error(`ERROR: Chunk not found for ${fixture.path}`);
-      allMatched = false;
-      continue;
-    }
 
     console.log(`URL: ${fixture.path}`);
 
     const allChunks = await getChunksByEpisodeId(episodeId);
+    if (allChunks.length === 0) {
+      console.error(`ERROR: Episode has no chunks for ${fixture.path}`);
+      allMatched = false;
+      continue;
+    }
     const contextText = allChunks
       .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
       .map((c) => c.textRaw)
