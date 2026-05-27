@@ -212,7 +212,7 @@ export default function StudyScreen({
           onClick={handleBack}
           className="inline-flex min-h-11 min-w-11 cursor-pointer items-center gap-1 text-sm text-muted transition-colors hover:text-ink"
         >
-          ← Transcript
+          ← Full episode
         </button>
       </div>
 
