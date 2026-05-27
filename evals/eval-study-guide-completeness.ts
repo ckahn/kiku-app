@@ -106,6 +106,19 @@ async function main(): Promise<void> {
   // DB modules imported here so dotenv.config() above runs first.
   const { getChunkById, getChunksByEpisodeId } = await import('@/db/chunks');
   const { getStudyGuideByChunkId } = await import('@/db/study-guides');
+  const { db } = await import('@/db');
+  const { episodes, podcasts } = await import('@/db/schema');
+  const { eq } = await import('drizzle-orm');
+
+  async function buildStudyUrl(episodeId: number, chunkIndex: number): Promise<string> {
+    const [row] = await db
+      .select({ slug: podcasts.slug, episodeNumber: episodes.episodeNumber })
+      .from(episodes)
+      .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))
+      .where(eq(episodes.id, episodeId));
+    if (!row) throw new Error(`Episode ${episodeId} not found`);
+    return `/podcasts/${row.slug}/episodes/${row.episodeNumber}/segments/${chunkIndex}/study`;
+  }
 
   console.log('Study Guide Completeness Eval');
   console.log(`Judge model: ${JUDGE_MODEL}`);
@@ -126,6 +139,9 @@ async function main(): Promise<void> {
       allMatched = false;
       continue;
     }
+
+    const studyUrl = await buildStudyUrl(fixture.episodeId, chunk.chunkIndex);
+    console.log(`URL: ${studyUrl}`);
 
     const allChunks = await getChunksByEpisodeId(fixture.episodeId);
     const contextText = allChunks
