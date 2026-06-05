@@ -8,9 +8,10 @@ import { Button, Input } from '@/components/ui';
 interface EpisodeUploadFormProps {
   podcastId: string;
   podcastSlug: string;
+  onClose?: () => void;
 }
 
-export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUploadFormProps) {
+export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: EpisodeUploadFormProps) {
   const router = useRouter();
   const [episodeNumber, setEpisodeNumber] = useState('');
   const [title, setTitle] = useState('');
@@ -45,6 +46,7 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUpl
         throw new Error(json.error ?? `Upload failed (${res.status})`);
       }
       const episode = json.data;
+      onClose?.();
       router.push(`/podcasts/${podcastSlug}/episodes/${episode.episodeNumber}`);
     } catch (err: unknown) {
       setError(getErrorMessage(err));
@@ -54,7 +56,7 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUpl
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 mb-4">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <Input
         type="number"
         value={episodeNumber}

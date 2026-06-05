@@ -92,6 +92,23 @@ describe('EpisodeUploadForm', () => {
     );
   });
 
+  it('calls onClose on a successful upload', async () => {
+    mockUpload.mockResolvedValueOnce({ url: 'https://blob.vercel-storage.com/ep1.mp3' });
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, data: { episodeNumber: 3 } }),
+    } as Response);
+    const onClose = vi.fn();
+
+    const { container } = render(
+      <EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={onClose} />
+    );
+    fillAndSubmit(container, { episodeNumber: '3', file: makeFile('ep1.mp3') });
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalled());
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('shows error when blob upload fails', async () => {
     mockUpload.mockRejectedValueOnce(new Error('Blob upload failed'));
     const fetchSpy = vi.spyOn(global, 'fetch');

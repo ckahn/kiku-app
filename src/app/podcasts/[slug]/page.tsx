@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { podcasts, episodes } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import EpisodeList from '@/components/EpisodeList';
-import EpisodeUploadForm from '@/components/EpisodeUploadForm';
+import AddEpisodeButton from '@/components/AddEpisodeButton';
 import { PageShell } from '@/components/layout';
 import PodcastActionMenu from '@/components/PodcastActionMenu';
 
@@ -40,24 +40,18 @@ export default async function PodcastPage({
         />
       </div>
 
-      <div className="mb-8">
-        <h2 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">
-          Upload episode
-        </h2>
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <EpisodeUploadForm podcastId={String(podcast.id)} podcastSlug={slug} />
-        </div>
-      </div>
-
       <div>
-        <h2 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">
-          Episodes
-          {episodeList.length > 0 && (
-            <span className="ml-2 text-xs font-normal text-muted normal-case tracking-normal">
-              {episodeList.length}
-            </span>
-          )}
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-ink uppercase tracking-wider">
+            Episodes
+            {episodeList.length > 0 && (
+              <span className="ml-2 text-xs font-normal text-muted normal-case tracking-normal">
+                {episodeList.length}
+              </span>
+            )}
+          </h2>
+          <AddEpisodeButton podcastId={String(podcast.id)} podcastSlug={slug} />
+        </div>
         <EpisodeList episodes={episodeList} podcastSlug={slug} />
       </div>
     </PageShell>
