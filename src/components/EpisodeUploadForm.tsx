@@ -95,9 +95,16 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: E
       {error && (
         <p className="text-xs text-error-on-subtle">{error}</p>
       )}
-      <Button type="submit" disabled={loading || !file} loading={loading}>
-        {loading ? 'Uploading…' : 'Upload'}
-      </Button>
+      <div className="flex justify-end gap-2">
+        {onClose && (
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+        )}
+        <Button type="submit" disabled={loading || !file} loading={loading}>
+          {loading ? 'Uploading…' : 'Upload'}
+        </Button>
+      </div>
     </form>
   );
 }

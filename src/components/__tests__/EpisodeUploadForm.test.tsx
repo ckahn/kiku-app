@@ -113,6 +113,26 @@ describe('EpisodeUploadForm', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('renders a Cancel button only when onClose is provided', () => {
+    const { rerender } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+
+    rerender(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('calls onClose when Cancel is clicked and does not submit', () => {
+    const onClose = vi.fn();
+    const fetchSpy = vi.spyOn(global, 'fetch');
+
+    render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mockUpload).not.toHaveBeenCalled();
+  });
+
   it('does not navigate when unmounted (cancelled) mid-upload', async () => {
     let resolveUpload!: (value: { url: string }) => void;
     mockUpload.mockReturnValueOnce(
