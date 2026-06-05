@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import EpisodePlayer from '../player/EpisodePlayer';
-import type { Chunk } from '@/db/schema';
+import type { Segment } from '@/db/schema';
 import * as studyNavigation from '../player/studyNavigation';
 
 // ---------------------------------------------------------------------------
@@ -76,56 +76,56 @@ beforeEach(() => {
   });
 });
 
-function makeChunk(id: number, startMs: number, endMs: number, index: number): Chunk {
+function makeSegment(id: number, startMs: number, endMs: number, index: number): Segment {
   return {
     id,
     episodeId: 1,
-    chunkIndex: index,
+    segmentIndex: index,
     textRaw: `テスト${id}`,
     textFurigana: `テスト${id}`,
     furiganaStatus: 'ok',
     furiganaWarning: null,
     startMs,
     endMs,
-    sentences: [] as unknown as Chunk['sentences'],
+    sentences: [] as unknown as Segment['sentences'],
     createdAt: new Date(),
   };
 }
 
-const CHUNKS = [
-  makeChunk(1, 0, 5000, 0),
-  makeChunk(2, 5000, 12000, 1),
-  makeChunk(3, 12000, 20000, 2),
+const SEGMENTS = [
+  makeSegment(1, 0, 5000, 0),
+  makeSegment(2, 5000, 12000, 1),
+  makeSegment(3, 12000, 20000, 2),
 ];
 
 describe('EpisodePlayer (integration)', () => {
-  it('renders a chunk list', () => {
+  it('renders a segment list', () => {
     render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+      <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     expect(screen.getAllByRole('listitem')).toHaveLength(3);
   });
 
   it('renders the global player bar', () => {
     render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+      <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
     expect(screen.getByRole('slider', { name: 'Playback position' })).toBeInTheDocument();
   });
 
-  it('clicking a chunk seeks audio to its start', () => {
+  it('clicking a segment seeks audio to its start', () => {
     render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+      <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     const items = screen.getAllByRole('listitem');
-    fireEvent.click(items[1]); // click chunk 2 (startMs = 5000)
+    fireEvent.click(items[1]); // click segment 2 (startMs = 5000)
     expect(engineMock.seek).toHaveBeenCalledWith(4.9); // 5000ms / 1000 - 0.1s offset
   });
 
   it('play button calls audioEngine.play', () => {
     render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+      <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(engineMock.play).toHaveBeenCalled();
@@ -133,7 +133,7 @@ describe('EpisodePlayer (integration)', () => {
 
   it('loop button toggles aria-pressed', () => {
     render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+      <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     const loopBtn = screen.getByRole('button', { name: 'Toggle loop' });
     expect(loopBtn).toHaveAttribute('aria-pressed', 'false');
@@ -143,7 +143,7 @@ describe('EpisodePlayer (integration)', () => {
 
   it('Space key toggles playback', () => {
     render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+      <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }));
     expect(engineMock.play).toHaveBeenCalled();
@@ -151,7 +151,7 @@ describe('EpisodePlayer (integration)', () => {
 
   it('no alert is shown while the engine is healthy', () => {
     render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+      <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(screen.queryByRole('alert')).toBeNull();
@@ -159,7 +159,7 @@ describe('EpisodePlayer (integration)', () => {
 
   it('uses manual browser scroll restoration while mounted', () => {
     const { unmount } = render(
-      <EpisodePlayer chunks={CHUNKS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
+      <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
     );
 
     expect(window.history.scrollRestoration).toBe('manual');
@@ -172,10 +172,10 @@ describe('EpisodePlayer (integration)', () => {
   it('restores the saved episode focus state', async () => {
     vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue({
       episodeHref: '/podcasts/slow-japanese/episodes/7',
-      chunkId: 3,
+      segmentId: 3,
     });
 
-    // Allow rAF to fire once so scrollChunkToTop can call window.scrollTo.
+    // Allow rAF to fire once so scrollSegmentToTop can call window.scrollTo.
     // The engine is not playing, so useAudioEngine's rAF loop is not running.
     vi.mocked(window.requestAnimationFrame).mockImplementationOnce((cb) => {
       cb(0);
@@ -184,7 +184,7 @@ describe('EpisodePlayer (integration)', () => {
 
     render(
       <EpisodePlayer
-        chunks={CHUNKS}
+        segments={SEGMENTS}
         audioUrl="/api/episodes/1/audio"
         durationMs={20000}
         episodeHref="/podcasts/slow-japanese/episodes/7"
@@ -200,27 +200,27 @@ describe('EpisodePlayer (integration)', () => {
     );
   });
 
-  it('saves the episode focus state when the active chunk changes', async () => {
+  it('saves the episode focus state when the active segment changes', async () => {
     vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue(null);
     const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
 
     render(
       <EpisodePlayer
-        chunks={CHUNKS}
+        segments={SEGMENTS}
         audioUrl="/api/episodes/1/audio"
         durationMs={20000}
         episodeHref="/podcasts/slow-japanese/episodes/7"
       />,
     );
 
-    // Simulate audio advancing into chunk 2 (startMs=5000, endMs=12000)
+    // Simulate audio advancing into segment 2 (startMs=5000, endMs=12000)
     await act(async () => {
       engineMock._setTime(6);
     });
 
     expect(saveSpy).toHaveBeenCalledWith({
       episodeHref: '/podcasts/slow-japanese/episodes/7',
-      chunkId: 2,
+      segmentId: 2,
     });
   });
 });

@@ -4,13 +4,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { Check, Copy, Play, Repeat, Square } from 'lucide-react';
-import type { Chunk } from '@/db/schema';
+import type { Segment } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
 import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
-import { chunkStartSec } from '@/components/player/chunkUtils';
+import { segmentStartSec } from '@/components/player/segmentUtils';
 
 // LLM sometimes echoes kana words as their own reading — skip when redundant
 function hasDistinctReading(reading: string | undefined, text: string): boolean {
@@ -18,9 +18,9 @@ function hasDistinctReading(reading: string | undefined, text: string): boolean 
 }
 
 interface StudyScreenProps {
-  readonly chunk: Pick<
-    Chunk,
-    'id' | 'chunkIndex' | 'textRaw' | 'textFurigana' | 'furiganaStatus' | 'furiganaWarning' | 'startMs' | 'endMs'
+  readonly segment: Pick<
+    Segment,
+    'id' | 'segmentIndex' | 'textRaw' | 'textFurigana' | 'furiganaStatus' | 'furiganaWarning' | 'startMs' | 'endMs'
   >;
   readonly totalSegments: number;
   readonly audioUrl: string;
@@ -79,7 +79,7 @@ const PLAYBACK_RATES: PlaybackRate[] = [1, 0.75, 0.5];
 const SEGMENT_ACTION_BUTTON_CLASS = 'h-11 w-11 shrink-0 cursor-pointer inline-flex items-center justify-center transition-colors';
 
 export default function StudyScreen({
-  chunk,
+  segment,
   totalSegments,
   audioUrl,
   studyGuideUrl,
@@ -104,8 +104,8 @@ export default function StudyScreen({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    saveEpisodeFocusState({ episodeHref: backHref, chunkId: chunk.id });
-  }, [backHref, chunk.id]);
+    saveEpisodeFocusState({ episodeHref: backHref, segmentId: segment.id });
+  }, [backHref, segment.id]);
 
   // Eager-load the SoundTouch worklet so the speed selector is available
   // before the user taps Play (unlock() is otherwise deferred to first play).
@@ -163,27 +163,27 @@ export default function StudyScreen({
     }
   }, [engine.isPlaying, isPlaying]);
 
-  // Enforce chunk boundary: loop or stop when currentTime passes endMs
+  // Enforce segment boundary: loop or stop when currentTime passes endMs
   useEffect(() => {
-    if (!engine.isPlaying || engine.currentTime < chunk.endMs / 1000) return;
-    audioEngine.seek(chunkStartSec(chunk));
+    if (!engine.isPlaying || engine.currentTime < segment.endMs / 1000) return;
+    audioEngine.seek(segmentStartSec(segment));
     if (!isLooping) {
       audioEngine.pause();
       setIsPlaying(false);
     }
-  }, [engine.currentTime, engine.isPlaying, isLooping, chunk]);
+  }, [engine.currentTime, engine.isPlaying, isLooping, segment]);
 
   const stopPlayback = useCallback(() => {
-    audioEngine.seek(chunkStartSec(chunk));
+    audioEngine.seek(segmentStartSec(segment));
     audioEngine.pause();
     setIsPlaying(false);
-  }, [chunk.startMs]);
+  }, [segment.startMs]);
 
-  function playFromChunkStart() {
+  function playFromSegmentStart() {
     setErrorMessage(null);
     setIsPlaying(true);
     audioEngine.unlock();
-    audioEngine.play(chunkStartSec(chunk));
+    audioEngine.play(segmentStartSec(segment));
   }
 
   function cyclePlaybackRate() {
@@ -200,7 +200,7 @@ export default function StudyScreen({
   }
 
   function handleBack() {
-    saveEpisodeFocusState({ episodeHref: backHref, chunkId: chunk.id });
+    saveEpisodeFocusState({ episodeHref: backHref, segmentId: segment.id });
     router.push(backHref);
   }
 
@@ -218,7 +218,7 @@ export default function StudyScreen({
 
       <header className="space-y-1">
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted">Segment {chunk.chunkIndex + 1} of {totalSegments}</p>
+          <p className="text-sm text-muted">Segment {segment.segmentIndex + 1} of {totalSegments}</p>
           <div className="flex items-center gap-3">
             {prevHref ? (
               <Link href={prevHref} className="inline-flex min-h-11 min-w-11 cursor-pointer items-center text-sm text-muted transition-colors hover:text-ink">
@@ -243,15 +243,15 @@ export default function StudyScreen({
         <div className="space-y-3">
           <div
             className="text-xl text-ink font-jp leading-loose"
-            dangerouslySetInnerHTML={{ __html: chunk.textFurigana }}
+            dangerouslySetInnerHTML={{ __html: segment.textFurigana }}
           />
 
-          {chunk.furiganaStatus === 'suspect' && (
+          {segment.furiganaStatus === 'suspect' && (
             <p
               role="alert"
               className="rounded-md bg-warning-subtle px-3 py-2 text-xs text-warning-on-subtle"
             >
-              {chunk.furiganaWarning ?? 'This furigana may contain mistakes.'}
+              {segment.furiganaWarning ?? 'This furigana may contain mistakes.'}
             </p>
           )}
 
@@ -259,7 +259,7 @@ export default function StudyScreen({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={isPlaying ? stopPlayback : playFromChunkStart}
+                onClick={isPlaying ? stopPlayback : playFromSegmentStart}
                 aria-label={isPlaying ? 'Stop audio' : 'Play audio'}
                 className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-full bg-primary text-white hover:bg-primary-hover`}
               >
@@ -288,7 +288,7 @@ export default function StudyScreen({
               type="button"
               aria-label={copied ? 'Copied!' : 'Copy segment text'}
               onClick={() => {
-                void navigator.clipboard.writeText(chunk.textRaw).then(() => {
+                void navigator.clipboard.writeText(segment.textRaw).then(() => {
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 });

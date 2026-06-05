@@ -4,7 +4,7 @@ import { episodes } from '@/db/schema';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { transcribe } from '@/lib/api/elevenlabs';
-import { setEpisodeChunking, setEpisodeError, insertRawTranscript } from '@/db/episodes';
+import { setEpisodeSegmenting, setEpisodeError, insertRawTranscript } from '@/db/episodes';
 
 export const maxDuration = 60;
 
@@ -52,8 +52,8 @@ export async function POST(
       transcribe(new URL(audioUrl))
     );
     await insertRawTranscript(episodeId, transcript);
-    await setEpisodeChunking(episodeId);
-    return apiOk({ status: 'chunking' });
+    await setEpisodeSegmenting(episodeId);
+    return apiOk({ status: 'segmenting' });
   } catch (error: unknown) {
     const message = getErrorMessage(error);
     console.error(`[transcribe] episode ${episodeId} failed:`, error);

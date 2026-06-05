@@ -11,7 +11,7 @@ import {
 
 // Enums must be declared before the tables that use them
 export const episodeStatusEnum = pgEnum('episode_status', [
-  'uploaded', 'transcribing', 'chunking', 'ready', 'error',
+  'uploaded', 'transcribing', 'segmenting', 'ready', 'error',
 ]);
 export const studyStatusEnum = pgEnum('study_status', ['new', 'studying', 'learned']);
 export const reviewOutcomeEnum = pgEnum('review_outcome', ['comfortable', 'needs_work']);
@@ -53,12 +53,12 @@ export const rawTranscripts = pgTable('raw_transcripts', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
 
-export const chunks = pgTable('chunks', {
+export const segments = pgTable('segments', {
   id: serial('id').primaryKey(),
   episodeId: integer('episode_id')
     .notNull()
     .references(() => episodes.id, { onDelete: 'cascade' }),
-  chunkIndex: integer('chunk_index').notNull(),
+  segmentIndex: integer('segment_index').notNull(),
   textRaw: text('text_raw').notNull(),
   textFurigana: text('text_furigana').notNull(),
   furiganaStatus: furiganaStatusEnum('furigana_status').notNull().default('ok'),
@@ -67,17 +67,17 @@ export const chunks = pgTable('chunks', {
   endMs: integer('end_ms').notNull(),
   sentences: jsonb('sentences').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-}, (table) => [unique().on(table.episodeId, table.chunkIndex)]);
+}, (table) => [unique().on(table.episodeId, table.segmentIndex)]);
 
 export const studyGuides = pgTable('study_guides', {
   id: serial('id').primaryKey(),
-  chunkId: integer('chunk_id')
+  segmentId: integer('segment_id')
     .notNull()
-    .references(() => chunks.id, { onDelete: 'cascade' }),
+    .references(() => segments.id, { onDelete: 'cascade' }),
   content: jsonb('content').notNull(),
   version: integer('version').notNull().default(1),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-}, (table) => [unique().on(table.chunkId)]);
+}, (table) => [unique().on(table.segmentId)]);
 
 export const reviewLog = pgTable('review_log', {
   id: serial('id').primaryKey(),
@@ -91,5 +91,5 @@ export const reviewLog = pgTable('review_log', {
 // Inferred types for use in components and API routes
 export type Podcast = typeof podcasts.$inferSelect;
 export type Episode = typeof episodes.$inferSelect;
-export type Chunk = typeof chunks.$inferSelect;
+export type Segment = typeof segments.$inferSelect;
 export type StudyGuide = typeof studyGuides.$inferSelect;

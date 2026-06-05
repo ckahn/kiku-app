@@ -5,7 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { PageShell } from '@/components/layout';
 import EpisodeStatusPoller from '@/components/EpisodeStatusPoller';
 import EpisodePlayer from '@/components/player/EpisodePlayer';
-import { getChunksByEpisodeId } from '@/db/chunks';
+import { getSegmentsByEpisodeId } from '@/db/segments';
 import LocalDateTime from '@/components/LocalDateTime';
 import EpisodeActionMenu from '@/components/EpisodeActionMenu';
 import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
@@ -32,8 +32,8 @@ export default async function EpisodePage({
     .where(and(eq(episodes.podcastId, podcast.id), eq(episodes.episodeNumber, Number(number))));
   if (!episode) notFound();
 
-  const chunks = episode.status === 'ready'
-    ? await getChunksByEpisodeId(episode.id)
+  const segments = episode.status === 'ready'
+    ? await getSegmentsByEpisodeId(episode.id)
     : [];
 
   return (
@@ -78,7 +78,7 @@ export default async function EpisodePage({
         <h2 className="text-base font-semibold text-ink mb-3">Transcript</h2>
         {episode.status === 'ready' ? (
           <EpisodePlayer
-            chunks={chunks}
+            segments={segments}
             audioUrl={`/api/episodes/${episode.id}/audio`}
             durationMs={episode.durationMs ?? 0}
             podcastSlug={slug}

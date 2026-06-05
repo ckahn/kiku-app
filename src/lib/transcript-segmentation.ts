@@ -1,5 +1,5 @@
 import type {
-  DeterministicTranscriptChunk,
+  DeterministicTranscriptSegment,
   ElevenLabsWord,
   TranscriptSentence,
 } from '@/lib/api/types';
@@ -29,9 +29,9 @@ function buildSentence(
   };
 }
 
-function createChunk(
+function createSegment(
   sentences: readonly TranscriptSentence[]
-): DeterministicTranscriptChunk {
+): DeterministicTranscriptSegment {
   return {
     text: sentences.map((sentence) => sentence.text).join(''),
     first_word_index: sentences[0].first_word_index,
@@ -66,55 +66,55 @@ export function splitTranscriptIntoSentences(
   return sentences;
 }
 
-export function chunkSentencesByCharacterCount(
+export function segmentSentencesByCharacterCount(
   sentences: readonly TranscriptSentence[],
   minimumCharacterCount: number
-): readonly DeterministicTranscriptChunk[] {
+): readonly DeterministicTranscriptSegment[] {
   if (sentences.length === 0) {
     return [];
   }
 
-  const chunks: DeterministicTranscriptChunk[] = [];
+  const segments: DeterministicTranscriptSegment[] = [];
   let cursor = 0;
 
   while (cursor < sentences.length) {
-    const nextChunkSentences: TranscriptSentence[] = [];
+    const nextSegmentSentences: TranscriptSentence[] = [];
     let characterCount = 0;
 
     while (cursor < sentences.length && characterCount < minimumCharacterCount) {
       const sentence = sentences[cursor];
-      nextChunkSentences.push(sentence);
+      nextSegmentSentences.push(sentence);
       characterCount += sentence.text.length;
       cursor += 1;
     }
 
-    chunks.push(createChunk(nextChunkSentences));
+    segments.push(createSegment(nextSegmentSentences));
   }
 
-  if (chunks.length === 1) {
-    return chunks;
+  if (segments.length === 1) {
+    return segments;
   }
 
-  const lastChunk = chunks[chunks.length - 1];
-  if (lastChunk.text.length >= minimumCharacterCount) {
-    return chunks;
+  const lastSegment = segments[segments.length - 1];
+  if (lastSegment.text.length >= minimumCharacterCount) {
+    return segments;
   }
 
   const mergedSentences = [
-    ...chunks[chunks.length - 2].sentences,
-    ...lastChunk.sentences,
+    ...segments[segments.length - 2].sentences,
+    ...lastSegment.sentences,
   ];
 
   return [
-    ...chunks.slice(0, -2),
-    createChunk(mergedSentences),
+    ...segments.slice(0, -2),
+    createSegment(mergedSentences),
   ];
 }
 
 export function segmentTranscriptDeterministically(
   words: readonly ElevenLabsWord[],
   minimumCharacterCount: number
-): readonly DeterministicTranscriptChunk[] {
+): readonly DeterministicTranscriptSegment[] {
   const sentences = splitTranscriptIntoSentences(words);
-  return chunkSentencesByCharacterCount(sentences, minimumCharacterCount);
+  return segmentSentencesByCharacterCount(sentences, minimumCharacterCount);
 }

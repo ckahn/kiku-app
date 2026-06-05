@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**KIKU (聴く)** — a Japanese podcast study app. Users upload MP3s, the app transcribes them via ElevenLabs, chunks the transcript into study segments and add furigana annotations using Claude, adds furigana annotations, and provides a study guide with translations and grammar explanations (also via Claude). Includes a spaced repetition review system.
+**KIKU (聴く)** — a Japanese podcast study app. Users upload MP3s, the app transcribes them via ElevenLabs, segments the transcript into study segments and add furigana annotations using Claude, adds furigana annotations, and provides a study guide with translations and grammar explanations (also via Claude). Includes a spaced repetition review system.
 
 ## Tech Stack
 
@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Hosting:** Vercel (Hobby plan — 60s function timeout; may need Pro for long audio files)
 - **Database:** Vercel Postgres (Neon) via Drizzle ORM
 - **File storage:** Vercel Blob (audio files)
-- **External APIs:** ElevenLabs Scribe v2 (transcription), Anthropic Claude (chunking, furigana, study guides)
+- **External APIs:** ElevenLabs Scribe v2 (transcription), Anthropic Claude (segmenting, furigana, study guides)
 - **AI SDK:** Vercel AI SDK (`ai` + `@ai-sdk/anthropic`) — uses `generateObject` with Zod schemas for structured output
 
 ## Common Commands
@@ -49,18 +49,18 @@ To run a single test file: `npx vitest run src/path/to/file.test.ts`
 ```
 Audio (MP3) → Vercel Blob
     → ElevenLabs STT → raw_transcripts
-    → Claude (chunking) → Claude (furigana) → chunks
+    → Claude (segmenting) → Claude (furigana) → segments
     → Claude (on demand) → study_guides
 ```
 
 ### Database Schema
 
-Five core tables: `podcasts`, `episodes`, `raw_transcripts`, `chunks`, `study_guides`, plus `review_log`.
+Five core tables: `podcasts`, `episodes`, `raw_transcripts`, `segments`, `study_guides`, plus `review_log`.
 
-- `episodes.status`: `uploaded | transcribing | chunking | ready | error`
+- `episodes.status`: `uploaded | transcribing | segmenting | ready | error`
 - `episodes.study_status`: `new | studying | learned`
-- `chunks.sentences`: JSONB array of `{ text, start_ms, end_ms }`
-- `chunks.furigana_status`: `ok | suspect` — set to `suspect` when furigana validation/repair fails; `furigana_warning` stores the reason
+- `segments.sentences`: JSONB array of `{ text, start_ms, end_ms }`
+- `segments.furigana_status`: `ok | suspect` — set to `suspect` when furigana validation/repair fails; `furigana_warning` stores the reason
 - `study_guides.content`: JSONB — `StudyGuideContent` v2: `{ version: 2, vocabulary, structures, breakdown, translation }`
 
 ### API Routes
@@ -71,32 +71,32 @@ GET/DELETE       /api/podcasts/[id]
 POST             /api/podcasts/[id]/episodes   — upload + kick off pipeline
 GET/DELETE       /api/episodes/[id]
 PATCH            /api/episodes/[id]/study      — update study_status, compute next_review
-GET              /api/episodes/[id]/chunks
-GET              /api/chunks/[id]/study-guide  — lazy-generates if missing
-POST             /api/chunks/[id]/study-guide/regenerate
+GET              /api/episodes/[id]/segments
+GET              /api/segments/[id]/study-guide  — lazy-generates if missing
+POST             /api/segments/[id]/study-guide/regenerate
 GET              /api/reviews/due
 POST             /api/reviews
 ```
 
 ### Processing Pipeline
 
-Upload → ElevenLabs STT → Claude chunking → Claude furigana → ready. Each step updates `episodes.status`. Frontend polls `/api/episodes/[id]` for status. MVP uses polling; plan to upgrade to Inngest/Trigger.dev if needed.
+Upload → ElevenLabs STT → Claude segmenting → Claude furigana → ready. Each step updates `episodes.status`. Frontend polls `/api/episodes/[id]` for status. MVP uses polling; plan to upgrade to Inngest/Trigger.dev if needed.
 
-**Chunking two-pass approach:**
-1. Claude receives full transcript text + word-index list, returns chunk boundaries (`first_word_index`, `last_word_index`)
+**Segmenting two-pass approach:**
+1. Claude receives full transcript text + word-index list, returns segment boundaries (`first_word_index`, `last_word_index`)
 2. Map word indices back to timestamps for `start_ms`/`end_ms`
-3. Second Claude call returns structured furigana spans (`{ surface, reading }[]`) per chunk; spans are validated, auto-repaired (mixed kana+kanji splits), then rendered to `<ruby>` HTML server-side. Chunks that fail validation still store the best-effort HTML but get `furigana_status = 'suspect'`.
+3. Second Claude call returns structured furigana spans (`{ surface, reading }[]`) per segment; spans are validated, auto-repaired (mixed kana+kanji splits), then rendered to `<ruby>` HTML server-side. Segments that fail validation still store the best-effort HTML but get `furigana_status = 'suspect'`.
 
 ### Audio Player
 
-Single `<audio>` element for the whole file. Chunk mode uses `currentTime` manipulation (seek to `chunk.start_ms / 1000`, pause at `chunk.end_ms / 1000`). No audio slicing.
+Single `<audio>` element for the whole file. Segment mode uses `currentTime` manipulation (seek to `segment.start_ms / 1000`, pause at `segment.end_ms / 1000`). No audio slicing.
 
 ```ts
 type PlayerState = {
-  mode: 'global' | 'chunk';
+  mode: 'global' | 'segment';
   isPlaying: boolean;
   isLooping: boolean;
-  focusedChunkId: string | null;
+  focusedSegmentId: string | null;
   showFurigana: Record<string, boolean>;
   currentTime: number;
 };
@@ -118,7 +118,7 @@ State management: React `useState`/`useReducer` only — no external state libra
 To avoid API costs during development, set `USE_MOCKS=true` in `.env.local`. Fixture files live in `/fixtures/`:
 
 - `elevenlabs-transcript.json` — real ElevenLabs response captured once
-- `chunks.json` — hand-written Claude chunking output
+- `segments.json` — hand-written Claude segmenting output
 - `furigana.json` — hand-written furigana annotations
 - `study-guide.json` — hand-written study guide content
 
@@ -126,7 +126,7 @@ API wrappers (e.g., `src/lib/api/elevenlabs.ts`) check `process.env.USE_MOCKS` a
 
 ## Prompt Templates
 
-The Claude prompts are in `docs/kiku-app-plan.md` under "Prompt Templates". The chunking prompt returns `[{ text, first_word_index, last_word_index }]`. The furigana prompt uses `<ruby>` HTML tags (kanji only, not kana). The study-guide prompt returns structured JSON for vocabulary, structure, breakdown, and translation.
+The Claude prompts are in `docs/kiku-app-plan.md` under "Prompt Templates". The segmenting prompt returns `[{ text, first_word_index, last_word_index }]`. The furigana prompt uses `<ruby>` HTML tags (kanji only, not kana). The study-guide prompt returns structured JSON for vocabulary, structure, breakdown, and translation.
 
 ## Spaced Repetition Intervals
 
@@ -135,7 +135,7 @@ The Claude prompts are in `docs/kiku-app-plan.md` under "Prompt Templates". The 
 ## Key Design Decisions
 
 - Drizzle ORM (not Prisma) — lightweight, type-safe, good Vercel Postgres support
-- Study guides are lazy-generated and stored; regenerate = `UPDATE` in place (one row per chunk, `UNIQUE(chunk_id)`)
+- Study guides are lazy-generated and stored; regenerate = `UPDATE` in place (one row per segment, `UNIQUE(segment_id)`)
 - Raw ElevenLabs transcript stored in `raw_transcripts.payload` (JSONB) to allow reprocessing without re-calling the API
-- Furigana stored as HTML (`<ruby>` tags) in `chunks.text_furigana`, not computed client-side
+- Furigana stored as HTML (`<ruby>` tags) in `segments.text_furigana`, not computed client-side
 - Claude model IDs are centralized in `src/lib/constants.ts` — update them there when switching models

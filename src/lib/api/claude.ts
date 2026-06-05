@@ -2,24 +2,24 @@ import { generateObject } from 'ai';
 import sanitizeHtml from 'sanitize-html';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
-import { CLAUDE_CHUNK_MODEL, CLAUDE_FURIGANA_MODEL } from '@/lib/constants';
+import { CLAUDE_SEGMENT_MODEL, CLAUDE_FURIGANA_MODEL } from '@/lib/constants';
 import type {
-  ChunkWithFurigana,
+  SegmentWithFurigana,
   ElevenLabsWord,
   FuriganaSpan,
-  TranscriptChunk,
+  TranscriptSegment,
 } from './types';
-import chunksFixture from '../../../fixtures/chunks.json';
+import segmentsFixture from '../../../fixtures/segments.json';
 import furiganaFixture from '../../../fixtures/furigana.json';
 
-const transcriptChunkSchema = z.object({
+const transcriptSegmentSchema = z.object({
   text: z.string(),
   first_word_index: z.number(),
   last_word_index: z.number(),
 });
 
-const chunkedTranscriptSchema = z.object({
-  chunks: z.array(transcriptChunkSchema),
+const segmentedTranscriptSchema = z.object({
+  segments: z.array(transcriptSegmentSchema),
 });
 
 const furiganaSpanSchema = z.object({
@@ -28,7 +28,7 @@ const furiganaSpanSchema = z.object({
 });
 
 const furiganaResultSchema = z.object({
-  annotated_chunks: z.array(z.object({
+  annotated_segments: z.array(z.object({
     index: z.number(),
     spans: z.array(furiganaSpanSchema),
   })),
@@ -47,17 +47,17 @@ const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf々]+$/;
 const DIGIT_KANJI_RE = /^[1-9\uFF11-\uFF19][0-9\uFF10-\uFF19]?[\u4e00-\u9fff\u3400-\u4dbf]+$/;
 
 /**
- * Split a raw transcript into study chunks using Claude.
- * Returns chunk boundaries as word-array indices.
+ * Split a raw transcript into study segments using Claude.
+ * Returns segment boundaries as word-array indices.
  *
  * Set USE_MOCKS=true to return fixture data.
  */
-export async function chunkTranscript(
+export async function segmentTranscript(
   fullText: string,
   words: readonly ElevenLabsWord[]
-): Promise<readonly TranscriptChunk[]> {
+): Promise<readonly TranscriptSegment[]> {
   if (process.env.USE_MOCKS === 'true') {
-    return chunksFixture as TranscriptChunk[];
+    return segmentsFixture as TranscriptSegment[];
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -68,39 +68,39 @@ export async function chunkTranscript(
 
   const prompt = `You are a Japanese language teacher preparing podcast transcripts for study.
 
-Split the following Japanese transcript into study chunks. Each chunk should be a coherent paragraph — a complete thought or exchange that can be studied on its own.
+Split the following Japanese transcript into study segments. Each segment should be a coherent paragraph — a complete thought or exchange that can be studied on its own.
 
 Guidelines:
-- GROUP related sentences together — a chunk is a thematic unit, not a single sentence
+- GROUP related sentences together — a segment is a thematic unit, not a single sentence
 - SPLIT only when the topic or speaker's intent clearly shifts
-- Typically 2–4 sentences per chunk; a single sentence is fine only if it is long (40+ chars) or stands alone topically
+- Typically 2–4 sentences per segment; a single sentence is fine only if it is long (40+ chars) or stands alone topically
 - Short filler utterances (はい、ええ、うん、そうですね) must merge with the adjacent sentence
 
 Example — given: こんにちは！ポッドキャストを聞いてくれてありがとうございます。今日は元気ですか？これは日本語を勉強している初心者のためのポッドキャストです。役に立てばうれしいです！
-Correct chunks:
-  chunk 1: こんにちは！ポッドキャストを聞いてくれてありがとうございます。今日は元気ですか？
-  chunk 2: これは日本語を勉強している初心者のためのポッドキャストです。役に立てばうれしいです！
-Wrong: splitting each sentence into its own chunk.
+Correct segments:
+  segment 1: こんにちは！ポッドキャストを聞いてくれてありがとうございます。今日は元気ですか？
+  segment 2: これは日本語を勉強している初心者のためのポッドキャストです。役に立てばうれしいです！
+Wrong: splitting each sentence into its own segment.
 
-Each chunk object must have:
+Each segment object must have:
 - "text": the exact concatenated text of those words (spaces between words if present)
-- "first_word_index": integer index of the first word in this chunk
-- "last_word_index": integer index of the last word in this chunk
+- "first_word_index": integer index of the first word in this segment
+- "last_word_index": integer index of the last word in this segment
 
 Rules:
-- Every word must appear in exactly one chunk (no gaps, no overlaps)
+- Every word must appear in exactly one segment (no gaps, no overlaps)
 - Indices are 0-based and refer to the word list below
 
 Word list (index: "text"):
 ${wordList}`;
 
   const { object } = await generateObject({
-    model: anthropic(CLAUDE_CHUNK_MODEL),
-    schema: chunkedTranscriptSchema,
+    model: anthropic(CLAUDE_SEGMENT_MODEL),
+    schema: segmentedTranscriptSchema,
     prompt,
   });
 
-  return object.chunks;
+  return object.segments;
 }
 
 /**
@@ -237,7 +237,7 @@ function repairFuriganaSpans(spans: readonly FuriganaSpan[]): readonly FuriganaS
 }
 
 function validateFuriganaSpans(
-  chunkText: string,
+  segmentText: string,
   spans: readonly FuriganaSpan[]
 ): string | null {
   if (spans.length === 0) {
@@ -279,8 +279,8 @@ function validateFuriganaSpans(
   }
 
   const reconstructed = spans.map((span) => span.surface).join('');
-  if (reconstructed !== chunkText) {
-    return `span surfaces reconstruct "${reconstructed}" instead of the original chunk`;
+  if (reconstructed !== segmentText) {
+    return `span surfaces reconstruct "${reconstructed}" instead of the original segment`;
   }
 
   const html = renderFuriganaHtml(spans);
@@ -292,19 +292,19 @@ function validateFuriganaSpans(
   return null;
 }
 
-// TODO: extract furigana-specific functions (annotateChunksWithSpans,
+// TODO: extract furigana-specific functions (annotateSegmentsWithSpans,
 // validateFuriganaSpans, renderSpanToHtml, renderFuriganaHtml)
 // into src/lib/api/furigana.ts as this file grows.
 
-const FURIGANA_PROMPT = `Annotate each Japanese text chunk as structured spans for furigana.
+const FURIGANA_PROMPT = `Annotate each Japanese text segment as structured spans for furigana.
 
-For each chunk, return an ordered "spans" array.
+For each segment, return an ordered "spans" array.
 Each span object must contain:
-- "surface": exact text from the original chunk
+- "surface": exact text from the original segment
 - "reading": hiragana reading for kanji-bearing spans, or null for kana-only / katakana / punctuation / symbols
 
 Rules:
-- Concatenating every "surface" in order MUST reproduce the original chunk exactly.
+- Concatenating every "surface" in order MUST reproduce the original segment exactly.
 - Group normal lexical compounds into a single span:
   - 日本 -> reading にほん
   - 日本語 -> reading にほんご
@@ -329,35 +329,35 @@ Wrong examples:
 - [{"surface":"1","reading":null},{"surface":"日","reading":"にち"}]  <- wrong; correct: {"surface":"1日","reading":"ついたち"}
 - [{"surface":"4月1日","reading":"しがつついたち"}]  <- wrong, month and day must be separate spans; correct: [{"surface":"4月","reading":"しがつ"},{"surface":"1日","reading":"ついたち"}]
 
-Chunks:
+Segments:
 `;
 
-async function annotateChunksWithSpans(
-  chunks: readonly TranscriptChunk[],
+async function annotateSegmentsWithSpans(
+  segments: readonly TranscriptSegment[],
   anthropic: ReturnType<typeof createAnthropic>
 ): Promise<Map<number, readonly FuriganaSpan[]>> {
-  const chunkList = chunks.map((c, i) => `[${i}] ${c.text}`).join('\n');
+  const segmentList = segments.map((c, i) => `[${i}] ${c.text}`).join('\n');
   const { object } = await generateObject({
     model: anthropic(CLAUDE_FURIGANA_MODEL),
     schema: furiganaResultSchema,
-    prompt: FURIGANA_PROMPT + chunkList,
+    prompt: FURIGANA_PROMPT + segmentList,
     temperature: 0,
   });
-  return new Map(object.annotated_chunks.map((ac) => [ac.index, ac.spans]));
+  return new Map(object.annotated_segments.map((ac) => [ac.index, ac.spans]));
 }
 
-function mockChunkWithDefaults(
-  chunk: Omit<ChunkWithFurigana, 'furigana_status' | 'furigana_warning'>
-): ChunkWithFurigana {
+function mockSegmentWithDefaults(
+  segment: Omit<SegmentWithFurigana, 'furigana_status' | 'furigana_warning'>
+): SegmentWithFurigana {
   return {
-    ...chunk,
+    ...segment,
     furigana_status: 'ok',
     furigana_warning: null,
   };
 }
 
 /**
- * Annotate each chunk's text with furigana using Claude-generated structured spans.
+ * Annotate each segment's text with furigana using Claude-generated structured spans.
  * Stored contract:
  * - <ruby> may wrap kanji-only base text
  * - hiragana, katakana, punctuation, and okurigana must remain plain text
@@ -366,33 +366,33 @@ function mockChunkWithDefaults(
  * Set USE_MOCKS=true to return fixture data.
  */
 export async function addFurigana(
-  chunks: readonly TranscriptChunk[]
-): Promise<readonly ChunkWithFurigana[]> {
+  segments: readonly TranscriptSegment[]
+): Promise<readonly SegmentWithFurigana[]> {
   if (process.env.USE_MOCKS === 'true') {
-    return (furiganaFixture as Omit<ChunkWithFurigana, 'furigana_status' | 'furigana_warning'>[])
-      .map(mockChunkWithDefaults);
+    return (furiganaFixture as Omit<SegmentWithFurigana, 'furigana_status' | 'furigana_warning'>[])
+      .map(mockSegmentWithDefaults);
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
 
   const anthropic = createAnthropic({ apiKey });
-  const firstPassByIndex = await annotateChunksWithSpans(chunks, anthropic);
+  const firstPassByIndex = await annotateSegmentsWithSpans(segments, anthropic);
 
-  const results: ChunkWithFurigana[] = [];
+  const results: SegmentWithFurigana[] = [];
 
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
     const firstPassSpans = firstPassByIndex.get(i);
-    const fallbackText = sanitizeHtml(chunk.text, { allowedTags: [], allowedAttributes: {} });
+    const fallbackText = sanitizeHtml(segment.text, { allowedTags: [], allowedAttributes: {} });
     const repairedSpans = firstPassSpans === undefined ? [] : repairFuriganaSpans(firstPassSpans);
     const finalReason = firstPassSpans === undefined
-      ? 'No furigana annotation was returned for this chunk.'
-      : validateFuriganaSpans(chunk.text, repairedSpans);
+      ? 'No furigana annotation was returned for this segment.'
+      : validateFuriganaSpans(segment.text, repairedSpans);
     const finalSpans = repairedSpans;
 
     if (finalReason !== null) {
-      console.error(`[addFurigana] chunk ${i} suspicious: ${finalReason}`);
+      console.error(`[addFurigana] segment ${i} suspicious: ${finalReason}`);
     }
 
     const renderedHtml = finalReason === null
@@ -400,10 +400,10 @@ export async function addFurigana(
       : (finalSpans.length > 0 ? renderFuriganaHtml(finalSpans) : fallbackText);
 
     results.push({
-      text: chunk.text,
+      text: segment.text,
       text_furigana: renderedHtml,
-      first_word_index: chunk.first_word_index,
-      last_word_index: chunk.last_word_index,
+      first_word_index: segment.first_word_index,
+      last_word_index: segment.last_word_index,
       furigana_status: finalReason === null ? 'ok' : 'suspect',
       furigana_warning: finalReason === null ? null : `This furigana may contain mistakes. ${finalReason}`,
     });

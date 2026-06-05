@@ -1,18 +1,18 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { Chunk } from '@/db/schema';
+import type { Segment } from '@/db/schema';
 import { usePlayer } from './usePlayer';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import AudioPlayer from './AudioPlayer';
-import ChunkList from '@/components/ChunkList';
+import SegmentList from '@/components/SegmentList';
 import { saveEpisodeFocusState, loadEpisodeFocusState } from './studyNavigation';
-import { scrollChunkToTop } from './scrollChunk';
-import { findActiveChunkId } from './chunkUtils';
+import { scrollSegmentToTop } from './scrollSegment';
+import { findActiveSegmentId } from './segmentUtils';
 import { useManualScrollRestoration } from './useManualScrollRestoration';
 
 interface EpisodePlayerProps {
-  readonly chunks: readonly Chunk[];
+  readonly segments: readonly Segment[];
   readonly audioUrl: string;
   readonly durationMs: number;
   readonly podcastSlug?: string;
@@ -21,24 +21,24 @@ interface EpisodePlayerProps {
 }
 
 export default function EpisodePlayer({
-  chunks,
+  segments,
   audioUrl,
   durationMs,
   podcastSlug,
   episodeNumber,
   episodeHref,
 }: EpisodePlayerProps) {
-  const player = usePlayer(chunks, durationMs, audioUrl);
+  const player = usePlayer(segments, durationMs, audioUrl);
   const { toggle, rewind, forward, toggleLoop } = player.controls;
   useManualScrollRestoration();
   useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop });
 
-  const { seekToChunk, pause } = player.controls;
-  const activeChunkId = findActiveChunkId(chunks, player.state.currentTime);
+  const { seekToSegment, pause } = player.controls;
+  const activeSegmentId = findActiveSegmentId(segments, player.state.currentTime);
 
   // Restore the focused segment when returning from study or refreshing.
   useEffect(() => {
-    if (!episodeHref || chunks.length === 0) {
+    if (!episodeHref || segments.length === 0) {
       return;
     }
 
@@ -47,8 +47,8 @@ export default function EpisodePlayer({
       return;
     }
 
-    const matchingChunk = chunks.find((chunk) => chunk.id === focusState.chunkId);
-    if (!matchingChunk) {
+    const matchingSegment = segments.find((segment) => segment.id === focusState.segmentId);
+    if (!matchingSegment) {
       return;
     }
 
@@ -56,28 +56,28 @@ export default function EpisodePlayer({
     // a previous page is still playing (the old page's cleanup may not have
     // run yet at this point in the navigation lifecycle).
     pause();
-    seekToChunk(matchingChunk.id);
-    scrollChunkToTop(matchingChunk.id);
-  }, [chunks, episodeHref, pause, seekToChunk]);
+    seekToSegment(matchingSegment.id);
+    scrollSegmentToTop(matchingSegment.id);
+  }, [segments, episodeHref, pause, seekToSegment]);
 
-  // Persist the active chunk so a refresh can restore it. Skip the initial
-  // mount because currentTime starts at 0, so activeChunkId is the first
-  // chunk regardless of what was saved — saving it would corrupt the state.
+  // Persist the active segment so a refresh can restore it. Skip the initial
+  // mount because currentTime starts at 0, so activeSegmentId is the first
+  // segment regardless of what was saved — saving it would corrupt the state.
   const hasMountedRef = useRef(false);
   useEffect(() => {
     if (!hasMountedRef.current) {
       hasMountedRef.current = true;
       return;
     }
-    if (activeChunkId !== null && episodeHref) {
-      saveEpisodeFocusState({ episodeHref, chunkId: activeChunkId });
+    if (activeSegmentId !== null && episodeHref) {
+      saveEpisodeFocusState({ episodeHref, segmentId: activeSegmentId });
     }
-  }, [activeChunkId, episodeHref]);
+  }, [activeSegmentId, episodeHref]);
 
   return (
     <>
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={player.state}
         controls={player.controls}
         podcastSlug={podcastSlug}

@@ -13,9 +13,9 @@ export interface ElevenLabsTranscript {
   readonly segments: readonly ElevenLabsWord[];
 }
 
-// Claude chunking API types
+// Claude segmenting API types
 
-export interface TranscriptChunk {
+export interface TranscriptSegment {
   readonly text: string;
   readonly first_word_index: number;
   readonly last_word_index: number;
@@ -29,7 +29,7 @@ export interface TranscriptSentence {
   readonly end_ms: number;
 }
 
-export interface DeterministicTranscriptChunk extends TranscriptChunk {
+export interface DeterministicTranscriptSegment extends TranscriptSegment {
   readonly sentences: readonly TranscriptSentence[];
 }
 
@@ -40,7 +40,7 @@ export interface FuriganaSpan {
 
 export type FuriganaStatus = 'ok' | 'suspect';
 
-export interface ChunkWithFurigana {
+export interface SegmentWithFurigana {
   readonly text: string;
   readonly text_furigana: string; // HTML where <ruby> is allowed only around kanji-only base text
   readonly first_word_index: number;

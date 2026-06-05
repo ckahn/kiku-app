@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui';
 import { getEpisodeBadge } from '@/lib/episodeBadge';
 
 interface EpisodeStatusBadgeProps {
-  status: 'uploaded' | 'transcribing' | 'chunking' | 'ready' | 'error';
+  status: 'uploaded' | 'transcribing' | 'segmenting' | 'ready' | 'error';
   studyStatus: 'new' | 'studying' | 'learned';
   className?: string;
 }

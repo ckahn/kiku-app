@@ -1,12 +1,12 @@
 'use client';
 
 import { useReducer, useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
-import type { Chunk } from '@/db/schema';
+import type { Segment } from '@/db/schema';
 import { playerReducer, initialPlayerState } from './playerReducer';
 import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
-import { findActiveChunkId, chunkStartSec } from './chunkUtils';
+import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
 
 export type PlayerControls = {
   play: () => void;
@@ -17,7 +17,7 @@ export type PlayerControls = {
   forward: () => void;
   toggleLoop: () => void;
   restart: () => void;
-  seekToChunk: (chunkId: number) => void;
+  seekToSegment: (segmentId: number) => void;
 };
 
 export type UsePlayerReturn = {
@@ -30,7 +30,7 @@ export type UsePlayerReturn = {
   clearPlaybackError: () => void;
 };
 
-export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl: string): UsePlayerReturn {
+export function usePlayer(segments: readonly Segment[], durationMs: number, audioUrl: string): UsePlayerReturn {
   const [state, dispatch] = useReducer(playerReducer, initialPlayerState);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   // Tracks the last error value that was acknowledged (dismissed) by the user,
@@ -46,15 +46,15 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
     stateRef.current = state;
   });
 
-  // Mirror chunks in a ref so effects always see current chunks without
+  // Mirror segments in a ref so effects always see current segments without
   // needing them in dependency arrays.
-  const chunksRef = useRef(chunks);
+  const segmentsRef = useRef(segments);
   useLayoutEffect(() => {
-    chunksRef.current = chunks;
+    segmentsRef.current = segments;
   });
 
-  // Tracks which chunk is being looped.
-  const loopChunkRef = useRef<Chunk | null>(null);
+  // Tracks which segment is being looped.
+  const loopSegmentRef = useRef<Segment | null>(null);
 
   // Sync engine isPlaying → reducer state.
   useEffect(() => {
@@ -65,32 +65,32 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
     }
   }, [engine.isPlaying]);
 
-  // Sync currentTime into reducer state and enforce chunk boundary looping.
+  // Sync currentTime into reducer state and enforce segment boundary looping.
   useEffect(() => {
     dispatch({ type: 'SET_TIME', payload: engine.currentTime });
 
     if (stateRef.current.isLooping && engine.isPlaying) {
       const t = engine.currentTime;
-      if (!loopChunkRef.current) {
-        // First tick with loop on: lock onto whatever chunk is playing.
-        // Use findActiveChunkId so the shifted offset windows are respected.
-        const activeId = findActiveChunkId(chunksRef.current, t);
-        loopChunkRef.current = chunksRef.current.find((c) => c.id === activeId) ?? null;
-      } else if (t >= loopChunkRef.current.endMs / 1000) {
-        audioEngine.seek(chunkStartSec(loopChunkRef.current));
+      if (!loopSegmentRef.current) {
+        // First tick with loop on: lock onto whatever segment is playing.
+        // Use findActiveSegmentId so the shifted offset windows are respected.
+        const activeId = findActiveSegmentId(segmentsRef.current, t);
+        loopSegmentRef.current = segmentsRef.current.find((c) => c.id === activeId) ?? null;
+      } else if (t >= loopSegmentRef.current.endMs / 1000) {
+        audioEngine.seek(segmentStartSec(loopSegmentRef.current));
       }
     } else if (!stateRef.current.isLooping) {
-      loopChunkRef.current = null;
+      loopSegmentRef.current = null;
     }
   }, [engine.currentTime, engine.isPlaying]);
 
   // When the audio file reaches its natural end while looping, restart from
-  // the locked chunk start. This handles the edge case where endMs equals
+  // the locked segment start. This handles the edge case where endMs equals
   // file duration and the boundary enforcement above doesn't trigger in time.
   useEffect(() => {
     return audioEngine.subscribeToEnd(() => {
-      if (stateRef.current.isLooping && loopChunkRef.current) {
-        audioEngine.play(chunkStartSec(loopChunkRef.current));
+      if (stateRef.current.isLooping && loopSegmentRef.current) {
+        audioEngine.play(segmentStartSec(loopSegmentRef.current));
       }
     });
   }, []);
@@ -155,17 +155,17 @@ export function usePlayer(chunks: readonly Chunk[], durationMs: number, audioUrl
       dispatch({ type: 'RESTART', payload: 0 });
     }, []),
 
-    seekToChunk: useCallback((chunkId: number) => {
-      const chunk = chunks.find((c) => c.id === chunkId);
-      if (chunk) {
-        const startSec = chunkStartSec(chunk);
+    seekToSegment: useCallback((segmentId: number) => {
+      const segment = segments.find((c) => c.id === segmentId);
+      if (segment) {
+        const startSec = segmentStartSec(segment);
         audioEngine.seek(startSec);
-        loopChunkRef.current = chunk;
-        // Update state synchronously so the active-chunk highlight applies
+        loopSegmentRef.current = segment;
+        // Update state synchronously so the active-segment highlight applies
         // immediately without waiting for the next rAF tick.
         dispatch({ type: 'SET_TIME', payload: startSec });
       }
-    }, [chunks]),
+    }, [segments]),
   };
 
   const clearPlaybackError = useCallback(() => {

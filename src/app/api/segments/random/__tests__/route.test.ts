@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RandomSegmentData } from '@/db/chunks';
+import type { RandomSegmentData } from '@/db/segments';
 
-const mockGetRandomStudyingChunk = vi.fn();
+const mockGetRandomStudyingSegment = vi.fn();
 
-vi.mock('@/db/chunks', () => ({
-  getRandomStudyingChunk: mockGetRandomStudyingChunk,
+vi.mock('@/db/segments', () => ({
+  getRandomStudyingSegment: mockGetRandomStudyingSegment,
 }));
 
-const FAKE_CHUNK: RandomSegmentData = {
-  chunkId: 5,
-  chunkIndex: 2,
+const FAKE_SEGMENT: RandomSegmentData = {
+  segmentId: 5,
+  segmentIndex: 2,
   textRaw: '日本語の文です。',
   startMs: 1000,
   endMs: 3000,
@@ -20,18 +20,18 @@ const FAKE_CHUNK: RandomSegmentData = {
   podcastName: 'Test Podcast',
 };
 
-describe('GET /api/chunks/random', () => {
+describe('GET /api/segments/random', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetRandomStudyingChunk.mockResolvedValue(null);
+    mockGetRandomStudyingSegment.mockResolvedValue(null);
   });
 
-  async function callRoute(url = 'http://localhost/api/chunks/random') {
+  async function callRoute(url = 'http://localhost/api/segments/random') {
     const { GET } = await import('../route');
     return GET(new Request(url));
   }
 
-  it('returns 200 with null data when no studying chunk exists', async () => {
+  it('returns 200 with null data when no studying segment exists', async () => {
     const response = await callRoute();
     const json = await response.json();
     expect(response.status).toBe(200);
@@ -39,29 +39,29 @@ describe('GET /api/chunks/random', () => {
     expect(json.data).toBeNull();
   });
 
-  it('returns 200 with chunk data when a studying chunk exists', async () => {
-    mockGetRandomStudyingChunk.mockResolvedValueOnce(FAKE_CHUNK);
+  it('returns 200 with segment data when a studying segment exists', async () => {
+    mockGetRandomStudyingSegment.mockResolvedValueOnce(FAKE_SEGMENT);
     const response = await callRoute();
     const json = await response.json();
     expect(response.status).toBe(200);
-    expect(json.data).toEqual(FAKE_CHUNK);
+    expect(json.data).toEqual(FAKE_SEGMENT);
   });
 
   it('returns 500 when the database throws', async () => {
-    mockGetRandomStudyingChunk.mockRejectedValueOnce(new Error('db connection lost'));
+    mockGetRandomStudyingSegment.mockRejectedValueOnce(new Error('db connection lost'));
     const response = await callRoute();
     const json = await response.json();
     expect(response.status).toBe(500);
     expect(json.error).toMatch(/db connection lost/i);
   });
 
-  it('passes the exclude chunkId to the DB function', async () => {
-    await callRoute('http://localhost/api/chunks/random?exclude=42');
-    expect(mockGetRandomStudyingChunk).toHaveBeenCalledWith(42);
+  it('passes the exclude segmentId to the DB function', async () => {
+    await callRoute('http://localhost/api/segments/random?exclude=42');
+    expect(mockGetRandomStudyingSegment).toHaveBeenCalledWith(42);
   });
 
   it('calls the DB function without an exclude id when param is absent', async () => {
     await callRoute();
-    expect(mockGetRandomStudyingChunk).toHaveBeenCalledWith(undefined);
+    expect(mockGetRandomStudyingSegment).toHaveBeenCalledWith(undefined);
   });
 });

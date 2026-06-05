@@ -18,7 +18,7 @@ const TERMINAL_STATUSES = new Set(['ready', 'error']);
 function stalledMessage(status: string): string {
   const stage =
     status === 'transcribing' ? 'transcription' :
-    status === 'chunking' ? 'chunking' :
+    status === 'segmenting' ? 'segmenting' :
     null;
   return `Processing stalled${stage ? ` during ${stage}` : ''}. Refresh the page to retry.`;
 }
@@ -33,7 +33,7 @@ export default function EpisodeStatusPoller({
   const [status, setStatus] = useState(initialStatus);
   const [stalled, setStalled] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const chunkTriggeredRef = useRef(false);
+  const segmentTriggeredRef = useRef(false);
   const currentStatusRef = useRef(initialStatus);
   const lastStatusChangeAtRef = useRef(Date.now());
 
@@ -72,9 +72,9 @@ export default function EpisodeStatusPoller({
           return;
         }
 
-        if (newStatus === 'chunking' && !chunkTriggeredRef.current) {
-          chunkTriggeredRef.current = true;
-          fetch(`/api/episodes/${episodeId}/chunk`, { method: 'POST' });
+        if (newStatus === 'segmenting' && !segmentTriggeredRef.current) {
+          segmentTriggeredRef.current = true;
+          fetch(`/api/episodes/${episodeId}/segment`, { method: 'POST' });
         }
 
         if (TERMINAL_STATUSES.has(newStatus)) {
@@ -107,7 +107,7 @@ export default function EpisodeStatusPoller({
 
   const label =
     status === 'transcribing' ? 'Transcribing…' :
-    status === 'chunking' ? 'Chunking…' :
+    status === 'segmenting' ? 'Segmenting…' :
     'Processing…';
 
   return (

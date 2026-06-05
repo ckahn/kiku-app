@@ -23,7 +23,7 @@ function makeEpisodeResponse(status: string, extra: Record<string, unknown> = {}
 
 function makeTranscribeResponse() {
   return new Response(
-    JSON.stringify({ success: true, data: { status: 'chunking' } }),
+    JSON.stringify({ success: true, data: { status: 'segmenting' } }),
     { status: 200 }
   );
 }
@@ -54,12 +54,12 @@ describe('EpisodeStatusPoller', () => {
     expect(screen.getByText('Transcribing…')).toBeInTheDocument();
   });
 
-  it('shows "Chunking…" while status is chunking', () => {
+  it('shows "Segmenting…" while status is segmenting', () => {
     mockFetch.mockReturnValue(new Promise(() => {}));
     render(
-      <EpisodeStatusPoller episodeId={1} initialStatus="chunking" pollIntervalMs={FAST_POLL} />
+      <EpisodeStatusPoller episodeId={1} initialStatus="segmenting" pollIntervalMs={FAST_POLL} />
     );
-    expect(screen.getByText('Chunking…')).toBeInTheDocument();
+    expect(screen.getByText('Segmenting…')).toBeInTheDocument();
   });
 
   it('fires POST to /transcribe on mount when status is uploaded', async () => {
@@ -94,11 +94,11 @@ describe('EpisodeStatusPoller', () => {
     }
   });
 
-  it('fires POST to /chunk when polling detects status change to chunking', async () => {
+  it('fires POST to /segment when polling detects status change to segmenting', async () => {
     mockFetch
       .mockResolvedValueOnce(makeTranscribeResponse())      // POST /transcribe
       .mockResolvedValueOnce(makeEpisodeResponse('transcribing'))
-      .mockResolvedValueOnce(makeEpisodeResponse('chunking'))
+      .mockResolvedValueOnce(makeEpisodeResponse('segmenting'))
       .mockResolvedValue(makeEpisodeResponse('ready'));
 
     render(
@@ -106,19 +106,19 @@ describe('EpisodeStatusPoller', () => {
     );
 
     await waitFor(() => {
-      const chunkCall = mockFetch.mock.calls.find(
-        ([url, init]) => url === '/api/episodes/1/chunk' && (init as RequestInit)?.method === 'POST'
+      const segmentCall = mockFetch.mock.calls.find(
+        ([url, init]) => url === '/api/episodes/1/segment' && (init as RequestInit)?.method === 'POST'
       );
-      expect(chunkCall).toBeDefined();
+      expect(segmentCall).toBeDefined();
     }, { timeout: 2000 });
   });
 
-  it('fires POST to /chunk only once even if multiple polls return chunking', async () => {
+  it('fires POST to /segment only once even if multiple polls return segmenting', async () => {
     mockFetch
       .mockResolvedValueOnce(makeTranscribeResponse())      // POST /transcribe
-      .mockResolvedValueOnce(makeEpisodeResponse('chunking'))
-      .mockResolvedValueOnce(makeEpisodeResponse('chunking'))
-      .mockResolvedValueOnce(makeEpisodeResponse('chunking'))
+      .mockResolvedValueOnce(makeEpisodeResponse('segmenting'))
+      .mockResolvedValueOnce(makeEpisodeResponse('segmenting'))
+      .mockResolvedValueOnce(makeEpisodeResponse('segmenting'))
       .mockResolvedValue(makeEpisodeResponse('ready'));
 
     render(
@@ -127,26 +127,26 @@ describe('EpisodeStatusPoller', () => {
 
     await waitFor(() => expect(mockRefresh).toHaveBeenCalled(), { timeout: 2000 });
 
-    const chunkCalls = mockFetch.mock.calls.filter(
-      ([url, init]) => url === '/api/episodes/1/chunk' && (init as RequestInit)?.method === 'POST'
+    const segmentCalls = mockFetch.mock.calls.filter(
+      ([url, init]) => url === '/api/episodes/1/segment' && (init as RequestInit)?.method === 'POST'
     );
-    expect(chunkCalls).toHaveLength(1);
+    expect(segmentCalls).toHaveLength(1);
   });
 
-  it('also fires /chunk when initial status is already chunking', async () => {
+  it('also fires /segment when initial status is already segmenting', async () => {
     mockFetch
-      .mockResolvedValueOnce(makeEpisodeResponse('chunking'))
+      .mockResolvedValueOnce(makeEpisodeResponse('segmenting'))
       .mockResolvedValue(makeEpisodeResponse('ready'));
 
     render(
-      <EpisodeStatusPoller episodeId={1} initialStatus="chunking" pollIntervalMs={FAST_POLL} />
+      <EpisodeStatusPoller episodeId={1} initialStatus="segmenting" pollIntervalMs={FAST_POLL} />
     );
 
     await waitFor(() => {
-      const chunkCall = mockFetch.mock.calls.find(
-        ([url, init]) => url === '/api/episodes/1/chunk' && (init as RequestInit)?.method === 'POST'
+      const segmentCall = mockFetch.mock.calls.find(
+        ([url, init]) => url === '/api/episodes/1/segment' && (init as RequestInit)?.method === 'POST'
       );
-      expect(chunkCall).toBeDefined();
+      expect(segmentCall).toBeDefined();
     }, { timeout: 2000 });
   });
 
@@ -184,20 +184,20 @@ describe('EpisodeStatusPoller', () => {
     }, { timeout: 2000 });
   });
 
-  it('stall message names the chunking stage', async () => {
-    mockFetch.mockResolvedValue(makeEpisodeResponse('chunking'));
+  it('stall message names the segmenting stage', async () => {
+    mockFetch.mockResolvedValue(makeEpisodeResponse('segmenting'));
 
     render(
       <EpisodeStatusPoller
         episodeId={1}
-        initialStatus="chunking"
+        initialStatus="segmenting"
         pollIntervalMs={FAST_POLL}
         stallTimeoutMs={FAST_STALL}
       />
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toMatch(/chunking/i);
+      expect(screen.getByRole('alert').textContent).toMatch(/segmenting/i);
     }, { timeout: 2000 });
   });
 

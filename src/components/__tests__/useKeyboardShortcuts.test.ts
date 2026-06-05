@@ -61,7 +61,7 @@ describe('useKeyboardShortcuts', () => {
   });
 
   describe('Escape', () => {
-    it('does nothing (chunk mode removed)', () => {
+    it('does nothing (segment mode removed)', () => {
       renderHook(() => useKeyboardShortcuts(options));
       pressKey('Escape');
       expect(options.toggle).not.toHaveBeenCalled();

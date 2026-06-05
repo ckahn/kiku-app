@@ -24,7 +24,7 @@ describe('study guide provider adapter', () => {
 
     expect(() =>
       parseStudyGuideProviderRequest({
-        chunkText: '',
+        segmentText: '',
         contextText: '文脈です。',
       })
     ).toThrow(/provider request/i);
@@ -35,7 +35,7 @@ describe('study guide provider adapter', () => {
 
     expect(() =>
       parseStudyGuideProviderRequest({
-        chunkText: '日本語の文です。',
+        segmentText: '日本語の文です。',
         contextText: '',
       })
     ).toThrow(/provider request/i);

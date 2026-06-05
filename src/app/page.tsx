@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { db } from '@/db';
 import { episodes, podcasts } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
-import { getRandomStudyingChunk } from '@/db/chunks';
+import { getRandomStudyingSegment } from '@/db/segments';
 import PodcastList from '@/components/PodcastList';
 import StudyingEpisodesList from '@/components/StudyingEpisodesList';
 import AddPodcastButton from '@/components/AddPodcastButton';
@@ -27,7 +27,7 @@ export default async function HomePage() {
       .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))
       .where(eq(episodes.studyStatus, 'studying'))
       .orderBy(desc(episodes.updatedAt)),
-    getRandomStudyingChunk(),
+    getRandomStudyingSegment(),
   ]);
   return (
     <PageShell>

@@ -1,36 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import studyGuideFixture from '@fixtures/study-guide.json';
 
-const mockGetChunkById = vi.fn();
-const mockGetChunksByEpisodeId = vi.fn();
-const mockSaveStudyGuideForChunkId = vi.fn();
+const mockGetSegmentById = vi.fn();
+const mockGetSegmentsByEpisodeId = vi.fn();
+const mockSaveStudyGuideForSegmentId = vi.fn();
 const mockGenerateStudyGuideFromProvider = vi.fn();
 
-vi.mock('@/db/chunks', () => ({
-  getChunkById: mockGetChunkById,
-  getChunksByEpisodeId: mockGetChunksByEpisodeId,
+vi.mock('@/db/segments', () => ({
+  getSegmentById: mockGetSegmentById,
+  getSegmentsByEpisodeId: mockGetSegmentsByEpisodeId,
 }));
 
 vi.mock('@/db/study-guides', () => ({
-  saveStudyGuideForChunkId: mockSaveStudyGuideForChunkId,
+  saveStudyGuideForSegmentId: mockSaveStudyGuideForSegmentId,
 }));
 
 vi.mock('@/lib/api/study-guide-provider', () => ({
   generateStudyGuideFromProvider: mockGenerateStudyGuideFromProvider,
 }));
 
-describe('POST /api/chunks/[id]/study-guide/regenerate', () => {
+describe('POST /api/segments/[id]/study-guide/regenerate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetChunkById.mockResolvedValue({ id: 12, episodeId: 5, textRaw: '日本語の文です。' });
-    mockGetChunksByEpisodeId.mockResolvedValue([
+    mockGetSegmentById.mockResolvedValue({ id: 12, episodeId: 5, textRaw: '日本語の文です。' });
+    mockGetSegmentsByEpisodeId.mockResolvedValue([
       { id: 11, episodeId: 5, textRaw: '前後の文もあります。' },
       { id: 12, episodeId: 5, textRaw: '日本語の文です。' },
     ]);
     mockGenerateStudyGuideFromProvider.mockResolvedValue(studyGuideFixture);
-    mockSaveStudyGuideForChunkId.mockResolvedValue({
+    mockSaveStudyGuideForSegmentId.mockResolvedValue({
       id: 4,
-      chunkId: 12,
+      segmentId: 12,
       version: 2,
       content: studyGuideFixture,
     });
@@ -38,14 +38,14 @@ describe('POST /api/chunks/[id]/study-guide/regenerate', () => {
 
   async function callRoute(id: string) {
     const { POST } = await import('../route');
-    const request = new Request(`http://localhost/api/chunks/${id}/study-guide/regenerate`, {
+    const request = new Request(`http://localhost/api/segments/${id}/study-guide/regenerate`, {
       method: 'POST',
     });
 
     return POST(request, { params: Promise.resolve({ id }) });
   }
 
-  it('regenerates and persists the study guide for a valid chunk', async () => {
+  it('regenerates and persists the study guide for a valid segment', async () => {
     const response = await callRoute('12');
     const json = await response.json();
 
@@ -55,11 +55,11 @@ describe('POST /api/chunks/[id]/study-guide/regenerate', () => {
       '日本語の文です。',
       '前後の文もあります。\n日本語の文です。'
     );
-    expect(mockSaveStudyGuideForChunkId).toHaveBeenCalledWith(12, studyGuideFixture);
+    expect(mockSaveStudyGuideForSegmentId).toHaveBeenCalledWith(12, studyGuideFixture);
   });
 
-  it('returns 404 when the chunk is missing', async () => {
-    mockGetChunkById.mockResolvedValueOnce(null);
+  it('returns 404 when the segment is missing', async () => {
+    mockGetSegmentById.mockResolvedValueOnce(null);
 
     const response = await callRoute('12');
     const json = await response.json();
@@ -79,6 +79,6 @@ describe('POST /api/chunks/[id]/study-guide/regenerate', () => {
 
     expect(response.status).toBe(500);
     expect(json.error).toMatch(/study guide content/i);
-    expect(mockSaveStudyGuideForChunkId).not.toHaveBeenCalled();
+    expect(mockSaveStudyGuideForSegmentId).not.toHaveBeenCalled();
   });
 });

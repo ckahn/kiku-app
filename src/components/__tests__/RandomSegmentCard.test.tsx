@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import RandomSegmentCard from '../RandomSegmentCard';
-import type { RandomSegmentData } from '@/db/chunks';
+import type { RandomSegmentData } from '@/db/segments';
 
 vi.mock('@/lib/audio/audioEngine', async () => {
   const { createMockAudioEngine } = await import('@/lib/audio/__tests__/mockAudioEngine');
@@ -18,8 +18,8 @@ const engineMock = audioEngine as unknown as MockAudioEngine;
 // ---------------------------------------------------------------------------
 
 const SEGMENT: RandomSegmentData = {
-  chunkId: 5,
-  chunkIndex: 2,
+  segmentId: 5,
+  segmentIndex: 2,
   textRaw: '日本語の文です。',
   startMs: 1000,
   endMs: 3000,
@@ -32,8 +32,8 @@ const SEGMENT: RandomSegmentData = {
 
 const SEGMENT_2: RandomSegmentData = {
   ...SEGMENT,
-  chunkId: 9,
-  chunkIndex: 4,
+  segmentId: 9,
+  segmentIndex: 4,
   textRaw: '別の文です。',
 };
 
@@ -92,7 +92,7 @@ describe('RandomSegmentCard', () => {
     // Buffer finishes loading
     act(() => { engineMock._setStatus('ready'); });
 
-    expect(engineMock.play).toHaveBeenCalledWith(SEGMENT.startMs / 1000 - 0.1); // minus CHUNK_PLAYBACK_OFFSET_SEC
+    expect(engineMock.play).toHaveBeenCalledWith(SEGMENT.startMs / 1000 - 0.1); // minus SEGMENT_PLAYBACK_OFFSET_SEC
   });
 
   it('resets isPlaying when load errors while a play is queued', async () => {
@@ -162,11 +162,11 @@ describe('RandomSegmentCard', () => {
     });
   });
 
-  it('passes the current chunkId as exclude param when shuffling', async () => {
+  it('passes the current segmentId as exclude param when shuffling', async () => {
     render(<RandomSegmentCard initialSegment={SEGMENT} />);
     fireEvent.click(screen.getByRole('button', { name: 'Show a different random segment' }));
     await waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/chunks/random?exclude=5');
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/segments/random?exclude=5');
     });
   });
 });

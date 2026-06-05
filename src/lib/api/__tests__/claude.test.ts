@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ElevenLabsWord, TranscriptChunk } from '../types';
+import type { ElevenLabsWord, TranscriptSegment } from '../types';
 import { findUnannotatedKanji } from '../claude';
 
 vi.mock('ai', () => ({
@@ -13,7 +13,7 @@ const DUMMY_WORDS: ElevenLabsWord[] = [
   { text: '日本語', startSecond: 0, endSecond: 0.5 },
 ];
 
-const DUMMY_CHUNKS: TranscriptChunk[] = [
+const DUMMY_SEGMENTS: TranscriptSegment[] = [
   { text: '日本語', first_word_index: 0, last_word_index: 0 },
 ];
 
@@ -38,7 +38,7 @@ describe('findUnannotatedKanji()', () => {
   });
 });
 
-describe('chunkTranscript() — mock mode', () => {
+describe('segmentTranscript() — mock mode', () => {
   beforeEach(() => {
     vi.stubEnv('USE_MOCKS', 'true');
   });
@@ -47,21 +47,21 @@ describe('chunkTranscript() — mock mode', () => {
     vi.unstubAllEnvs();
   });
 
-  it('returns an array of chunks with required fields', async () => {
-    const { chunkTranscript } = await import('../claude');
-    const result = await chunkTranscript('テスト', DUMMY_WORDS);
+  it('returns an array of segments with required fields', async () => {
+    const { segmentTranscript } = await import('../claude');
+    const result = await segmentTranscript('テスト', DUMMY_WORDS);
     expect(Array.isArray(result)).toBe(true);
-    for (const chunk of result) {
-      expect(chunk).toHaveProperty('text');
-      expect(chunk).toHaveProperty('first_word_index');
-      expect(chunk).toHaveProperty('last_word_index');
+    for (const segment of result) {
+      expect(segment).toHaveProperty('text');
+      expect(segment).toHaveProperty('first_word_index');
+      expect(segment).toHaveProperty('last_word_index');
     }
   });
 
   it('does not mutate the input words array', async () => {
-    const { chunkTranscript } = await import('../claude');
+    const { segmentTranscript } = await import('../claude');
     const inputWords = [...DUMMY_WORDS];
-    await chunkTranscript('テスト', inputWords);
+    await segmentTranscript('テスト', inputWords);
     expect(inputWords).toStrictEqual(DUMMY_WORDS);
   });
 });
@@ -75,16 +75,16 @@ describe('addFurigana() — mock mode', () => {
     vi.unstubAllEnvs();
   });
 
-  it('returns the same number of entries as input chunks', async () => {
-    const { chunkTranscript, addFurigana } = await import('../claude');
-    const chunks = await chunkTranscript('', DUMMY_WORDS);
-    const result = await addFurigana(chunks);
-    expect(result.length).toBe(chunks.length);
+  it('returns the same number of entries as input segments', async () => {
+    const { segmentTranscript, addFurigana } = await import('../claude');
+    const segments = await segmentTranscript('', DUMMY_WORDS);
+    const result = await addFurigana(segments);
+    expect(result.length).toBe(segments.length);
   });
 
   it('each result has text, text_furigana, first_word_index, last_word_index', async () => {
     const { addFurigana } = await import('../claude');
-    const result = await addFurigana(DUMMY_CHUNKS);
+    const result = await addFurigana(DUMMY_SEGMENTS);
     for (const entry of result) {
       expect(entry).toHaveProperty('text');
       expect(entry).toHaveProperty('text_furigana');
@@ -95,9 +95,9 @@ describe('addFurigana() — mock mode', () => {
     }
   });
 
-  it('fixture furigana still contains ruby annotations for kanji-bearing chunks', async () => {
+  it('fixture furigana still contains ruby annotations for kanji-bearing segments', async () => {
     const { addFurigana } = await import('../claude');
-    const result = await addFurigana(DUMMY_CHUNKS);
+    const result = await addFurigana(DUMMY_SEGMENTS);
     for (const entry of result) {
       expect(entry.text_furigana).toContain('<ruby');
       expect(entry.furigana_status).toBe('ok');
@@ -105,15 +105,15 @@ describe('addFurigana() — mock mode', () => {
     }
   });
 
-  it('does not mutate the input chunks array', async () => {
+  it('does not mutate the input segments array', async () => {
     const { addFurigana } = await import('../claude');
-    const inputChunks = [...DUMMY_CHUNKS];
-    await addFurigana(inputChunks);
-    expect(inputChunks).toStrictEqual(DUMMY_CHUNKS);
+    const inputSegments = [...DUMMY_SEGMENTS];
+    await addFurigana(inputSegments);
+    expect(inputSegments).toStrictEqual(DUMMY_SEGMENTS);
   });
 });
 
-describe('chunkTranscript() — real API', () => {
+describe('segmentTranscript() — real API', () => {
   beforeEach(() => {
     vi.stubEnv('USE_MOCKS', 'false');
     vi.resetModules();
@@ -126,21 +126,21 @@ describe('chunkTranscript() — real API', () => {
 
   it('throws when ANTHROPIC_API_KEY is not configured', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', '');
-    const { chunkTranscript } = await import('../claude');
-    await expect(chunkTranscript('テスト', DUMMY_WORDS)).rejects.toThrow(
+    const { segmentTranscript } = await import('../claude');
+    await expect(segmentTranscript('テスト', DUMMY_WORDS)).rejects.toThrow(
       'ANTHROPIC_API_KEY is not configured'
     );
   });
 
-  it('calls generateObject and returns parsed chunks', async () => {
+  it('calls generateObject and returns parsed segments', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
-      object: { chunks: [{ text: 'テスト', first_word_index: 0, last_word_index: 0 }] },
+      object: { segments: [{ text: 'テスト', first_word_index: 0, last_word_index: 0 }] },
     } as Awaited<ReturnType<typeof generateObject>>);
 
-    const { chunkTranscript } = await import('../claude');
-    const result = await chunkTranscript('テスト', DUMMY_WORDS);
+    const { segmentTranscript } = await import('../claude');
+    const result = await segmentTranscript('テスト', DUMMY_WORDS);
 
     expect(generateObject).toHaveBeenCalled();
     expect(result).toHaveLength(1);
@@ -162,7 +162,7 @@ describe('addFurigana() — real API', () => {
   it('throws when ANTHROPIC_API_KEY is not configured', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', '');
     const { addFurigana } = await import('../claude');
-    await expect(addFurigana(DUMMY_CHUNKS)).rejects.toThrow(
+    await expect(addFurigana(DUMMY_SEGMENTS)).rejects.toThrow(
       'ANTHROPIC_API_KEY is not configured'
     );
   });
@@ -172,14 +172,14 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '日本語', reading: 'にほんご' }] },
         ],
       },
     } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
-    const result = await addFurigana(DUMMY_CHUNKS);
+    const result = await addFurigana(DUMMY_SEGMENTS);
 
     expect(result[0].text).toBe('日本語');
     expect(result[0].first_word_index).toBe(0);
@@ -194,7 +194,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '日本語', reading: 'にほんご' }] },
           { index: 1, spans: [{ surface: '会議', reading: 'かいぎ' }] },
         ],
@@ -215,7 +215,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: 'テスト', reading: null }] },
         ],
       },
@@ -228,9 +228,9 @@ describe('addFurigana() — real API', () => {
     expect(result[0].furigana_status).toBe('ok');
   });
 
-  it('uses the index field to match annotations to chunks, not array order', async () => {
+  it('uses the index field to match annotations to segments, not array order', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
-    const twoChunks: TranscriptChunk[] = [
+    const twoSegments: TranscriptSegment[] = [
       { text: '日本', first_word_index: 0, last_word_index: 0 },
       { text: '会議', first_word_index: 1, last_word_index: 1 },
     ];
@@ -238,7 +238,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 1, spans: [{ surface: '会議', reading: 'かいぎ' }] },
           { index: 0, spans: [{ surface: '日本', reading: 'にほん' }] },
         ],
@@ -246,21 +246,21 @@ describe('addFurigana() — real API', () => {
     } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
-    const result = await addFurigana(twoChunks);
+    const result = await addFurigana(twoSegments);
 
     expect(result[0].text_furigana).toBe('<ruby>日本<rt>にほん</rt></ruby>');
     expect(result[1].text_furigana).toBe('<ruby>会議<rt>かいぎ</rt></ruby>');
   });
 
-  it('marks a chunk suspect when no annotation is returned', async () => {
+  it('marks a segment suspect when no annotation is returned', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
-      object: { annotated_chunks: [] },
+      object: { annotated_segments: [] },
     } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
-    const result = await addFurigana(DUMMY_CHUNKS);
+    const result = await addFurigana(DUMMY_SEGMENTS);
 
     expect(generateObject).toHaveBeenCalledTimes(1);
     expect(result[0].text_furigana).toBe('日本語');
@@ -273,7 +273,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '日本', reading: null }] },
         ],
       },
@@ -293,7 +293,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: 'テスト', reading: 'てすと' }] },
         ],
       },
@@ -312,7 +312,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: 'いた', reading: 'いた' }] },
         ],
       },
@@ -331,7 +331,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '聞いて', reading: 'きいて' }] },
         ],
       },
@@ -350,7 +350,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: 'ご飯', reading: 'ごはん' }] },
         ],
       },
@@ -369,7 +369,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '同じ', reading: 'おなじ' }] },
         ],
       },
@@ -388,7 +388,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '夜ご飯', reading: 'よるごはん' }] },
         ],
       },
@@ -407,7 +407,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '昼ご飯', reading: 'ひるごはん' }] },
         ],
       },
@@ -426,7 +426,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           {
             index: 0,
             spans: [
@@ -454,7 +454,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '20日', reading: 'はつか' }] },
         ],
       },
@@ -472,7 +472,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '時々', reading: 'ときどき' }] },
         ],
       },
@@ -491,7 +491,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           {
             index: 0,
             spans: [
@@ -517,7 +517,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '4月1日', reading: 'しがつついたち' }] },
         ],
       },
@@ -535,7 +535,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '355432円', reading: 'さんびゃくごじゅうごまんよんせんさんびゃくさんじゅうにえん' }] },
         ],
       },
@@ -553,7 +553,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: 'abc漢字', reading: 'えーびーしーかんじ' }] },
         ],
       },
@@ -571,7 +571,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '漢字', reading: '<script>alert(1)</script>' }] },
         ],
       },
@@ -589,7 +589,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     const badSpans = [{ surface: '日本語', reading: 'にほんご' }];
     vi.mocked(generateObject).mockResolvedValueOnce({
-      object: { annotated_chunks: [{ index: 0, spans: badSpans }] },
+      object: { annotated_segments: [{ index: 0, spans: badSpans }] },
     } as Awaited<ReturnType<typeof generateObject>>);
 
     const { addFurigana } = await import('../claude');
@@ -605,7 +605,7 @@ describe('addFurigana() — real API', () => {
     const { generateObject } = await import('ai');
     vi.mocked(generateObject).mockResolvedValueOnce({
       object: {
-        annotated_chunks: [
+        annotated_segments: [
           { index: 0, spans: [{ surface: '日本', reading: 'にほん' }] },
         ],
       },

@@ -19,8 +19,8 @@ describe('getEpisodeBadge', () => {
       expect(getEpisodeBadge({ status: 'transcribing', studyStatus: 'new' })).toEqual({ variant: 'warning', label: 'Processing…' });
     });
 
-    it('returns processing badge for chunking', () => {
-      expect(getEpisodeBadge({ status: 'chunking', studyStatus: 'new' })).toEqual({ variant: 'warning', label: 'Processing…' });
+    it('returns processing badge for segmenting', () => {
+      expect(getEpisodeBadge({ status: 'segmenting', studyStatus: 'new' })).toEqual({ variant: 'warning', label: 'Processing…' });
     });
   });
 

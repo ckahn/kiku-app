@@ -35,13 +35,13 @@ export async function setEpisodeError(episodeId: number, message: string): Promi
 }
 
 /**
- * Mark an episode as actively being chunked by Claude.
+ * Mark an episode as actively being segmented by Claude.
  * Always sets updatedAt explicitly — Drizzle does not auto-update it.
  */
-export async function setEpisodeChunking(episodeId: number): Promise<void> {
+export async function setEpisodeSegmenting(episodeId: number): Promise<void> {
   await db
     .update(episodes)
-    .set({ status: 'chunking', updatedAt: new Date() })
+    .set({ status: 'segmenting', updatedAt: new Date() })
     .where(eq(episodes.id, episodeId));
 }
 

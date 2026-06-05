@@ -6,7 +6,7 @@ export type EpisodeBadge = {
 };
 
 type EpisodeStatusFields = {
-  status: 'uploaded' | 'transcribing' | 'chunking' | 'ready' | 'error';
+  status: 'uploaded' | 'transcribing' | 'segmenting' | 'ready' | 'error';
   studyStatus: 'new' | 'studying' | 'learned';
 };
 
