@@ -1,26 +1,45 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
 import { getErrorMessage } from '@/lib/utils';
 import { Button, Input } from '@/components/ui';
 
+// Best-effort cleanup of an episode that was created right as the user cancelled.
+// Aborting the client fetch can't undo a server-side insert, so we delete the row
+// (and its blob) explicitly. Failures are logged but otherwise ignored.
+async function deleteOrphanEpisode(episodeId: number): Promise<void> {
+  try {
+    await fetch(`/api/episodes/${episodeId}`, { method: 'DELETE' });
+  } catch (err: unknown) {
+    console.error('[EpisodeUploadForm] failed to clean up cancelled episode', err);
+  }
+}
+
 interface EpisodeUploadFormProps {
   podcastId: string;
   podcastSlug: string;
+  onClose: () => void;
 }
 
-export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUploadFormProps) {
+export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: EpisodeUploadFormProps) {
   const router = useRouter();
   const [episodeNumber, setEpisodeNumber] = useState('');
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Cancel any in-flight upload if the form unmounts (e.g. the modal is closed
+  // mid-upload), so the request is dropped instead of navigating on completion.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
     try {
@@ -28,9 +47,12 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUpl
       const blob = await upload(file.name, file, {
         access: 'private',
         handleUploadUrl: '/api/blob/upload',
+        abortSignal: controller.signal,
       });
 
-      // Step 2: Create episode record using the returned blob URL
+      // Step 2: Create the episode record. Intentionally NOT tied to the abort
+      // signal — aborting the fetch wouldn't stop the server from inserting the
+      // row, so we let it finish to learn the episode id and clean up if cancelled.
       const res = await fetch(`/api/podcasts/${podcastId}/episodes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -45,16 +67,25 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUpl
         throw new Error(json.error ?? `Upload failed (${res.status})`);
       }
       const episode = json.data;
+      // Cancelled while the record was being created: delete the orphan so it
+      // doesn't linger in the episode list, and don't navigate.
+      if (controller.signal.aborted) {
+        void deleteOrphanEpisode(episode.id);
+        return;
+      }
+      onClose();
       router.push(`/podcasts/${podcastSlug}/episodes/${episode.episodeNumber}`);
     } catch (err: unknown) {
+      // Swallow the abort triggered by closing the form; it isn't a real failure.
+      if (controller.signal.aborted) return;
       setError(getErrorMessage(err));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 mb-4">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <Input
         type="number"
         value={episodeNumber}
@@ -80,9 +111,14 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug }: EpisodeUpl
       {error && (
         <p className="text-xs text-error-on-subtle">{error}</p>
       )}
-      <Button type="submit" disabled={loading || !file} loading={loading}>
-        {loading ? 'Uploading…' : 'Upload'}
-      </Button>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading || !file} loading={loading}>
+          {loading ? 'Uploading…' : 'Upload'}
+        </Button>
+      </div>
     </form>
   );
 }
