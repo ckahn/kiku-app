@@ -47,9 +47,16 @@ export default function PodcastCreateForm({ onClose }: PodcastCreateFormProps) {
         placeholder="Description (optional)"
       />
       {error && <p className="text-xs text-error-on-subtle">{error}</p>}
-      <Button type="submit" loading={loading} className="w-full">
-        {loading ? 'Creating…' : 'Add podcast'}
-      </Button>
+      <div className="flex justify-end gap-2">
+        {onClose && (
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+        )}
+        <Button type="submit" loading={loading}>
+          {loading ? 'Creating…' : 'Add podcast'}
+        </Button>
+      </div>
     </form>
   );
 }

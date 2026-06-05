@@ -39,6 +39,25 @@ describe('PodcastCreateForm', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('renders a Cancel button only when onClose is provided', () => {
+    const { rerender } = render(<PodcastCreateForm />);
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+
+    rerender(<PodcastCreateForm onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('calls onClose when Cancel is clicked and does not submit', async () => {
+    const onClose = vi.fn();
+    const fetchSpy = vi.spyOn(global, 'fetch');
+
+    render(<PodcastCreateForm onClose={onClose} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('shows error message on failure', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: false,
