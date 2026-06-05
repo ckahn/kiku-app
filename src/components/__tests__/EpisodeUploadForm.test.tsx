@@ -133,16 +133,17 @@ describe('EpisodeUploadForm', () => {
     expect(mockUpload).not.toHaveBeenCalled();
   });
 
-  it('does not navigate when unmounted (cancelled) mid-upload', async () => {
+  it('deletes the orphan episode and does not navigate when cancelled mid-upload', async () => {
     let resolveUpload!: (value: { url: string }) => void;
     mockUpload.mockReturnValueOnce(
       new Promise<{ url: string }>((resolve) => {
         resolveUpload = resolve;
       })
     );
+    // POST resolves with a created episode; the cleanup DELETE resolves too.
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
-      json: async () => ({ success: true, data: { episodeNumber: 3 } }),
+      json: async () => ({ success: true, data: { id: 42, episodeNumber: 3 } }),
     } as Response);
     const onClose = vi.fn();
 
@@ -153,13 +154,14 @@ describe('EpisodeUploadForm', () => {
     await waitFor(() => expect(mockUpload).toHaveBeenCalled());
 
     // Close the modal (unmount) while the upload is still in flight, then let
-    // the in-flight request finish.
+    // the in-flight request finish — the episode gets created server-side and
+    // must be cleaned up.
     unmount();
     resolveUpload({ url: 'https://blob.vercel-storage.com/ep1.mp3' });
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
-    await Promise.resolve();
-    await Promise.resolve();
 
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith('/api/episodes/42', expect.objectContaining({ method: 'DELETE' }))
+    );
     expect(mockPush).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });

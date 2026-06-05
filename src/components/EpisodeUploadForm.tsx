@@ -5,6 +5,17 @@ import { upload } from '@vercel/blob/client';
 import { getErrorMessage } from '@/lib/utils';
 import { Button, Input } from '@/components/ui';
 
+// Best-effort cleanup of an episode that was created right as the user cancelled.
+// Aborting the client fetch can't undo a server-side insert, so we delete the row
+// (and its blob) explicitly. Failures are logged but otherwise ignored.
+async function deleteOrphanEpisode(episodeId: number): Promise<void> {
+  try {
+    await fetch(`/api/episodes/${episodeId}`, { method: 'DELETE' });
+  } catch (err: unknown) {
+    console.error('[EpisodeUploadForm] failed to clean up cancelled episode', err);
+  }
+}
+
 interface EpisodeUploadFormProps {
   podcastId: string;
   podcastSlug: string;
@@ -39,7 +50,9 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: E
         abortSignal: controller.signal,
       });
 
-      // Step 2: Create episode record using the returned blob URL
+      // Step 2: Create the episode record. Intentionally NOT tied to the abort
+      // signal — aborting the fetch wouldn't stop the server from inserting the
+      // row, so we let it finish to learn the episode id and clean up if cancelled.
       const res = await fetch(`/api/podcasts/${podcastId}/episodes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,15 +61,18 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: E
           episodeNumber: Number(episodeNumber),
           title: title || undefined,
         }),
-        signal: controller.signal,
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(json.error ?? `Upload failed (${res.status})`);
       }
-      // Cancelled while finishing — don't navigate away after the user closed the form.
-      if (controller.signal.aborted) return;
       const episode = json.data;
+      // Cancelled while the record was being created: delete the orphan so it
+      // doesn't linger in the episode list, and don't navigate.
+      if (controller.signal.aborted) {
+        void deleteOrphanEpisode(episode.id);
+        return;
+      }
       onClose?.();
       router.push(`/podcasts/${podcastSlug}/episodes/${episode.episodeNumber}`);
     } catch (err: unknown) {
