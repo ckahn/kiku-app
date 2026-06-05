@@ -15,7 +15,7 @@ export function getEpisodeBadge(ep: EpisodeStatusFields): EpisodeBadge {
   if (ep.status !== 'ready') return { variant: 'warning', label: 'Processing…' };
 
   switch (ep.studyStatus) {
-    case 'studying': return { variant: 'info', label: 'Studying' };
+    case 'studying': return { variant: 'warning', label: 'Studying' };
     case 'learned':  return { variant: 'success', label: 'Learned' };
     default:         return { variant: 'neutral', label: 'New' };
   }

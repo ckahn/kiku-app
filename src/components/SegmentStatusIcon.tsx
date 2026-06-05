@@ -1,11 +1,5 @@
-import { Circle, CircleDot, CircleCheck, type LucideIcon } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { STUDY_STATUS_LABELS, type StudyStatus } from '@/lib/episodeStudyStatus';
-
-const STATUS_ICON: Record<StudyStatus, { icon: LucideIcon; className: string }> = {
-  new: { icon: Circle, className: 'text-muted' },
-  studying: { icon: CircleDot, className: 'text-primary' },
-  learned: { icon: CircleCheck, className: 'text-success' },
-};
 
 interface SegmentStatusIconProps {
   readonly status: StudyStatus;
@@ -14,20 +8,36 @@ interface SegmentStatusIconProps {
 }
 
 /**
- * Small non-interactive indicator showing a segment's study status.
+ * Small non-interactive indicator for a segment's study status.
+ * - new:      no glyph (the common default — avoids list noise)
+ * - studying: filled amber dot
+ * - learned:  bare green checkmark
  */
 export default function SegmentStatusIcon({
   status,
   size = 16,
   className,
 }: SegmentStatusIconProps) {
-  const { icon: Icon, className: colorClass } = STATUS_ICON[status];
+  if (status === 'new') return null;
+
+  const label = STUDY_STATUS_LABELS[status];
+
+  if (status === 'studying') {
+    return (
+      <span
+        role="img"
+        aria-label={label}
+        className={`inline-block h-2.5 w-2.5 rounded-full bg-warning-on-subtle${className ? ` ${className}` : ''}`}
+      />
+    );
+  }
+
   return (
-    <Icon
+    <Check
       size={size}
-      className={className ? `${colorClass} ${className}` : colorClass}
-      aria-label={STUDY_STATUS_LABELS[status]}
       role="img"
+      aria-label={label}
+      className={`text-success-on-subtle${className ? ` ${className}` : ''}`}
     />
   );
 }

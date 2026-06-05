@@ -29,8 +29,8 @@ describe('getEpisodeBadge', () => {
       expect(getEpisodeBadge({ status: 'ready', studyStatus: 'new' })).toEqual({ variant: 'neutral', label: 'New' });
     });
 
-    it('returns info Studying for studying episodes', () => {
-      expect(getEpisodeBadge({ status: 'ready', studyStatus: 'studying' })).toEqual({ variant: 'info', label: 'Studying' });
+    it('returns warning Studying for studying episodes', () => {
+      expect(getEpisodeBadge({ status: 'ready', studyStatus: 'studying' })).toEqual({ variant: 'warning', label: 'Studying' });
     });
 
     it('returns success Learned for learned episodes', () => {

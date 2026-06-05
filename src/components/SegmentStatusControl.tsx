@@ -56,7 +56,9 @@ export default function SegmentStatusControl({
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
-        <SegmentStatusIcon status={status} />
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+          <SegmentStatusIcon status={status} />
+        </span>
         <label htmlFor={`segment-status-${segmentId}`} className="sr-only">
           Study status
         </label>
