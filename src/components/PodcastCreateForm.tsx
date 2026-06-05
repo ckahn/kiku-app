@@ -54,7 +54,7 @@ export default function PodcastCreateForm({ onClose }: PodcastCreateFormProps) {
           </Button>
         )}
         <Button type="submit" loading={loading}>
-          {loading ? 'Creating…' : 'Add podcast'}
+          {loading ? 'Creating…' : 'Create'}
         </Button>
       </div>
     </form>

@@ -21,7 +21,7 @@ describe('PodcastCreateForm', () => {
 
   it('renders submit button', () => {
     render(<PodcastCreateForm />);
-    expect(screen.getByRole('button', { name: 'Add podcast' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument();
   });
 
   it('navigates to new podcast and calls onClose on success', async () => {
@@ -33,7 +33,7 @@ describe('PodcastCreateForm', () => {
 
     render(<PodcastCreateForm onClose={onClose} />);
     await userEvent.type(screen.getByPlaceholderText('Podcast name'), 'My Show');
-    await userEvent.click(screen.getByRole('button', { name: 'Add podcast' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/podcasts/my-show'));
     expect(onClose).toHaveBeenCalledOnce();
@@ -66,7 +66,7 @@ describe('PodcastCreateForm', () => {
 
     render(<PodcastCreateForm />);
     await userEvent.type(screen.getByPlaceholderText('Podcast name'), 'Duplicate');
-    await userEvent.click(screen.getByRole('button', { name: 'Add podcast' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(screen.getByText('Name already taken')).toBeInTheDocument());
     expect(mockPush).not.toHaveBeenCalled();
@@ -80,7 +80,7 @@ describe('PodcastCreateForm', () => {
 
     render(<PodcastCreateForm />);
     await userEvent.type(screen.getByPlaceholderText('Podcast name'), 'Test');
-    await userEvent.click(screen.getByRole('button', { name: 'Add podcast' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(screen.getByText('Something went wrong.')).toBeInTheDocument());
   });
@@ -93,7 +93,7 @@ describe('PodcastCreateForm', () => {
 
     render(<PodcastCreateForm />);
     await userEvent.type(screen.getByPlaceholderText('Podcast name'), 'Solo');
-    await userEvent.click(screen.getByRole('button', { name: 'Add podcast' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/podcasts/solo'));
   });
