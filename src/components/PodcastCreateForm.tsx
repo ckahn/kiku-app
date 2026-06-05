@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Button, Input } from '@/components/ui';
 
 interface PodcastCreateFormProps {
-  onClose?: () => void;
+  onClose: () => void;
 }
 
 export default function PodcastCreateForm({ onClose }: PodcastCreateFormProps) {
@@ -29,7 +29,7 @@ export default function PodcastCreateForm({ onClose }: PodcastCreateFormProps) {
       setLoading(false);
       return;
     }
-    onClose?.();
+    onClose();
     router.push(`/podcasts/${data.data.slug}`);
   }
 
@@ -48,11 +48,9 @@ export default function PodcastCreateForm({ onClose }: PodcastCreateFormProps) {
       />
       {error && <p className="text-xs text-error-on-subtle">{error}</p>}
       <div className="flex justify-end gap-2">
-        {onClose && (
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-        )}
+        <Button type="button" variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
         <Button type="submit" loading={loading}>
           {loading ? 'Creating…' : 'Create'}
         </Button>

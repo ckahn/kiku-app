@@ -7,6 +7,8 @@ import PodcastCreateForm from '../PodcastCreateForm';
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }));
 
+const noop = () => {};
+
 describe('PodcastCreateForm', () => {
   beforeEach(() => {
     mockPush.mockReset();
@@ -14,14 +16,15 @@ describe('PodcastCreateForm', () => {
   });
 
   it('renders name and description inputs', () => {
-    render(<PodcastCreateForm />);
+    render(<PodcastCreateForm onClose={noop} />);
     expect(screen.getByPlaceholderText('Podcast name')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Description (optional)')).toBeInTheDocument();
   });
 
-  it('renders submit button', () => {
-    render(<PodcastCreateForm />);
+  it('renders Create and Cancel buttons', () => {
+    render(<PodcastCreateForm onClose={noop} />);
     expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
 
   it('navigates to new podcast and calls onClose on success', async () => {
@@ -37,14 +40,6 @@ describe('PodcastCreateForm', () => {
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/podcasts/my-show'));
     expect(onClose).toHaveBeenCalledOnce();
-  });
-
-  it('renders a Cancel button only when onClose is provided', () => {
-    const { rerender } = render(<PodcastCreateForm />);
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
-
-    rerender(<PodcastCreateForm onClose={vi.fn()} />);
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
 
   it('calls onClose when Cancel is clicked and does not submit', async () => {
@@ -64,7 +59,7 @@ describe('PodcastCreateForm', () => {
       json: async () => ({ error: 'Name already taken' }),
     } as Response);
 
-    render(<PodcastCreateForm />);
+    render(<PodcastCreateForm onClose={noop} />);
     await userEvent.type(screen.getByPlaceholderText('Podcast name'), 'Duplicate');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
@@ -78,23 +73,10 @@ describe('PodcastCreateForm', () => {
       json: async () => ({}),
     } as Response);
 
-    render(<PodcastCreateForm />);
+    render(<PodcastCreateForm onClose={noop} />);
     await userEvent.type(screen.getByPlaceholderText('Podcast name'), 'Test');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(screen.getByText('Something went wrong.')).toBeInTheDocument());
-  });
-
-  it('works without onClose prop', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, data: { slug: 'solo' } }),
-    } as Response);
-
-    render(<PodcastCreateForm />);
-    await userEvent.type(screen.getByPlaceholderText('Podcast name'), 'Solo');
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
-
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/podcasts/solo'));
   });
 });
