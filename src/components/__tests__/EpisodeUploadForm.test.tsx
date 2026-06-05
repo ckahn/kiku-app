@@ -22,6 +22,8 @@ function fillAndSubmit(container: HTMLElement, { episodeNumber = '1', title = ''
   fireEvent.submit(container.querySelector('form')!);
 }
 
+const noop = () => {};
+
 describe('EpisodeUploadForm', () => {
   beforeEach(() => {
     mockPush.mockReset();
@@ -30,19 +32,24 @@ describe('EpisodeUploadForm', () => {
   });
 
   it('renders episode number, title, and file inputs', () => {
-    render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
+    render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={noop} />);
     expect(screen.getByPlaceholderText('Episode number')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Title (optional)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument();
   });
 
+  it('renders a Cancel button', () => {
+    render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={noop} />);
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
   it('upload button is disabled until a file is selected', () => {
-    render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
+    render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={noop} />);
     expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled();
   });
 
   it('upload button enables after a file is selected', () => {
-    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
+    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={noop} />);
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [makeFile()] } });
     expect(screen.getByRole('button', { name: 'Upload' })).toBeEnabled();
   });
@@ -54,7 +61,7 @@ describe('EpisodeUploadForm', () => {
       json: async () => ({ success: true, data: { episodeNumber: 3 } }),
     } as Response);
 
-    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
+    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={noop} />);
     fillAndSubmit(container, { episodeNumber: '3', file: makeFile('ep1.mp3') });
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/podcasts/my-show/episodes/3'));
@@ -84,7 +91,7 @@ describe('EpisodeUploadForm', () => {
       json: async () => ({ success: true, data: { episodeNumber: 2 } }),
     } as Response);
 
-    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
+    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={noop} />);
     fillAndSubmit(container, { episodeNumber: '2', title: 'My Episode', file: makeFile('ep2.mp3') });
 
     await waitFor(() => expect(mockPush).toHaveBeenCalled());
@@ -111,14 +118,6 @@ describe('EpisodeUploadForm', () => {
 
     await waitFor(() => expect(mockPush).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders a Cancel button only when onClose is provided', () => {
-    const { rerender } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
-
-    rerender(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={vi.fn()} />);
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
 
   it('calls onClose when Cancel is clicked and does not submit', () => {
@@ -170,7 +169,7 @@ describe('EpisodeUploadForm', () => {
     mockUpload.mockRejectedValueOnce(new Error('Blob upload failed'));
     const fetchSpy = vi.spyOn(global, 'fetch');
 
-    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
+    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={noop} />);
     fillAndSubmit(container);
 
     await waitFor(() => expect(screen.getByText('Blob upload failed')).toBeInTheDocument());
@@ -185,7 +184,7 @@ describe('EpisodeUploadForm', () => {
       json: async () => ({ error: 'An episode with that number already exists for this podcast' }),
     } as Response);
 
-    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" />);
+    const { container } = render(<EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={noop} />);
     fillAndSubmit(container);
 
     await waitFor(() =>

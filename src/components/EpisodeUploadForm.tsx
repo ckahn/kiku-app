@@ -19,7 +19,7 @@ async function deleteOrphanEpisode(episodeId: number): Promise<void> {
 interface EpisodeUploadFormProps {
   podcastId: string;
   podcastSlug: string;
-  onClose?: () => void;
+  onClose: () => void;
 }
 
 export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: EpisodeUploadFormProps) {
@@ -73,7 +73,7 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: E
         void deleteOrphanEpisode(episode.id);
         return;
       }
-      onClose?.();
+      onClose();
       router.push(`/podcasts/${podcastSlug}/episodes/${episode.episodeNumber}`);
     } catch (err: unknown) {
       // Swallow the abort triggered by closing the form; it isn't a real failure.
@@ -112,11 +112,9 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: E
         <p className="text-xs text-error-on-subtle">{error}</p>
       )}
       <div className="flex justify-end gap-2">
-        {onClose && (
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-        )}
+        <Button type="button" variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
         <Button type="submit" disabled={loading || !file} loading={loading}>
           {loading ? 'Uploading…' : 'Upload'}
         </Button>
