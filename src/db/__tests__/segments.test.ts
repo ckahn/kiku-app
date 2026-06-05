@@ -465,13 +465,14 @@ describe('setEpisodeSegmentsStudyStatus()', () => {
     vi.clearAllMocks();
   });
 
-  it('cascades the status to every segment of the episode', async () => {
-    const where = vi.fn().mockResolvedValue(undefined);
+  it('cascades the status to every segment and returns the affected count', async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    const where = vi.fn().mockReturnValue({ returning });
     const set = vi.fn().mockReturnValue({ where });
     mockUpdate.mockReturnValue({ set });
 
     const { setEpisodeSegmentsStudyStatus } = await import('../segments');
-    await setEpisodeSegmentsStudyStatus(10, 'studying');
+    await expect(setEpisodeSegmentsStudyStatus(10, 'studying')).resolves.toBe(3);
 
     expect(set).toHaveBeenCalledWith({ studyStatus: 'studying', learnedAt: null });
     expect(where).toHaveBeenCalled();

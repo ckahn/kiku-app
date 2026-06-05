@@ -6,7 +6,6 @@ const mockFrom = vi.fn(() => ({ where: mockWhereSelect }));
 const mockSelect = vi.fn(() => ({ from: mockFrom }));
 
 const mockSetEpisodeSegmentsStudyStatus = vi.fn();
-const mockGetEpisodeStudyStatusMap = vi.fn();
 
 vi.mock('@/db', () => ({
   db: { select: mockSelect },
@@ -17,9 +16,6 @@ vi.mock('@/db/schema', () => ({
 vi.mock('@/db/segments', () => ({
   setEpisodeSegmentsStudyStatus: mockSetEpisodeSegmentsStudyStatus,
 }));
-vi.mock('@/db/episodes', () => ({
-  getEpisodeStudyStatusMap: mockGetEpisodeStudyStatusMap,
-}));
 vi.mock('drizzle-orm', () => ({ eq: mockEq }));
 
 describe('PATCH /api/episodes/[id]/study', () => {
@@ -29,8 +25,7 @@ describe('PATCH /api/episodes/[id]/study', () => {
     mockFrom.mockReset().mockReturnValue({ where: mockWhereSelect });
     mockSelect.mockReset().mockReturnValue({ from: mockFrom });
     mockEq.mockReset().mockReturnValue('eq-clause');
-    mockSetEpisodeSegmentsStudyStatus.mockReset().mockResolvedValue(undefined);
-    mockGetEpisodeStudyStatusMap.mockReset();
+    mockSetEpisodeSegmentsStudyStatus.mockReset().mockResolvedValue(0);
   });
 
   async function callPatch(body: unknown, id = '5') {
@@ -44,9 +39,9 @@ describe('PATCH /api/episodes/[id]/study', () => {
     );
   }
 
-  it('cascades "studying" to all segments and returns the derived status', async () => {
+  it('cascades "studying" to all segments and derives the status from the cascade', async () => {
     mockWhereSelect.mockResolvedValueOnce([{ id: 5 }]);
-    mockGetEpisodeStudyStatusMap.mockResolvedValueOnce(new Map([[5, 'studying']]));
+    mockSetEpisodeSegmentsStudyStatus.mockResolvedValueOnce(3);
 
     const response = await callPatch({ studyStatus: 'studying' });
     const json = await response.json();
@@ -58,13 +53,24 @@ describe('PATCH /api/episodes/[id]/study', () => {
 
   it('cascades "new" to all segments', async () => {
     mockWhereSelect.mockResolvedValueOnce([{ id: 5 }]);
-    mockGetEpisodeStudyStatusMap.mockResolvedValueOnce(new Map([[5, 'new']]));
+    mockSetEpisodeSegmentsStudyStatus.mockResolvedValueOnce(3);
 
     const response = await callPatch({ studyStatus: 'new' });
     const json = await response.json();
 
     expect(response.status).toBe(200);
     expect(mockSetEpisodeSegmentsStudyStatus).toHaveBeenCalledWith(5, 'new');
+    expect(json.data).toEqual({ id: 5, studyStatus: 'new' });
+  });
+
+  it('derives "new" when the episode has no segments to cascade', async () => {
+    mockWhereSelect.mockResolvedValueOnce([{ id: 5 }]);
+    mockSetEpisodeSegmentsStudyStatus.mockResolvedValueOnce(0);
+
+    const response = await callPatch({ studyStatus: 'studying' });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
     expect(json.data).toEqual({ id: 5, studyStatus: 'new' });
   });
 

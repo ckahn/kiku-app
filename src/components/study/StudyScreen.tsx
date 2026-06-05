@@ -297,7 +297,7 @@ export default function StudyScreen({
                   setTimeout(() => setCopied(false), 2000);
                 });
               }}
-              className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md hover:bg-muted/20 ${copied ? 'text-white' : 'text-muted hover:text-ink'}`}
+              className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md hover:bg-muted/20 ${copied ? 'text-ink' : 'text-muted hover:text-ink'}`}
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>

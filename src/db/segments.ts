@@ -175,17 +175,20 @@ export async function updateSegmentStudyStatus(
 /**
  * Cascade a study status to every segment of an episode. Used by the
  * episode-level start/stop-studying action, which overwrites all segments
- * (including any marked 'learned').
+ * (including any marked 'learned'). Returns the number of segments updated so
+ * callers can derive the episode status without a separate read-after-write.
  */
 export async function setEpisodeSegmentsStudyStatus(
   episodeId: number,
   status: StudyStatus
-): Promise<void> {
+): Promise<number> {
   const { studyStatus, learnedAt } = segmentSrsFields(status);
-  await db
+  const updated = await db
     .update(segments)
     .set({ studyStatus, learnedAt })
-    .where(eq(segments.episodeId, episodeId));
+    .where(eq(segments.episodeId, episodeId))
+    .returning({ id: segments.id });
+  return updated.length;
 }
 
 /**
