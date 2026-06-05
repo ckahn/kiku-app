@@ -48,6 +48,14 @@ export default function EpisodeActionMenu({
   async function handleStudyToggle(closeMenu: () => void): Promise<void> {
     if (!studyStatus || studyStatus === 'learned') return;
     const nextStatus = studyStatus === 'studying' ? 'new' : 'studying';
+    const confirmMessage =
+      nextStatus === 'studying'
+        ? 'Mark the entire episode as Studying? This overwrites every segment’s status — including any segments you’ve marked Learned.'
+        : 'Reset the entire episode to New? This overwrites every segment’s status — including any Studying or Learned progress.';
+    if (!window.confirm(confirmMessage)) {
+      closeMenu();
+      return;
+    }
     closeMenu();
     setStudyToggling(true);
     try {
