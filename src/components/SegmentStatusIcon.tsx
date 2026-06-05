@@ -1,6 +1,12 @@
 import { Check } from 'lucide-react';
 import { STUDY_STATUS_LABELS, type StudyStatus } from '@/lib/episodeStudyStatus';
 
+// Full, static class strings so Tailwind's scanner detects them. Do not build
+// these by gluing a utility directly onto a `${...}` interpolation — that hides
+// the class from the scanner and the style is silently dropped.
+const DOT_CLASS = 'inline-block h-2.5 w-2.5 rounded-full bg-warning-on-subtle';
+const CHECK_CLASS = 'text-success-on-subtle';
+
 interface SegmentStatusIconProps {
   readonly status: StudyStatus;
   readonly size?: number;
@@ -27,7 +33,7 @@ export default function SegmentStatusIcon({
       <span
         role="img"
         aria-label={label}
-        className={`inline-block h-2.5 w-2.5 rounded-full bg-warning-on-subtle${className ? ` ${className}` : ''}`}
+        className={className ? `${DOT_CLASS} ${className}` : DOT_CLASS}
       />
     );
   }
@@ -37,7 +43,7 @@ export default function SegmentStatusIcon({
       size={size}
       role="img"
       aria-label={label}
-      className={`text-success-on-subtle${className ? ` ${className}` : ''}`}
+      className={className ? `${CHECK_CLASS} ${className}` : CHECK_CLASS}
     />
   );
 }
