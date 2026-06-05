@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upload } from '@vercel/blob/client';
 import { getErrorMessage } from '@/lib/utils';
@@ -18,10 +18,17 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: E
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Cancel any in-flight upload if the form unmounts (e.g. the modal is closed
+  // mid-upload), so the request is dropped instead of navigating on completion.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
     try {
@@ -29,6 +36,7 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: E
       const blob = await upload(file.name, file, {
         access: 'private',
         handleUploadUrl: '/api/blob/upload',
+        abortSignal: controller.signal,
       });
 
       // Step 2: Create episode record using the returned blob URL
@@ -40,18 +48,23 @@ export default function EpisodeUploadForm({ podcastId, podcastSlug, onClose }: E
           episodeNumber: Number(episodeNumber),
           title: title || undefined,
         }),
+        signal: controller.signal,
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(json.error ?? `Upload failed (${res.status})`);
       }
+      // Cancelled while finishing — don't navigate away after the user closed the form.
+      if (controller.signal.aborted) return;
       const episode = json.data;
       onClose?.();
       router.push(`/podcasts/${podcastSlug}/episodes/${episode.episodeNumber}`);
     } catch (err: unknown) {
+      // Swallow the abort triggered by closing the form; it isn't a real failure.
+      if (controller.signal.aborted) return;
       setError(getErrorMessage(err));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }
 

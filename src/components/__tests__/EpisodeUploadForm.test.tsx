@@ -59,10 +59,14 @@ describe('EpisodeUploadForm', () => {
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/podcasts/my-show/episodes/3'));
 
-    expect(mockUpload).toHaveBeenCalledWith('ep1.mp3', expect.any(File), {
-      access: 'private',
-      handleUploadUrl: '/api/blob/upload',
-    });
+    expect(mockUpload).toHaveBeenCalledWith(
+      'ep1.mp3',
+      expect.any(File),
+      expect.objectContaining({
+        access: 'private',
+        handleUploadUrl: '/api/blob/upload',
+      })
+    );
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/podcasts/1/episodes',
       expect.objectContaining({
@@ -107,6 +111,37 @@ describe('EpisodeUploadForm', () => {
 
     await waitFor(() => expect(mockPush).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not navigate when unmounted (cancelled) mid-upload', async () => {
+    let resolveUpload!: (value: { url: string }) => void;
+    mockUpload.mockReturnValueOnce(
+      new Promise<{ url: string }>((resolve) => {
+        resolveUpload = resolve;
+      })
+    );
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: { episodeNumber: 3 } }),
+    } as Response);
+    const onClose = vi.fn();
+
+    const { container, unmount } = render(
+      <EpisodeUploadForm podcastId="1" podcastSlug="my-show" onClose={onClose} />
+    );
+    fillAndSubmit(container, { episodeNumber: '3', file: makeFile('ep1.mp3') });
+    await waitFor(() => expect(mockUpload).toHaveBeenCalled());
+
+    // Close the modal (unmount) while the upload is still in flight, then let
+    // the in-flight request finish.
+    unmount();
+    resolveUpload({ url: 'https://blob.vercel-storage.com/ep1.mp3' });
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('shows error when blob upload fails', async () => {
