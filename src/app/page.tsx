@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { episodes, podcasts } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { getRandomStudyingSegment } from '@/db/segments';
+import { getEpisodeStudyStatusMap } from '@/db/episodes';
 import PodcastList from '@/components/PodcastList';
 import StudyingEpisodesList from '@/components/StudyingEpisodesList';
 import AddPodcastButton from '@/components/AddPodcastButton';
@@ -11,7 +12,7 @@ import RandomSegmentCard from '@/components/RandomSegmentCard';
 import { PageShell } from '@/components/layout';
 
 export default async function HomePage() {
-  const [podcastList, studyingEpisodes, randomSegment] = await Promise.all([
+  const [podcastList, readyEpisodes, randomSegment] = await Promise.all([
     db.select().from(podcasts).orderBy(desc(podcasts.createdAt)),
     db
       .select({
@@ -21,14 +22,20 @@ export default async function HomePage() {
         podcastSlug: podcasts.slug,
         podcastName: podcasts.name,
         status: episodes.status,
-        studyStatus: episodes.studyStatus,
       })
       .from(episodes)
       .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))
-      .where(eq(episodes.studyStatus, 'studying'))
+      .where(eq(episodes.status, 'ready'))
       .orderBy(desc(episodes.updatedAt)),
     getRandomStudyingSegment(),
   ]);
+
+  // Episode study status is derived from its segments; keep only those whose
+  // derived status is 'studying'.
+  const studyStatusMap = await getEpisodeStudyStatusMap(readyEpisodes.map((ep) => ep.id));
+  const studyingEpisodes = readyEpisodes
+    .filter((ep) => studyStatusMap.get(ep.id) === 'studying')
+    .map((ep) => ({ ...ep, studyStatus: 'studying' as const }));
   return (
     <PageShell>
       <div className="mb-8 flex items-start gap-4">

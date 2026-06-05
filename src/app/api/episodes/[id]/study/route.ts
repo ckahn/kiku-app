@@ -2,9 +2,14 @@ import { z } from 'zod';
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { setEpisodeSegmentsStudyStatus } from '@/db/segments';
+import { getEpisodeStudyStatusMap } from '@/db/episodes';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 
+// The episode-level toggle only moves between new and studying; 'learned' is
+// reached per-segment. The chosen status cascades to ALL segments, overwriting
+// any that were individually marked 'learned'.
 const updateStudyStatusSchema = z.object({
   studyStatus: z.enum(['new', 'studying']),
 });
@@ -27,13 +32,10 @@ export async function PATCH(
     const [episode] = await db.select().from(episodes).where(eq(episodes.id, episodeId));
     if (!episode) return apiErr('not found', 404);
 
-    const [updatedEpisode] = await db
-      .update(episodes)
-      .set({ studyStatus: result.data.studyStatus, updatedAt: new Date() })
-      .where(eq(episodes.id, episodeId))
-      .returning();
+    await setEpisodeSegmentsStudyStatus(episodeId, result.data.studyStatus);
+    const statusMap = await getEpisodeStudyStatusMap([episodeId]);
 
-    return apiOk(updatedEpisode);
+    return apiOk({ id: episodeId, studyStatus: statusMap.get(episodeId) ?? 'new' });
   } catch (error: unknown) {
     return apiErr(getErrorMessage(error), 500);
   }

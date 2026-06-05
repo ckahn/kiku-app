@@ -29,6 +29,9 @@ function makeSegment(id: number, startMs: number, endMs: number): Segment {
     startMs,
     endMs,
     sentences: [] as unknown as Segment['sentences'],
+    studyStatus: 'new',
+    learnedAt: null,
+    nextReview: null,
     createdAt: new Date(),
   };
 }

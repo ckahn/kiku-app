@@ -88,6 +88,9 @@ function makeSegment(id: number, startMs: number, endMs: number, index: number):
     startMs,
     endMs,
     sentences: [] as unknown as Segment['sentences'],
+    studyStatus: 'new',
+    learnedAt: null,
+    nextReview: null,
     createdAt: new Date(),
   };
 }

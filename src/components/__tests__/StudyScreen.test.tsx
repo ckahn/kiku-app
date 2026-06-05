@@ -45,6 +45,9 @@ function makeSegment(overrides: Partial<Segment> = {}): Segment {
     startMs: 1000,
     endMs: 3400,
     sentences: [] as unknown as Segment['sentences'],
+    studyStatus: 'new',
+    learnedAt: null,
+    nextReview: null,
     createdAt: new Date(),
     ...overrides,
   };

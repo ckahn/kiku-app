@@ -2,6 +2,7 @@ import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '.';
 import { segments, episodes, podcasts } from './schema';
 import type { Segment } from './schema';
+import { segmentSrsFields, type StudyStatus } from '@/lib/episodeStudyStatus';
 import type {
   SegmentWithFurigana,
   ElevenLabsWord,
@@ -143,7 +144,7 @@ export async function getRandomStudyingSegment(excludeSegmentId?: number): Promi
     .innerJoin(episodes, eq(segments.episodeId, episodes.id))
     .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))
     .where(and(
-      eq(episodes.studyStatus, 'studying'),
+      eq(segments.studyStatus, 'studying'),
       eq(episodes.status, 'ready'),
       excludeSegmentId !== undefined ? ne(segments.id, excludeSegmentId) : undefined,
     ))
@@ -151,6 +152,40 @@ export async function getRandomStudyingSegment(excludeSegmentId?: number): Promi
     .limit(1);
 
   return row ?? null;
+}
+
+/**
+ * Update a single segment's study status. Stamps or clears learnedAt to match
+ * the new status; nextReview is left untouched (the review flow is deferred).
+ */
+export async function updateSegmentStudyStatus(
+  segmentId: number,
+  status: StudyStatus
+): Promise<Segment | null> {
+  const { studyStatus, learnedAt } = segmentSrsFields(status);
+  const [updated] = await db
+    .update(segments)
+    .set({ studyStatus, learnedAt })
+    .where(eq(segments.id, segmentId))
+    .returning();
+
+  return updated ?? null;
+}
+
+/**
+ * Cascade a study status to every segment of an episode. Used by the
+ * episode-level start/stop-studying action, which overwrites all segments
+ * (including any marked 'learned').
+ */
+export async function setEpisodeSegmentsStudyStatus(
+  episodeId: number,
+  status: StudyStatus
+): Promise<void> {
+  const { studyStatus, learnedAt } = segmentSrsFields(status);
+  await db
+    .update(segments)
+    .set({ studyStatus, learnedAt })
+    .where(eq(segments.episodeId, episodeId));
 }
 
 /**
