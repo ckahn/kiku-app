@@ -381,7 +381,7 @@ describe('AudioEngine', () => {
     });
 
     it('pending seek applied to startOffset when buffer finishes loading', async () => {
-      // Simulates: user refreshes, restore effect calls seekToChunk before buffer loads
+      // Simulates: user refreshes, restore effect calls seekToSegment before buffer loads
       const fresh = new AudioEngine();
       fresh.unlock();
 

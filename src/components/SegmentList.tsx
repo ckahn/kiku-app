@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { Chunk } from '@/db/schema';
+import type { Segment } from '@/db/schema';
 import type { PlayerState } from './player/types';
 import type { PlayerControls } from './player/usePlayer';
-import { findActiveChunkId } from './player/chunkUtils';
-import { scrollChunkIntoVisibleArea } from './player/scrollChunk';
-import ChunkItem from './player/ChunkItem';
+import { findActiveSegmentId } from './player/segmentUtils';
+import { scrollSegmentIntoVisibleArea } from './player/scrollSegment';
+import SegmentItem from './player/SegmentItem';
 
-interface ChunkListProps {
-  readonly chunks: readonly Chunk[];
+interface SegmentListProps {
+  readonly segments: readonly Segment[];
   readonly playerState: PlayerState;
   readonly controls: PlayerControls;
   readonly podcastSlug?: string;
@@ -17,15 +17,15 @@ interface ChunkListProps {
   readonly episodeHref?: string;
 }
 
-export default function ChunkList({
-  chunks,
+export default function SegmentList({
+  segments,
   playerState,
   controls,
   podcastSlug,
   episodeNumber,
   episodeHref,
-}: ChunkListProps) {
-  const activeChunkId = findActiveChunkId(chunks, playerState.currentTime);
+}: SegmentListProps) {
+  const activeSegmentId = findActiveSegmentId(segments, playerState.currentTime);
   const hasScrolledOnceRef = useRef(false);
 
   useEffect(() => {
@@ -35,20 +35,20 @@ export default function ChunkList({
       return;
     }
 
-    if (activeChunkId === null) {
+    if (activeSegmentId === null) {
       return;
     }
 
-    scrollChunkIntoVisibleArea(activeChunkId);
-  }, [activeChunkId]);
+    scrollSegmentIntoVisibleArea(activeSegmentId);
+  }, [activeSegmentId]);
 
   return (
     <ol className="space-y-4 pb-4">
-      {chunks.map((chunk) => (
-        <ChunkItem
-          key={chunk.id}
-          chunk={chunk}
-          isActive={activeChunkId === chunk.id}
+      {segments.map((segment) => (
+        <SegmentItem
+          key={segment.id}
+          segment={segment}
+          isActive={activeSegmentId === segment.id}
           controls={controls}
           podcastSlug={podcastSlug}
           episodeNumber={episodeNumber}

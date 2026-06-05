@@ -219,7 +219,7 @@ export class AudioEngine {
   }
 
   // subscribeToEnd fires only on natural file end (not explicit pause/seek).
-  // Use this to handle behaviors like "loop a chunk when the file runs out."
+  // Use this to handle behaviors like "loop a segment when the file runs out."
   subscribeToEnd(fn: () => void): () => void {
     this._endSubscribers.add(fn);
     return () => this._endSubscribers.delete(fn);

@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, Play, Shuffle, Square } from 'lucide-react';
-import type { RandomSegmentData } from '@/db/chunks';
+import type { RandomSegmentData } from '@/db/segments';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
-import { chunkStartSec } from '@/components/player/chunkUtils';
+import { segmentStartSec } from '@/components/player/segmentUtils';
 
 interface RandomSegmentCardProps {
   readonly initialSegment: RandomSegmentData;
@@ -24,7 +24,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
   const audioUrl = `/api/episodes/${segment.episodeId}/audio`;
   const engine = useAudioEngine(audioUrl);
 
-  const studyHref = `/podcasts/${segment.podcastSlug}/episodes/${segment.episodeNumber}/segments/${segment.chunkIndex}/study`;
+  const studyHref = `/podcasts/${segment.podcastSlug}/episodes/${segment.episodeNumber}/segments/${segment.segmentIndex}/study`;
 
   // When user clicks Play before the buffer is ready, queue the play here so
   // the auto-play effect below can fire it once the buffer finishes loading.
@@ -34,7 +34,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
   useEffect(() => {
     if (engine.status === 'ready' && pendingPlayRef.current) {
       pendingPlayRef.current = false;
-      audioEngine.play(chunkStartSec(segment));
+      audioEngine.play(segmentStartSec(segment));
     }
   }, [engine.status, segment.startMs]);
 
@@ -77,7 +77,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     } else {
       setIsPlaying(true);
       if (audioEngine.status === 'ready') {
-        audioEngine.play(chunkStartSec(segment));
+        audioEngine.play(segmentStartSec(segment));
       } else {
         // Buffer still loading (or errored) — queue play and trigger/retry load.
         // The auto-play effect above fires it once status becomes 'ready'.
@@ -98,7 +98,7 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/chunks/random?exclude=${segment.chunkId}`);
+      const res = await fetch(`/api/segments/random?exclude=${segment.segmentId}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as { data: RandomSegmentData | null };
       if (json.data) {

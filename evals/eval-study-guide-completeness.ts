@@ -2,7 +2,7 @@
  * Eval: Study guide completeness
  *
  * Checks that vocabulary and structures cover all meaningful content words
- * and grammatical patterns in the chunk. Breakdown coverage does not count.
+ * and grammatical patterns in the segment. Breakdown coverage does not count.
  *
  * Grading: LLM-as-judge using claude-opus-4-7 (intentionally different from
  * the generator model, per Anthropic eval guidance).
@@ -47,13 +47,13 @@ const judgeOutputSchema = z.object({
   missing: z.array(z.string()),
 });
 
-function buildJudgePrompt(chunkText: string, guide: StudyGuideContent): string {
+function buildJudgePrompt(segmentText: string, guide: StudyGuideContent): string {
   return `You are evaluating the completeness of a Japanese language study guide.
 
-Chunk text (the Japanese passage being studied):
-<chunk>
-${chunkText}
-</chunk>
+Segment text (the Japanese passage being studied):
+<segment>
+${segmentText}
+</segment>
 
 Vocabulary items in the study guide:
 ${guide.vocabulary.map((v) => v.japanese).join(', ')}
@@ -62,15 +62,15 @@ Structure patterns in the study guide:
 ${guide.structures.map((s) => s.pattern).join(', ')}
 
 Evaluation criteria:
-- vocabulary must contain every meaningful content word in the chunk (nouns, verbs, adjectives, adverbs, and particles that carry semantic weight).
+- vocabulary must contain every meaningful content word in the segment (nouns, verbs, adjectives, adverbs, and particles that carry semantic weight).
 - structures must contain every meaningful grammatical pattern, conjugation, or particle usage. This includes verb conjugation patterns (e.g. たり〜たり), sentence-ending patterns (e.g. んです), connective forms, and grammatical particles used in a teachable way (e.g. や for non-exhaustive listing, から for reason, のに for contrast).
 - "Meaningful" means genuinely useful for a Japanese learner studying this passage.
 
-Think step by step: enumerate every content word and grammatical pattern you find in the chunk text, then verify each is covered in vocabulary or structures. Output your step-by-step analysis in reasoning, then give a final verdict.`;
+Think step by step: enumerate every content word and grammatical pattern you find in the segment text, then verify each is covered in vocabulary or structures. Output your step-by-step analysis in reasoning, then give a final verdict.`;
 }
 
 async function judgeStudyGuide(
-  chunkText: string,
+  segmentText: string,
   guide: StudyGuideContent
 ): Promise<z.infer<typeof judgeOutputSchema>> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -82,7 +82,7 @@ async function judgeStudyGuide(
   const result = await generateText({
     model: anthropic(JUDGE_MODEL),
     output: Output.object({ schema: judgeOutputSchema }),
-    prompt: buildJudgePrompt(chunkText, guide),
+    prompt: buildJudgePrompt(segmentText, guide),
   });
 
   return result.output;
@@ -95,9 +95,9 @@ async function main(): Promise<void> {
   }
 
   // DB modules imported here so dotenv.config() above runs first.
-  const { getChunkByEpisodeIdAndIndex } = await import('@/db/chunks');
+  const { getSegmentByEpisodeIdAndIndex } = await import('@/db/segments');
   const { buildStudyGuideContext } = await import('@/lib/api/study-guide-service');
-  const { getStudyGuideByChunkId } = await import('@/db/study-guides');
+  const { getStudyGuideBySegmentId } = await import('@/db/study-guides');
   const { db } = await import('@/db');
   const { episodes, podcasts } = await import('@/db/schema');
   const { eq, and } = await import('drizzle-orm');
@@ -105,9 +105,9 @@ async function main(): Promise<void> {
   async function resolveFixture(path: string) {
     const match = path.match(/^\/podcasts\/([^/]+)\/episodes\/(\d+)\/segments\/(\d+)\/study$/);
     if (!match) throw new Error(`Cannot parse fixture path: ${path}`);
-    const [, slug, episodeNumberStr, chunkIndexStr] = match;
+    const [, slug, episodeNumberStr, segmentIndexStr] = match;
     const episodeNumber = parseInt(episodeNumberStr, 10);
-    const chunkIndex = parseInt(chunkIndexStr, 10);
+    const segmentIndex = parseInt(segmentIndexStr, 10);
 
     const [row] = await db
       .select({ episodeId: episodes.id })
@@ -116,10 +116,10 @@ async function main(): Promise<void> {
       .where(and(eq(podcasts.slug, slug), eq(episodes.episodeNumber, episodeNumber)));
     if (!row) throw new Error(`Episode not found for path: ${path}`);
 
-    const chunk = await getChunkByEpisodeIdAndIndex(row.episodeId, chunkIndex);
-    if (!chunk) throw new Error(`Chunk not found for path: ${path}`);
+    const segment = await getSegmentByEpisodeIdAndIndex(row.episodeId, segmentIndex);
+    if (!segment) throw new Error(`Segment not found for path: ${path}`);
 
-    return { chunk, episodeId: row.episodeId };
+    return { segment, episodeId: row.episodeId };
   }
 
   console.log('Study Guide Completeness Eval');
@@ -133,10 +133,10 @@ async function main(): Promise<void> {
     console.log(`${fixture.path} — expected: ${fixture.expected.toUpperCase()}`);
     if (fixture.note) console.log(`Note: ${fixture.note}`);
 
-    let chunk: Awaited<ReturnType<typeof getChunkByEpisodeIdAndIndex>>;
+    let segment: Awaited<ReturnType<typeof getSegmentByEpisodeIdAndIndex>>;
     let episodeId: number;
     try {
-      ({ chunk, episodeId } = await resolveFixture(fixture.path));
+      ({ segment, episodeId } = await resolveFixture(fixture.path));
     } catch (err: unknown) {
       console.error(`ERROR: ${err instanceof Error ? err.message : err}`);
       allMatched = false;
@@ -147,15 +147,15 @@ async function main(): Promise<void> {
 
     const contextText = await buildStudyGuideContext(episodeId);
     if (!contextText) {
-      console.error(`ERROR: Episode has no chunks for ${fixture.path}`);
+      console.error(`ERROR: Episode has no segments for ${fixture.path}`);
       allMatched = false;
       continue;
     }
 
-    console.log(`\nChunk text:\n${chunk.textRaw}`);
+    console.log(`\nSegment text:\n${segment.textRaw}`);
 
     console.log('\nGenerating study guide (live)...');
-    const liveGuide = await generateStudyGuideFromProvider(chunk.textRaw, contextText);
+    const liveGuide = await generateStudyGuideFromProvider(segment.textRaw, contextText);
 
     console.log('\n--- Live guide: vocabulary ---');
     for (const v of liveGuide.vocabulary) {
@@ -167,7 +167,7 @@ async function main(): Promise<void> {
       console.log(`  ${s.pattern}: ${s.meaning}`);
     }
 
-    const storedRow = await getStudyGuideByChunkId(chunk.id);
+    const storedRow = await getStudyGuideBySegmentId(segment.id);
     const storedGuide = storedRow?.content as StudyGuideContent | undefined;
 
     if (storedGuide) {
@@ -180,11 +180,11 @@ async function main(): Promise<void> {
         console.log(`  ${s.pattern}: ${s.meaning}`);
       }
     } else {
-      console.log('\n(No stored guide found for this chunk)');
+      console.log('\n(No stored guide found for this segment)');
     }
 
     console.log('\nRunning judge...');
-    const judgment = await judgeStudyGuide(chunk.textRaw, liveGuide);
+    const judgment = await judgeStudyGuide(segment.textRaw, liveGuide);
 
     console.log(`\nJudge reasoning:\n${judgment.reasoning}`);
     if (judgment.missing.length > 0) {

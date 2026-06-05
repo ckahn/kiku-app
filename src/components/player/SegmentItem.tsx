@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
-import type { Chunk } from '@/db/schema';
+import type { Segment } from '@/db/schema';
 import type { PlayerControls } from './usePlayer';
-import { stripFurigana } from './chunkUtils';
+import { stripFurigana } from './segmentUtils';
 import { saveEpisodeFocusState } from './studyNavigation';
 
-interface ChunkItemProps {
-  readonly chunk: Chunk;
+interface SegmentItemProps {
+  readonly segment: Segment;
   readonly isActive: boolean;
   readonly controls: PlayerControls;
   readonly podcastSlug?: string;
@@ -16,28 +16,28 @@ interface ChunkItemProps {
   readonly episodeHref?: string;
 }
 
-export default function ChunkItem({
-  chunk,
+export default function SegmentItem({
+  segment,
   isActive,
   controls,
   podcastSlug,
   episodeNumber,
   episodeHref,
-}: ChunkItemProps) {
-  const displayHtml = stripFurigana(chunk.textFurigana);
+}: SegmentItemProps) {
+  const displayHtml = stripFurigana(segment.textFurigana);
 
   function handleClick() {
-    controls.seekToChunk(chunk.id);
+    controls.seekToSegment(segment.id);
   }
 
   const studyHref =
     podcastSlug && episodeNumber !== undefined
-      ? `/podcasts/${podcastSlug}/episodes/${episodeNumber}/segments/${chunk.chunkIndex}/study`
+      ? `/podcasts/${podcastSlug}/episodes/${episodeNumber}/segments/${segment.segmentIndex}/study`
       : null;
 
   return (
     <li
-      data-chunk-id={chunk.id}
+      data-segment-id={segment.id}
       data-active={isActive || undefined}
       onClick={handleClick}
       className={`relative rounded-lg border transition-all p-4 cursor-pointer ${
@@ -58,7 +58,7 @@ export default function ChunkItem({
           onClick={(e) => {
             e.stopPropagation();
             if (episodeHref) {
-              saveEpisodeFocusState({ episodeHref, chunkId: chunk.id });
+              saveEpisodeFocusState({ episodeHref, segmentId: segment.id });
             }
           }}
           className="absolute right-2 top-2 flex h-11 w-11 cursor-pointer items-center justify-center text-muted transition-colors hover:text-primary"

@@ -15,6 +15,13 @@
       "when": 1775866127558,
       "tag": "0001_green_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780000000000,
+      "tag": "0002_rename_chunks_to_segments",
+      "breakpoints": true
     }
   ]
 }

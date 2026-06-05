@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import transcript from '@fixtures/elevenlabs-transcript.json';
-import chunks from '@fixtures/chunks.json';
+import segments from '@fixtures/segments.json';
 import furigana from '@fixtures/furigana.json';
 import studyGuide from '@fixtures/study-guide.json';
 
@@ -37,33 +37,33 @@ describe('elevenlabs-transcript.json', () => {
   });
 });
 
-describe('chunks.json', () => {
-  it('has at least one chunk', () => {
-    expect(chunks.length).toBeGreaterThan(0);
+describe('segments.json', () => {
+  it('has at least one segment', () => {
+    expect(segments.length).toBeGreaterThan(0);
   });
 
   it('all word indices are within bounds of transcript.segments', () => {
     const maxIndex = transcript.segments.length - 1;
-    for (const chunk of chunks) {
-      expect(chunk.first_word_index).toBeGreaterThanOrEqual(0);
-      expect(chunk.last_word_index).toBeLessThanOrEqual(maxIndex);
-      expect(chunk.first_word_index).toBeLessThanOrEqual(chunk.last_word_index);
+    for (const segment of segments) {
+      expect(segment.first_word_index).toBeGreaterThanOrEqual(0);
+      expect(segment.last_word_index).toBeLessThanOrEqual(maxIndex);
+      expect(segment.first_word_index).toBeLessThanOrEqual(segment.last_word_index);
     }
   });
 
-  it('chunk text equals concatenation of its segment range', () => {
-    for (const chunk of chunks) {
+  it('segment text equals concatenation of its segment range', () => {
+    for (const segment of segments) {
       const segmentsInRange = transcript.segments.slice(
-        chunk.first_word_index,
-        chunk.last_word_index + 1
+        segment.first_word_index,
+        segment.last_word_index + 1
       );
       const concatenated = segmentsInRange.map((s) => s.text).join('');
-      expect(concatenated).toBe(chunk.text);
+      expect(concatenated).toBe(segment.text);
     }
   });
 
-  it('chunks cover non-overlapping, sequential word ranges', () => {
-    const sorted = [...chunks].sort((a, b) => a.first_word_index - b.first_word_index);
+  it('segments cover non-overlapping, sequential word ranges', () => {
+    const sorted = [...segments].sort((a, b) => a.first_word_index - b.first_word_index);
     for (let i = 1; i < sorted.length; i++) {
       const prev = sorted[i - 1];
       const curr = sorted[i];
@@ -73,20 +73,20 @@ describe('chunks.json', () => {
 });
 
 describe('furigana.json', () => {
-  it('has the same length as chunks.json', () => {
-    expect(furigana.length).toBe(chunks.length);
+  it('has the same length as segments.json', () => {
+    expect(furigana.length).toBe(segments.length);
   });
 
-  it('each entry text matches the corresponding chunk text', () => {
+  it('each entry text matches the corresponding segment text', () => {
     for (let i = 0; i < furigana.length; i++) {
-      expect(furigana[i].text).toBe(chunks[i].text);
+      expect(furigana[i].text).toBe(segments[i].text);
     }
   });
 
-  it('each entry carries the same word indices as the corresponding chunk', () => {
+  it('each entry carries the same word indices as the corresponding segment', () => {
     for (let i = 0; i < furigana.length; i++) {
-      expect(furigana[i].first_word_index).toBe(chunks[i].first_word_index);
-      expect(furigana[i].last_word_index).toBe(chunks[i].last_word_index);
+      expect(furigana[i].first_word_index).toBe(segments[i].first_word_index);
+      expect(furigana[i].last_word_index).toBe(segments[i].last_word_index);
     }
   });
 
@@ -98,7 +98,7 @@ describe('furigana.json', () => {
 
   it('text_furigana contains the plain text content', () => {
     // Remove <rt>...</rt> readings first (their text content is not part of the base text),
-    // then strip remaining HTML tags — the result should equal the plain chunk text.
+    // then strip remaining HTML tags — the result should equal the plain segment text.
     for (const entry of furigana) {
       const stripped = entry.text_furigana
         .replace(/<rt>[^<]*<\/rt>/g, '')

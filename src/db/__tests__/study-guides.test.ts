@@ -20,7 +20,7 @@ vi.mock('@/db', () => ({
 vi.mock('@/db/schema', () => ({
   studyGuides: {
     id: 'id',
-    chunkId: 'chunkId',
+    segmentId: 'segmentId',
     content: 'content',
     version: 'version',
   },
@@ -40,41 +40,41 @@ describe('study guide repository', () => {
     mockInsert.mockReturnValue({ values: mockValues });
   });
 
-  it('returns null when no study guide exists for the chunk', async () => {
-    const { getStudyGuideByChunkId } = await import('../study-guides');
+  it('returns null when no study guide exists for the segment', async () => {
+    const { getStudyGuideBySegmentId } = await import('../study-guides');
 
-    await expect(getStudyGuideByChunkId(42)).resolves.toBeNull();
+    await expect(getStudyGuideBySegmentId(42)).resolves.toBeNull();
   });
 
-  it('returns the stored study guide row for the chunk', async () => {
+  it('returns the stored study guide row for the segment', async () => {
     const row = {
       id: 3,
-      chunkId: 42,
+      segmentId: 42,
       version: 2,
       content: validStudyGuideFixture,
     };
     mockWhere.mockResolvedValueOnce([row]);
 
-    const { getStudyGuideByChunkId } = await import('../study-guides');
+    const { getStudyGuideBySegmentId } = await import('../study-guides');
 
-    await expect(getStudyGuideByChunkId(42)).resolves.toEqual(row);
+    await expect(getStudyGuideBySegmentId(42)).resolves.toEqual(row);
   });
 
-  it('upserts study guide content keyed by chunk id', async () => {
+  it('upserts study guide content keyed by segment id', async () => {
     const row = {
       id: 7,
-      chunkId: 42,
+      segmentId: 42,
       version: 2,
       content: validStudyGuideFixture,
     };
     mockReturning.mockResolvedValueOnce([row]);
 
-    const { saveStudyGuideForChunkId } = await import('../study-guides');
+    const { saveStudyGuideForSegmentId } = await import('../study-guides');
 
-    await expect(saveStudyGuideForChunkId(42, validStudyGuideFixture)).resolves.toEqual(row);
+    await expect(saveStudyGuideForSegmentId(42, validStudyGuideFixture)).resolves.toEqual(row);
     expect(mockInsert).toHaveBeenCalled();
     expect(mockValues).toHaveBeenCalledWith({
-      chunkId: 42,
+      segmentId: 42,
       content: validStudyGuideFixture,
       version: 2,
     });

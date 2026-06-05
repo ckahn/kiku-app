@@ -11,7 +11,7 @@
  * Output:
  *   Overwrites fixtures/elevenlabs-transcript.json with the real API response.
  *   After running, re-run `npm test` — fixtures.test.ts will report any
- *   inconsistencies with chunks.json / furigana.json that need manual updates.
+ *   inconsistencies with segments.json / furigana.json that need manual updates.
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -81,7 +81,7 @@ async function main(): Promise<void> {
   console.log(`Words: ${data.words?.length ?? 0}`);
   console.log(`Text preview: ${data.text?.slice(0, 80)}...`);
   console.log('\nNext: run `npm test` to check fixture consistency.');
-  console.log('If tests fail, update fixtures/chunks.json and fixtures/furigana.json to match the new word indices.');
+  console.log('If tests fail, update fixtures/segments.json and fixtures/furigana.json to match the new word indices.');
 }
 
 main().catch((err: unknown) => {

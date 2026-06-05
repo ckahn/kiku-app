@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ElevenLabsWord } from '@/lib/api/types';
 import {
-  chunkSentencesByCharacterCount,
+  segmentSentencesByCharacterCount,
   segmentTranscriptDeterministically,
   splitTranscriptIntoSentences,
 } from '@/lib/transcript-segmentation';
@@ -73,11 +73,11 @@ describe('splitTranscriptIntoSentences()', () => {
   });
 });
 
-describe('chunkSentencesByCharacterCount()', () => {
-  it('groups complete sentences until the chunk reaches the minimum length', () => {
+describe('segmentSentencesByCharacterCount()', () => {
+  it('groups complete sentences until the segment reaches the minimum length', () => {
     const sentences = splitTranscriptIntoSentences(PUNCTUATED_WORDS);
 
-    expect(chunkSentencesByCharacterCount(sentences, 12)).toEqual([
+    expect(segmentSentencesByCharacterCount(sentences, 12)).toEqual([
       {
         text: '今日はいい天気です。散歩に行きます！',
         first_word_index: 0,
@@ -87,7 +87,7 @@ describe('chunkSentencesByCharacterCount()', () => {
     ]);
   });
 
-  it('emits a single long sentence as its own chunk', () => {
+  it('emits a single long sentence as its own segment', () => {
     const sentences = [
       {
         text: 'これは三十文字を超える十分に長い文です。',
@@ -98,7 +98,7 @@ describe('chunkSentencesByCharacterCount()', () => {
       },
     ];
 
-    expect(chunkSentencesByCharacterCount(sentences, 30)).toEqual([
+    expect(segmentSentencesByCharacterCount(sentences, 30)).toEqual([
       {
         text: 'これは三十文字を超える十分に長い文です。',
         first_word_index: 0,
@@ -108,7 +108,7 @@ describe('chunkSentencesByCharacterCount()', () => {
     ]);
   });
 
-  it('merges a short trailing chunk into the previous chunk', () => {
+  it('merges a short trailing segment into the previous segment', () => {
     const sentences = [
       {
         text: '最初の文は十分に長い文章です。',
@@ -126,7 +126,7 @@ describe('chunkSentencesByCharacterCount()', () => {
       },
     ];
 
-    expect(chunkSentencesByCharacterCount(sentences, 10)).toEqual([
+    expect(segmentSentencesByCharacterCount(sentences, 10)).toEqual([
       {
         text: '最初の文は十分に長い文章です。短い。',
         first_word_index: 0,
@@ -138,7 +138,7 @@ describe('chunkSentencesByCharacterCount()', () => {
 });
 
 describe('segmentTranscriptDeterministically()', () => {
-  it('returns one chunk when the whole transcript is shorter than the minimum length', () => {
+  it('returns one segment when the whole transcript is shorter than the minimum length', () => {
     const words: ElevenLabsWord[] = [
       { text: '短い', startSecond: 0, endSecond: 0.2 },
       { text: 'です', startSecond: 0.2, endSecond: 0.4 },
@@ -180,9 +180,9 @@ describe('segmentTranscriptDeterministically()', () => {
       { text: '。', startSecond: 2.3, endSecond: 2.3 },
     ];
 
-    const chunks = segmentTranscriptDeterministically(words, 10);
+    const segments = segmentTranscriptDeterministically(words, 10);
 
-    expect(chunks).toEqual([
+    expect(segments).toEqual([
       {
         text: '最初の文です。二つ目の文です。最後です。',
         first_word_index: 0,

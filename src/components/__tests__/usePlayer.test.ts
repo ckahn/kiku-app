@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { usePlayer } from '../player/usePlayer';
-import type { Chunk } from '@/db/schema';
+import type { Segment } from '@/db/schema';
 
 vi.mock('@/lib/audio/audioEngine', async () => {
   const { createMockAudioEngine } = await import('@/lib/audio/__tests__/mockAudioEngine');
@@ -17,26 +17,26 @@ const engineMock = audioEngine as unknown as MockAudioEngine;
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeChunk(id: number, startMs: number, endMs: number): Chunk {
+function makeSegment(id: number, startMs: number, endMs: number): Segment {
   return {
     id,
     episodeId: 1,
-    chunkIndex: id - 1,
+    segmentIndex: id - 1,
     textRaw: 'テスト',
     textFurigana: 'テスト',
     furiganaStatus: 'ok',
     furiganaWarning: null,
     startMs,
     endMs,
-    sentences: [] as unknown as Chunk['sentences'],
+    sentences: [] as unknown as Segment['sentences'],
     createdAt: new Date(),
   };
 }
 
-const CHUNKS = [
-  makeChunk(1, 0, 5000),
-  makeChunk(2, 5000, 12000),
-  makeChunk(3, 12000, 20000),
+const SEGMENTS = [
+  makeSegment(1, 0, 5000),
+  makeSegment(2, 5000, 12000),
+  makeSegment(3, 12000, 20000),
 ];
 
 const DURATION_MS = 20000;
@@ -49,7 +49,7 @@ const AUDIO_URL = '/api/episodes/1/audio';
 function setup() {
   vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0 as unknown as ReturnType<typeof requestAnimationFrame>);
   vi.spyOn(window, 'cancelAnimationFrame').mockReturnValue(undefined);
-  const { result } = renderHook(() => usePlayer(CHUNKS, DURATION_MS, AUDIO_URL));
+  const { result } = renderHook(() => usePlayer(SEGMENTS, DURATION_MS, AUDIO_URL));
   return { result };
 }
 
@@ -133,28 +133,28 @@ describe('usePlayer', () => {
     });
   });
 
-  describe('seekToChunk', () => {
-    it('seekToChunk seeks engine to chunk start', () => {
+  describe('seekToSegment', () => {
+    it('seekToSegment seeks engine to segment start', () => {
       const { result } = setup();
-      act(() => { result.current.controls.seekToChunk(2); });
+      act(() => { result.current.controls.seekToSegment(2); });
       expect(engineMock.seek).toHaveBeenCalledWith(4.9); // 5000ms / 1000 - 0.1s offset
     });
 
-    it('seekToChunk to first chunk seeks to 0', () => {
+    it('seekToSegment to first segment seeks to 0', () => {
       const { result } = setup();
-      act(() => { result.current.controls.seekToChunk(1); });
+      act(() => { result.current.controls.seekToSegment(1); });
       expect(engineMock.seek).toHaveBeenCalledWith(0);
     });
 
-    it('seekToChunk with unknown chunk id does nothing', () => {
+    it('seekToSegment with unknown segment id does nothing', () => {
       const { result } = setup();
-      act(() => { result.current.controls.seekToChunk(999); });
+      act(() => { result.current.controls.seekToSegment(999); });
       expect(engineMock.seek).not.toHaveBeenCalled();
     });
 
-    it('seekToChunk updates state.currentTime synchronously without waiting for rAF', () => {
+    it('seekToSegment updates state.currentTime synchronously without waiting for rAF', () => {
       const { result } = setup();
-      act(() => { result.current.controls.seekToChunk(2); });
+      act(() => { result.current.controls.seekToSegment(2); });
       expect(result.current.state.currentTime).toBe(4.9); // 5000ms / 1000 - 0.1s offset
     });
   });
@@ -169,18 +169,18 @@ describe('usePlayer', () => {
     });
   });
 
-  describe('chunk looping', () => {
-    it('seeks back to chunk start when time passes the chunk end while looping', () => {
+  describe('segment looping', () => {
+    it('seeks back to segment start when time passes the segment end while looping', () => {
       const { result } = setup();
 
-      // Enable looping, start playback atomically at time inside chunk 2 (5s–12s)
+      // Enable looping, start playback atomically at time inside segment 2 (5s–12s)
       act(() => { result.current.controls.toggleLoop(); });
       act(() => { engineMock.play(6); });
 
-      // Advance past chunk 2's end
+      // Advance past segment 2's end
       act(() => { engineMock._setTime(12.1); });
 
-      // Should have seeked back to chunk 2's start (5s - 0.1s offset = 4.9s)
+      // Should have seeked back to segment 2's start (5s - 0.1s offset = 4.9s)
       expect(engineMock.seek).toHaveBeenLastCalledWith(4.9);
     });
 
@@ -195,34 +195,34 @@ describe('usePlayer', () => {
       expect(engineMock.seek).not.toHaveBeenCalled();
     });
 
-    it('loops the new chunk after seekToChunk while looping', () => {
+    it('loops the new segment after seekToSegment while looping', () => {
       const { result } = setup();
 
-      // Enable looping, establish loop at chunk 1
+      // Enable looping, establish loop at segment 1
       act(() => { result.current.controls.toggleLoop(); });
       act(() => { engineMock.play(2); }); // isPlaying = true, time = 2
 
-      // Seek to chunk 3 (12s–20s) — locks loop chunk to chunk 3
+      // Seek to segment 3 (12s–20s) — locks loop segment to segment 3
       vi.clearAllMocks();
-      act(() => { result.current.controls.seekToChunk(3); });
+      act(() => { result.current.controls.seekToSegment(3); });
 
-      // Advance past chunk 3's end
+      // Advance past segment 3's end
       act(() => { engineMock._setTime(20.1); });
 
       expect(engineMock.seek).toHaveBeenLastCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
     });
 
-    it('loops chunk on natural file end when looping is active', () => {
+    it('loops segment on natural file end when looping is active', () => {
       const { result } = setup();
 
-      // Enable looping, start in chunk 3 (12s–20s)
+      // Enable looping, start in segment 3 (12s–20s)
       act(() => { result.current.controls.toggleLoop(); });
       act(() => { engineMock.play(14); }); // isPlaying = true, time = 14
 
       // Simulate the audio file reaching its natural end
       act(() => { engineMock._triggerNaturalEnd(); });
 
-      // Should have restarted from chunk 3's start (12s - 0.1s offset = 11.9s)
+      // Should have restarted from segment 3's start (12s - 0.1s offset = 11.9s)
       expect(engineMock.play).toHaveBeenCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
     });
 

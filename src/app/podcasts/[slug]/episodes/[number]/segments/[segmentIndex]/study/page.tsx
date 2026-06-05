@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { PageShell } from '@/components/layout';
 import StudyScreen from '@/components/study/StudyScreen';
 import { db } from '@/db';
-import { getChunkByEpisodeIdAndIndex, getChunksByEpisodeId } from '@/db/chunks';
+import { getSegmentByEpisodeIdAndIndex, getSegmentsByEpisodeId } from '@/db/segments';
 import { episodes, podcasts } from '@/db/schema';
 
 interface StudyPageParams {
@@ -43,25 +43,25 @@ export default async function StudyPage({
     notFound();
   }
 
-  const [chunk, allChunks] = await Promise.all([
-    getChunkByEpisodeIdAndIndex(episode.id, parsedSegmentIndex),
-    getChunksByEpisodeId(episode.id),
+  const [segment, allSegments] = await Promise.all([
+    getSegmentByEpisodeIdAndIndex(episode.id, parsedSegmentIndex),
+    getSegmentsByEpisodeId(episode.id),
   ]);
-  if (!chunk) {
+  if (!segment) {
     notFound();
   }
 
   const segmentBase = `/podcasts/${slug}/episodes/${episode.episodeNumber}/segments`;
   const prevHref = parsedSegmentIndex > 0 ? `${segmentBase}/${parsedSegmentIndex - 1}/study` : undefined;
-  const nextHref = parsedSegmentIndex < allChunks.length - 1 ? `${segmentBase}/${parsedSegmentIndex + 1}/study` : undefined;
+  const nextHref = parsedSegmentIndex < allSegments.length - 1 ? `${segmentBase}/${parsedSegmentIndex + 1}/study` : undefined;
 
   return (
     <PageShell>
       <StudyScreen
-        chunk={chunk}
-        totalSegments={allChunks.length}
+        segment={segment}
+        totalSegments={allSegments.length}
         audioUrl={`/api/episodes/${episode.id}/audio`}
-        studyGuideUrl={`/api/segments/${chunk.id}/study-guide`}
+        studyGuideUrl={`/api/segments/${segment.id}/study-guide`}
         backHref={`/podcasts/${slug}/episodes/${episode.episodeNumber}`}
         prevHref={prevHref}
         nextHref={nextHref}

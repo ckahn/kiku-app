@@ -1,27 +1,27 @@
-import type { Chunk } from '@/db/schema';
-import { getChunksByEpisodeId } from '@/db/chunks';
-import { saveStudyGuideForChunkId } from '@/db/study-guides';
+import type { Segment } from '@/db/schema';
+import { getSegmentsByEpisodeId } from '@/db/segments';
+import { saveStudyGuideForSegmentId } from '@/db/study-guides';
 import { parseStudyGuideContent } from '@/lib/api/study-guide';
 import { normalizeStudyGuideVocabularySurfaces } from '@/lib/api/study-guide-normalization';
 import { generateStudyGuideFromProvider } from '@/lib/api/study-guide-provider';
-import { STUDY_GUIDE_CONTEXT_CHUNKS } from '@/lib/constants';
+import { STUDY_GUIDE_CONTEXT_SEGMENTS } from '@/lib/constants';
 import type { StudyGuideContent } from '@/lib/api/types';
 
 export async function buildStudyGuideContext(episodeId: number): Promise<string> {
-  const episodeChunks = await getChunksByEpisodeId(episodeId);
-  return episodeChunks
-    .slice(-STUDY_GUIDE_CONTEXT_CHUNKS)
+  const episodeSegments = await getSegmentsByEpisodeId(episodeId);
+  return episodeSegments
+    .slice(-STUDY_GUIDE_CONTEXT_SEGMENTS)
     .map((c) => c.textRaw)
     .join('\n');
 }
 
-export async function generateAndSaveStudyGuide(chunk: Chunk): Promise<StudyGuideContent> {
-  const contextText = await buildStudyGuideContext(chunk.episodeId);
+export async function generateAndSaveStudyGuide(segment: Segment): Promise<StudyGuideContent> {
+  const contextText = await buildStudyGuideContext(segment.episodeId);
 
   const result = normalizeStudyGuideVocabularySurfaces(
-    parseStudyGuideContent(await generateStudyGuideFromProvider(chunk.textRaw, contextText))
+    parseStudyGuideContent(await generateStudyGuideFromProvider(segment.textRaw, contextText))
   );
 
-  await saveStudyGuideForChunkId(chunk.id, result);
+  await saveStudyGuideForSegmentId(segment.id, result);
   return result;
 }

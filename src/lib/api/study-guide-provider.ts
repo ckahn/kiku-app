@@ -7,15 +7,15 @@ import { studyGuideContentSchema } from './study-guide';
 import type { StudyGuideContent } from './types';
 
 // TODO: Standardize the rest of our external capability integrations around this
-// provider pattern too (for example transcript, chunking, and furigana) so route
+// provider pattern too (for example transcript, segmenting, and furigana) so route
 // handlers depend on app-shaped providers instead of vendor-specific modules.
 export interface StudyGuideProviderRequest {
-  readonly chunkText: string;
+  readonly segmentText: string;
   readonly contextText: string;
 }
 
 export const studyGuideProviderRequestSchema = z.object({
-  chunkText: z.string().min(1),
+  segmentText: z.string().min(1),
   contextText: z.string().min(1),
 }) satisfies z.ZodType<StudyGuideProviderRequest>;
 
@@ -32,21 +32,21 @@ export function parseStudyGuideProviderRequest(request: unknown): StudyGuideProv
 }
 
 function buildStudyGuidePrompt(request: StudyGuideProviderRequest): string {
-  // We send the last N chunks of the episode as background context so the model
+  // We send the last N segments of the episode as background context so the model
   // can resolve pronouns and topic-dropped subjects, without paying the token
   // cost of the full transcript. This context may come from later in the episode
-  // than the studied chunk; the prompt labels it as "episode context" rather than
+  // than the studied segment; the prompt labels it as "episode context" rather than
   // "preceding context" so the model treats it as background, not as immediately
   // preceding speech.
-  return `You are a Japanese teacher creating a concise mobile study guide for one Japanese podcast chunk.
+  return `You are a Japanese teacher creating a concise mobile study guide for one Japanese podcast segment.
 
 Return structured JSON only.
 
 Episode context (sample segments from this episode, for background reference only):
 ${request.contextText}
 
-Chunk to study:
-${request.chunkText}
+Segment to study:
+${request.segmentText}
 
 Output requirements:
 - version must be 2
@@ -63,9 +63,9 @@ Content rules:
 - Put conjugations and usage notes for inflected forms like 食べたり in structures instead of vocabulary
 - Prefer one vocabulary item per underlying word; do not list both a conjugated surface form and its dictionary form
 - Ignore English-language material in the transcript/context. Do not turn English sentences, phrases, or quoted translations into vocabulary, structures, or breakdown items.
-- Only derive study items from Japanese text; if a chunk is mostly English, leave vocabulary/structures/breakdown empty and rely on translation.fullEnglish
+- Only derive study items from Japanese text; if a segment is mostly English, leave vocabulary/structures/breakdown empty and rely on translation.fullEnglish
 - Reading fields: provide a hiragana reading ONLY when the text contains at least one kanji character; otherwise return null
-- For kanji-bearing vocabulary items, keep the japanese field in the original kanji spelling from the chunk; do not replace kanji with a kana-only reading.
+- For kanji-bearing vocabulary items, keep the japanese field in the original kanji spelling from the segment; do not replace kanji with a kana-only reading.
 - breakdown.cue must be an instructive explanation of the segment's meaning or grammar — never a question or quiz prompt
 - breakdown.order must start at 0 and increase by 1
 - Every id must be a short stable string
@@ -92,10 +92,10 @@ async function generateStudyGuideWithClaude(
 }
 
 export async function generateStudyGuideFromProvider(
-  chunkText: string,
+  segmentText: string,
   contextText: string
 ): Promise<StudyGuideContent> {
-  const request = parseStudyGuideProviderRequest({ chunkText, contextText });
+  const request = parseStudyGuideProviderRequest({ segmentText, contextText });
 
   if (process.env.USE_MOCKS === 'true') {
     return studyGuideFixture as StudyGuideContent;

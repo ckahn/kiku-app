@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import ChunkList from '../ChunkList';
+import SegmentList from '../SegmentList';
 import { initialPlayerState } from '../player/playerReducer';
-import type { Chunk } from '@/db/schema';
+import type { Segment } from '@/db/schema';
 import type { PlayerState } from '../player/types';
 import type { PlayerControls } from '../player/usePlayer';
 
@@ -30,18 +30,18 @@ beforeEach(() => {
   });
 });
 
-function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
+function makeSegment(overrides: Partial<Segment> = {}): Segment {
   return {
     id: 1,
     episodeId: 10,
-    chunkIndex: 0,
+    segmentIndex: 0,
     textRaw: 'テスト',
     textFurigana: 'テスト',
     furiganaStatus: 'ok',
     furiganaWarning: null,
     startMs: 0,
     endMs: 500,
-    sentences: [{ text: 'テスト', start_ms: 0, end_ms: 500 }] as unknown as Chunk['sentences'],
+    sentences: [{ text: 'テスト', start_ms: 0, end_ms: 500 }] as unknown as Segment['sentences'],
     createdAt: new Date(),
     ...overrides,
   };
@@ -57,7 +57,7 @@ function makeControls(): PlayerControls {
     forward: vi.fn(),
     toggleLoop: vi.fn(),
     restart: vi.fn(),
-    seekToChunk: vi.fn(),
+    seekToSegment: vi.fn(),
   };
 }
 
@@ -65,55 +65,55 @@ function playerState(overrides: Partial<PlayerState> = {}): PlayerState {
   return { ...initialPlayerState, ...overrides };
 }
 
-describe('ChunkList', () => {
-  it('renders one list item per chunk', () => {
-    const chunks = [
-      makeChunk({ id: 1, chunkIndex: 0 }),
-      makeChunk({ id: 2, chunkIndex: 1 }),
-      makeChunk({ id: 3, chunkIndex: 2 }),
+describe('SegmentList', () => {
+  it('renders one list item per segment', () => {
+    const segments = [
+      makeSegment({ id: 1, segmentIndex: 0 }),
+      makeSegment({ id: 2, segmentIndex: 1 }),
+      makeSegment({ id: 3, segmentIndex: 2 }),
     ];
     render(
-      <ChunkList chunks={chunks} playerState={playerState()} controls={makeControls()} />,
+      <SegmentList segments={segments} playerState={playerState()} controls={makeControls()} />,
     );
     expect(screen.getAllByRole('listitem')).toHaveLength(3);
   });
 
-  it('renders an empty list when chunks is empty', () => {
+  it('renders an empty list when segments is empty', () => {
     render(
-      <ChunkList chunks={[]} playerState={playerState()} controls={makeControls()} />,
+      <SegmentList segments={[]} playerState={playerState()} controls={makeControls()} />,
     );
     expect(screen.queryAllByRole('listitem')).toHaveLength(0);
   });
 
   it('always renders plain text without furigana', () => {
     const furigana = '<ruby>今日<rt>きょう</rt></ruby>も';
-    const chunks = [makeChunk({ textFurigana: furigana, id: 1 })];
+    const segments = [makeSegment({ textFurigana: furigana, id: 1 })];
     render(
-      <ChunkList chunks={chunks} playerState={playerState()} controls={makeControls()} />,
+      <SegmentList segments={segments} playerState={playerState()} controls={makeControls()} />,
     );
     expect(screen.queryByText('きょう')).toBeNull();
     expect(screen.getByText('今日も')).toBeInTheDocument();
   });
 
-  it('clicking a chunk calls controls.seekToChunk with the chunk id', () => {
+  it('clicking a segment calls controls.seekToSegment with the segment id', () => {
     const controls = makeControls();
-    const chunks = [makeChunk({ id: 5, chunkIndex: 0 })];
+    const segments = [makeSegment({ id: 5, segmentIndex: 0 })];
     render(
-      <ChunkList chunks={chunks} playerState={playerState()} controls={controls} />,
+      <SegmentList segments={segments} playerState={playerState()} controls={controls} />,
     );
     fireEvent.click(screen.getByRole('listitem'));
-    expect(controls.seekToChunk).toHaveBeenCalledWith(5);
+    expect(controls.seekToSegment).toHaveBeenCalledWith(5);
   });
 
-  it('active chunk during playback has data-active attribute', () => {
-    const chunks = [
-      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
-      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
+  it('active segment during playback has data-active attribute', () => {
+    const segments = [
+      makeSegment({ id: 1, segmentIndex: 0, startMs: 0, endMs: 5000 }),
+      makeSegment({ id: 2, segmentIndex: 1, startMs: 5000, endMs: 10000 }),
     ];
-    // currentTime = 6s → chunk 2 is active
+    // currentTime = 6s → segment 2 is active
     render(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 6 })}
         controls={makeControls()}
       />,
@@ -124,13 +124,13 @@ describe('ChunkList', () => {
   });
 
   it('does not scroll on the initial render', () => {
-    const chunks = [
-      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
-      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
+    const segments = [
+      makeSegment({ id: 1, segmentIndex: 0, startMs: 0, endMs: 5000 }),
+      makeSegment({ id: 2, segmentIndex: 1, startMs: 5000, endMs: 10000 }),
     ];
     render(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 0 })}
         controls={makeControls()}
       />,
@@ -138,23 +138,23 @@ describe('ChunkList', () => {
     expect(window.scrollTo).not.toHaveBeenCalled();
   });
 
-  it('scrolls to bring the active chunk above the player when currentTime advances', () => {
-    const chunks = [
-      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
-      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
+  it('scrolls to bring the active segment above the player when currentTime advances', () => {
+    const segments = [
+      makeSegment({ id: 1, segmentIndex: 0, startMs: 0, endMs: 5000 }),
+      makeSegment({ id: 2, segmentIndex: 1, startMs: 5000, endMs: 10000 }),
     ];
     const controls = makeControls();
     const { rerender } = render(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 1 })}
         controls={controls}
       />,
     );
 
-    // Chunk 2's rect: below the viewport's usable area (ceiling = 800 - 160 = 640).
-    const chunk2 = screen.getAllByRole('listitem')[1];
-    vi.spyOn(chunk2, 'getBoundingClientRect').mockReturnValue({
+    // Segment 2's rect: below the viewport's usable area (ceiling = 800 - 160 = 640).
+    const segment2 = screen.getAllByRole('listitem')[1];
+    vi.spyOn(segment2, 'getBoundingClientRect').mockReturnValue({
       top: 700,
       bottom: 900,
       left: 0,
@@ -169,30 +169,30 @@ describe('ChunkList', () => {
     expect(window.scrollTo).not.toHaveBeenCalled();
 
     rerender(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 6 })}
         controls={controls}
       />,
     );
 
-    // delta = chunkBottom(900) - ceiling(640) = 260; window.scrollY is 0.
+    // delta = segmentBottom(900) - ceiling(640) = 260; window.scrollY is 0.
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 260, behavior: 'smooth' });
   });
 
-  it('does not scroll when the active chunk is unchanged across re-renders', () => {
-    const chunks = [makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 })];
+  it('does not scroll when the active segment is unchanged across re-renders', () => {
+    const segments = [makeSegment({ id: 1, segmentIndex: 0, startMs: 0, endMs: 5000 })];
     const controls = makeControls();
     const { rerender } = render(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 1 })}
         controls={controls}
       />,
     );
     rerender(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 2 })}
         controls={controls}
       />,
@@ -200,24 +200,24 @@ describe('ChunkList', () => {
     expect(window.scrollTo).not.toHaveBeenCalled();
   });
 
-  it('does not scroll when activeChunkId becomes null', () => {
-    const chunks = [
-      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
-      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
+  it('does not scroll when activeSegmentId becomes null', () => {
+    const segments = [
+      makeSegment({ id: 1, segmentIndex: 0, startMs: 0, endMs: 5000 }),
+      makeSegment({ id: 2, segmentIndex: 1, startMs: 5000, endMs: 10000 }),
     ];
     const controls = makeControls();
     const { rerender } = render(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 1 })}
         controls={controls}
       />,
     );
 
-    // currentTime past the final chunk → no active chunk
+    // currentTime past the final segment → no active segment
     rerender(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 99 })}
         controls={controls}
       />,
@@ -226,23 +226,23 @@ describe('ChunkList', () => {
     expect(window.scrollTo).not.toHaveBeenCalled();
   });
 
-  it('does not scroll when the active chunk is already comfortably visible', () => {
-    const chunks = [
-      makeChunk({ id: 1, chunkIndex: 0, startMs: 0, endMs: 5000 }),
-      makeChunk({ id: 2, chunkIndex: 1, startMs: 5000, endMs: 10000 }),
+  it('does not scroll when the active segment is already comfortably visible', () => {
+    const segments = [
+      makeSegment({ id: 1, segmentIndex: 0, startMs: 0, endMs: 5000 }),
+      makeSegment({ id: 2, segmentIndex: 1, startMs: 5000, endMs: 10000 }),
     ];
     const controls = makeControls();
     const { rerender } = render(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 1 })}
         controls={controls}
       />,
     );
 
-    // Chunk 2's rect fits comfortably above the 640px ceiling.
-    const chunk2 = screen.getAllByRole('listitem')[1];
-    vi.spyOn(chunk2, 'getBoundingClientRect').mockReturnValue({
+    // Segment 2's rect fits comfortably above the 640px ceiling.
+    const segment2 = screen.getAllByRole('listitem')[1];
+    vi.spyOn(segment2, 'getBoundingClientRect').mockReturnValue({
       top: 100,
       bottom: 300,
       left: 0,
@@ -255,8 +255,8 @@ describe('ChunkList', () => {
     } as DOMRect);
 
     rerender(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState({ currentTime: 6 })}
         controls={controls}
       />,
@@ -266,11 +266,11 @@ describe('ChunkList', () => {
   });
 
   it('links to the study page using the segment route', () => {
-    const chunks = [makeChunk({ id: 1, chunkIndex: 2 })];
+    const segments = [makeSegment({ id: 1, segmentIndex: 2 })];
 
     render(
-      <ChunkList
-        chunks={chunks}
+      <SegmentList
+        segments={segments}
         playerState={playerState()}
         controls={makeControls()}
         podcastSlug="slow-japanese"

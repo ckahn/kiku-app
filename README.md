@@ -1,6 +1,6 @@
 # Kiku (聴く)
 
-A Japanese podcast study app. Upload an MP3, get a furigana-annotated transcript chunked into study segments, with on-demand translations and grammar drill-downs. Includes a spaced repetition review queue.
+A Japanese podcast study app. Upload an MP3, get a furigana-annotated transcript segmented into study segments, with on-demand translations and grammar drill-downs. Includes a spaced repetition review queue.
 
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind · Drizzle ORM · Vercel Postgres (Neon) · Vercel Blob · ElevenLabs Scribe v2 · Anthropic Claude
 
@@ -45,7 +45,7 @@ Set `USE_MOCKS=true` in `.env.local` to avoid API costs. API wrappers return can
 | File | Contents |
 |------|----------|
 | `elevenlabs-transcript.json` | Real ElevenLabs response |
-| `chunks.json` | Claude chunking output |
+| `segments.json` | Claude segmenting output |
 | `furigana.json` | Furigana annotations |
 | `study-guide.json` | Study guide content |
 
@@ -95,11 +95,11 @@ Drizzle Kit reads `.env.local` automatically (via `drizzle.config.ts`) and conne
 | `podcasts` | Top-level podcast feeds |
 | `episodes` | Individual episodes; tracks `status` and `study_status` |
 | `raw_transcripts` | Raw ElevenLabs JSONB payload (stored to avoid re-calling API) |
-| `chunks` | Study segments with furigana HTML (`<ruby>` tags) |
-| `study_guides` | Lazy-generated per-chunk translations + grammar analysis |
+| `segments` | Study segments with furigana HTML (`<ruby>` tags) |
+| `study_guides` | Lazy-generated per-segment translations + grammar analysis |
 | `review_log` | Spaced repetition history |
 
-Episode statuses: `uploaded → transcribing → chunking → ready | error`
+Episode statuses: `uploaded → transcribing → segmenting → ready | error`
 
 ---
 

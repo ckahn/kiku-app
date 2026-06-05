@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import studyGuideFixture from '@fixtures/study-guide.json';
-import type { Chunk } from '@/db/schema';
+import type { Segment } from '@/db/schema';
 import StudyScreen from '../study/StudyScreen';
 import * as studyNavigation from '../player/studyNavigation';
 
@@ -33,18 +33,18 @@ const engineMock = audioEngine as unknown as MockAudioEngine;
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeChunk(overrides: Partial<Chunk> = {}): Chunk {
+function makeSegment(overrides: Partial<Segment> = {}): Segment {
   return {
     id: 12,
     episodeId: 5,
-    chunkIndex: 3,
+    segmentIndex: 3,
     textRaw: '日本語の文です。',
     textFurigana: '<ruby>日本語<rt>にほんご</rt></ruby>の文です。',
     furiganaStatus: 'ok',
     furiganaWarning: null,
     startMs: 1000,
     endMs: 3400,
-    sentences: [] as unknown as Chunk['sentences'],
+    sentences: [] as unknown as Segment['sentences'],
     createdAt: new Date(),
     ...overrides,
   };
@@ -65,7 +65,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -80,7 +80,7 @@ describe('StudyScreen', () => {
     expect(screen.getByLabelText(/loading study guide/i)).toBeInTheDocument();
     expect(screen.getByText('にほんご')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /furigana/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Restart chunk' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Restart segment' })).toBeNull();
   });
 
   it('opens vocabulary by default and keeps the other sections collapsed', async () => {
@@ -91,7 +91,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -114,7 +114,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -136,7 +136,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -150,7 +150,7 @@ describe('StudyScreen', () => {
     expect(screen.getByText(studyGuideFixture.translation.fullEnglish)).toBeInTheDocument();
   });
 
-  it('starts playback from the beginning of the chunk and changes the control to stop', async () => {
+  it('starts playback from the beginning of the segment and changes the control to stop', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ success: true, data: studyGuideFixture }),
@@ -158,7 +158,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -181,7 +181,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -194,7 +194,7 @@ describe('StudyScreen', () => {
     expect(screen.getByRole('button', { name: 'Stop audio' })).toBeInTheDocument();
   });
 
-  it('stops playback when the chunk reaches its end time', async () => {
+  it('stops playback when the segment reaches its end time', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ success: true, data: studyGuideFixture }),
@@ -202,7 +202,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -212,14 +212,14 @@ describe('StudyScreen', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
 
-    // Advance time past chunk endMs (3400ms → 3.4s)
+    // Advance time past segment endMs (3400ms → 3.4s)
     act(() => { engineMock._setTime(3.5); });
 
     expect(engineMock.pause).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Play audio' })).toBeInTheDocument();
   });
 
-  it('stops playback and resets to the chunk start when the user clicks stop', async () => {
+  it('stops playback and resets to the segment start when the user clicks stop', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ success: true, data: studyGuideFixture }),
@@ -227,7 +227,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -250,7 +250,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -279,7 +279,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -313,7 +313,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -347,7 +347,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -373,7 +373,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -401,7 +401,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk()}
+        segment={makeSegment()}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -422,7 +422,7 @@ describe('StudyScreen', () => {
 
     render(
       <StudyScreen
-        chunk={makeChunk({ furiganaStatus: 'suspect', furiganaWarning: 'Suspicious reading detected.' })}
+        segment={makeSegment({ furiganaStatus: 'suspect', furiganaWarning: 'Suspicious reading detected.' })}
         totalSegments={10}
         audioUrl="/api/episodes/5/audio"
         studyGuideUrl="/api/segments/12/study-guide"
@@ -443,7 +443,7 @@ describe('StudyScreen', () => {
     it('renders the speed button showing 1× by default', () => {
       render(
         <StudyScreen
-          chunk={makeChunk()}
+          segment={makeSegment()}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/12/study-guide"
@@ -457,7 +457,7 @@ describe('StudyScreen', () => {
     it('keeps segment action controls as fixed same-size squares when speed changes', () => {
       render(
         <StudyScreen
-          chunk={makeChunk()}
+          segment={makeSegment()}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/12/study-guide"
@@ -491,7 +491,7 @@ describe('StudyScreen', () => {
     it('cycles 1× → 0.75× → 0.5× → 1× on successive clicks', () => {
       render(
         <StudyScreen
-          chunk={makeChunk()}
+          segment={makeSegment()}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/12/study-guide"
@@ -515,7 +515,7 @@ describe('StudyScreen', () => {
     it('calls unlock() on mount to eager-load the worklet', () => {
       render(
         <StudyScreen
-          chunk={makeChunk()}
+          segment={makeSegment()}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/12/study-guide"
@@ -530,7 +530,7 @@ describe('StudyScreen', () => {
       engineMock._setWorkletReady(false);
       render(
         <StudyScreen
-          chunk={makeChunk()}
+          segment={makeSegment()}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/12/study-guide"
@@ -548,7 +548,7 @@ describe('StudyScreen', () => {
     it('retains selected speed across play/stop cycles within the same segment', async () => {
       render(
         <StudyScreen
-          chunk={makeChunk()}
+          segment={makeSegment()}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/12/study-guide"
@@ -574,12 +574,12 @@ describe('StudyScreen', () => {
       );
     });
 
-    it('saves the current chunk id when the study page renders', () => {
+    it('saves the current segment id when the study page renders', () => {
       const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
 
       render(
         <StudyScreen
-          chunk={makeChunk({ id: 99, chunkIndex: 5 })}
+          segment={makeSegment({ id: 99, segmentIndex: 5 })}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/99/study-guide"
@@ -589,16 +589,16 @@ describe('StudyScreen', () => {
 
       expect(saveSpy).toHaveBeenCalledWith({
         episodeHref: '/podcasts/slow-japanese/episodes/7',
-        chunkId: 99,
+        segmentId: 99,
       });
     });
 
-    it('saves the current chunk id when the back button is clicked', () => {
+    it('saves the current segment id when the back button is clicked', () => {
       const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
 
       render(
         <StudyScreen
-          chunk={makeChunk({ id: 99, chunkIndex: 5 })}
+          segment={makeSegment({ id: 99, segmentIndex: 5 })}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/99/study-guide"
@@ -610,7 +610,7 @@ describe('StudyScreen', () => {
 
       expect(saveSpy).toHaveBeenLastCalledWith({
         episodeHref: '/podcasts/slow-japanese/episodes/7',
-        chunkId: 99,
+        segmentId: 99,
       });
     });
   });
@@ -625,7 +625,7 @@ describe('StudyScreen', () => {
     it('renders both links as anchors when both hrefs are provided (middle segment)', () => {
       render(
         <StudyScreen
-          chunk={makeChunk({ chunkIndex: 3 })}
+          segment={makeSegment({ segmentIndex: 3 })}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/12/study-guide"
@@ -644,7 +644,7 @@ describe('StudyScreen', () => {
     it('renders previous as a dimmed span (not a link) when on the first segment', () => {
       render(
         <StudyScreen
-          chunk={makeChunk({ chunkIndex: 0 })}
+          segment={makeSegment({ segmentIndex: 0 })}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/12/study-guide"
@@ -664,7 +664,7 @@ describe('StudyScreen', () => {
     it('renders next as a dimmed span (not a link) when on the last segment', () => {
       render(
         <StudyScreen
-          chunk={makeChunk({ chunkIndex: 9 })}
+          segment={makeSegment({ segmentIndex: 9 })}
           totalSegments={10}
           audioUrl="/api/episodes/5/audio"
           studyGuideUrl="/api/segments/12/study-guide"
