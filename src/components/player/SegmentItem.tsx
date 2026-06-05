@@ -6,6 +6,7 @@ import type { Segment } from '@/db/schema';
 import type { PlayerControls } from './usePlayer';
 import { stripFurigana } from './segmentUtils';
 import { saveEpisodeFocusState } from './studyNavigation';
+import SegmentStatusIcon from '@/components/SegmentStatusIcon';
 
 interface SegmentItemProps {
   readonly segment: Segment;
@@ -46,8 +47,11 @@ export default function SegmentItem({
           : 'border-border bg-surface hover:border-primary/30 hover:bg-canvas-subtle'
       }`}
     >
+      <span className="absolute left-2 top-4 flex items-center" title={`Status: ${segment.studyStatus}`}>
+        <SegmentStatusIcon status={segment.studyStatus} />
+      </span>
       <p
-        className="text-lg text-ink font-jp leading-loose pr-7"
+        className="text-lg text-ink font-jp leading-loose pl-7 pr-7"
         // textFurigana is Claude-generated HTML containing only <ruby>/<rt> tags.
         // It is not user-supplied input.
         dangerouslySetInnerHTML={{ __html: displayHtml }}

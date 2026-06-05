@@ -1,5 +1,15 @@
 export type StudyStatus = 'new' | 'studying' | 'learned';
 
+/** Canonical ordering of study statuses, e.g. for dropdown options. */
+export const STUDY_STATUS_VALUES: readonly StudyStatus[] = ['new', 'studying', 'learned'];
+
+/** Human-readable labels for each study status. */
+export const STUDY_STATUS_LABELS: Record<StudyStatus, string> = {
+  new: 'New',
+  studying: 'Studying',
+  learned: 'Learned',
+};
+
 /**
  * Derive an episode's study status from the statuses of its segments.
  *

@@ -10,6 +10,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({
     back: vi.fn(),
     push: vi.fn(),
+    refresh: vi.fn(),
   }),
 }));
 
