@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { db } from '@/db';
 import { podcasts, episodes } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { attachStudyStatus } from '@/db/episodes';
 import EpisodeList from '@/components/EpisodeList';
 import AddEpisodeButton from '@/components/AddEpisodeButton';
 import { PageShell } from '@/components/layout';
@@ -16,11 +17,12 @@ export default async function PodcastPage({
   const [podcast] = await db.select().from(podcasts).where(eq(podcasts.slug, slug));
   if (!podcast) notFound();
 
-  const episodeList = await db
+  const episodeRows = await db
     .select()
     .from(episodes)
     .where(eq(episodes.podcastId, podcast.id))
     .orderBy(desc(episodes.createdAt));
+  const episodeList = await attachStudyStatus(episodeRows);
 
   return (
     <PageShell backHref="/" backLabel="Library">

@@ -1,11 +1,13 @@
 'use client';
 
 import type { Episode } from '@/db/schema';
+import type { StudyStatus } from '@/lib/episodeStudyStatus';
 import EpisodeActionMenu from '@/components/EpisodeActionMenu';
 import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
 import ListItemRow from '@/components/ListItemRow';
 
-type StudyingEpisode = Pick<Episode, 'id' | 'title' | 'episodeNumber' | 'status' | 'studyStatus'> & {
+type StudyingEpisode = Pick<Episode, 'id' | 'title' | 'episodeNumber' | 'status'> & {
+  studyStatus: StudyStatus;
   podcastSlug: string;
   podcastName: string;
 };

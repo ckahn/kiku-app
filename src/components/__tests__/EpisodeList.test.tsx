@@ -22,8 +22,6 @@ describe('EpisodeList', () => {
             durationMs: null,
             status: 'ready',
             studyStatus: 'new',
-            learnedAt: null,
-            nextReview: null,
             errorMessage: null,
             createdAt: null,
             updatedAt: null,

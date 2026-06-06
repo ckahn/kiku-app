@@ -1,7 +1,55 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { db } from '.';
-import { episodes, rawTranscripts } from './schema';
+import { episodes, rawTranscripts, segments } from './schema';
+import {
+  deriveEpisodeStudyStatusFromCounts,
+  type StudyStatus,
+} from '@/lib/episodeStudyStatus';
 import type { ElevenLabsTranscript } from '@/lib/api/types';
+
+/**
+ * Derive study status for a set of episodes from their segments, in one
+ * aggregate query. Episodes with no segments default to 'new'.
+ */
+export async function getEpisodeStudyStatusMap(
+  episodeIds: readonly number[]
+): Promise<Map<number, StudyStatus>> {
+  const map = new Map<number, StudyStatus>();
+  for (const id of episodeIds) {
+    map.set(id, 'new');
+  }
+  if (episodeIds.length === 0) return map;
+
+  const rows = await db
+    .select({
+      episodeId: segments.episodeId,
+      total: sql<number>`count(*)::int`,
+      learned: sql<number>`(count(*) filter (where ${segments.studyStatus} = 'learned'))::int`,
+      studying: sql<number>`(count(*) filter (where ${segments.studyStatus} = 'studying'))::int`,
+    })
+    .from(segments)
+    .where(inArray(segments.episodeId, [...episodeIds]))
+    .groupBy(segments.episodeId);
+
+  for (const row of rows) {
+    map.set(row.episodeId, deriveEpisodeStudyStatusFromCounts(row));
+  }
+
+  return map;
+}
+
+/**
+ * Attach a derived `studyStatus` to a list of episode rows.
+ */
+export async function attachStudyStatus<T extends { id: number }>(
+  rows: readonly T[]
+): Promise<(T & { studyStatus: StudyStatus })[]> {
+  const statusMap = await getEpisodeStudyStatusMap(rows.map((row) => row.id));
+  return rows.map((row) => ({
+    ...row,
+    studyStatus: statusMap.get(row.id) ?? 'new',
+  }));
+}
 
 /**
  * Mark an episode as actively being transcribed.

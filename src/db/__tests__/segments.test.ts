@@ -7,6 +7,7 @@ import type {
 
 const mockInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
 const mockSelect = vi.fn();
+const mockUpdate = vi.fn();
 const mockFrom = vi.fn();
 const mockInnerJoin = vi.fn();
 const mockWhere = vi.fn();
@@ -17,12 +18,13 @@ vi.mock('@/db', () => ({
   db: {
     insert: mockInsert,
     select: mockSelect,
+    update: mockUpdate,
   },
 }));
 
 vi.mock('@/db/schema', () => ({
-  segments: { id: 'id', episodeId: 'episodeId', segmentIndex: 'segmentIndex' },
-  episodes: { id: 'episodeId', studyStatus: 'studyStatus', status: 'status', podcastId: 'podcastId' },
+  segments: { id: 'id', episodeId: 'episodeId', segmentIndex: 'segmentIndex', studyStatus: 'studyStatus' },
+  episodes: { id: 'episodeId', status: 'status', podcastId: 'podcastId' },
   podcasts: { id: 'podcastId', slug: 'slug', name: 'name' },
 }));
 
@@ -417,5 +419,62 @@ describe('getSegmentByEpisodeIdAndIndex()', () => {
     const { getSegmentByEpisodeIdAndIndex } = await import('../segments');
 
     await expect(getSegmentByEpisodeIdAndIndex(3, 1)).resolves.toEqual(fakeSegment);
+  });
+});
+
+describe('updateSegmentStudyStatus()', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function mockUpdateChain(returnedRows: unknown[]) {
+    const returning = vi.fn().mockResolvedValue(returnedRows);
+    const where = vi.fn().mockReturnValue({ returning });
+    const set = vi.fn().mockReturnValue({ where });
+    mockUpdate.mockReturnValue({ set });
+    return { set, where, returning };
+  }
+
+  it('stamps learnedAt and returns the updated row when marking learned', async () => {
+    const updated = { id: 7, studyStatus: 'learned' };
+    const { set } = mockUpdateChain([updated]);
+
+    const { updateSegmentStudyStatus } = await import('../segments');
+    await expect(updateSegmentStudyStatus(7, 'learned')).resolves.toEqual(updated);
+    expect(set).toHaveBeenCalledWith({ studyStatus: 'learned', learnedAt: expect.any(Date) });
+  });
+
+  it('clears learnedAt for non-learned statuses', async () => {
+    const { set } = mockUpdateChain([{ id: 7, studyStatus: 'studying' }]);
+
+    const { updateSegmentStudyStatus } = await import('../segments');
+    await updateSegmentStudyStatus(7, 'studying');
+    expect(set).toHaveBeenCalledWith({ studyStatus: 'studying', learnedAt: null });
+  });
+
+  it('returns null when no segment matched', async () => {
+    mockUpdateChain([]);
+
+    const { updateSegmentStudyStatus } = await import('../segments');
+    await expect(updateSegmentStudyStatus(999, 'new')).resolves.toBeNull();
+  });
+});
+
+describe('setEpisodeSegmentsStudyStatus()', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('cascades the status to every segment and returns the affected count', async () => {
+    const returning = vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    const where = vi.fn().mockReturnValue({ returning });
+    const set = vi.fn().mockReturnValue({ where });
+    mockUpdate.mockReturnValue({ set });
+
+    const { setEpisodeSegmentsStudyStatus } = await import('../segments');
+    await expect(setEpisodeSegmentsStudyStatus(10, 'studying')).resolves.toBe(3);
+
+    expect(set).toHaveBeenCalledWith({ studyStatus: 'studying', learnedAt: null });
+    expect(where).toHaveBeenCalled();
   });
 });

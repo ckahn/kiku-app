@@ -5,22 +5,16 @@ const mockWhereSelect = vi.fn();
 const mockFrom = vi.fn(() => ({ where: mockWhereSelect }));
 const mockSelect = vi.fn(() => ({ from: mockFrom }));
 
-const mockWhereUpdate = vi.fn();
-const mockSetUpdate = vi.fn(() => ({ where: mockWhereUpdate }));
-const mockUpdateBuilder = vi.fn(() => ({ set: mockSetUpdate }));
+const mockSetEpisodeSegmentsStudyStatus = vi.fn();
 
 vi.mock('@/db', () => ({
-  db: {
-    select: mockSelect,
-    update: mockUpdateBuilder,
-  },
+  db: { select: mockSelect },
 }));
 vi.mock('@/db/schema', () => ({
-  episodes: {
-    id: 'episodes.id',
-    studyStatus: 'episodes.study_status',
-    updatedAt: 'episodes.updated_at',
-  },
+  episodes: { id: 'episodes.id' },
+}));
+vi.mock('@/db/segments', () => ({
+  setEpisodeSegmentsStudyStatus: mockSetEpisodeSegmentsStudyStatus,
 }));
 vi.mock('drizzle-orm', () => ({ eq: mockEq }));
 
@@ -30,10 +24,8 @@ describe('PATCH /api/episodes/[id]/study', () => {
     mockWhereSelect.mockReset();
     mockFrom.mockReset().mockReturnValue({ where: mockWhereSelect });
     mockSelect.mockReset().mockReturnValue({ from: mockFrom });
-    mockWhereUpdate.mockReset();
-    mockSetUpdate.mockReset().mockReturnValue({ where: mockWhereUpdate });
-    mockUpdateBuilder.mockReset().mockReturnValue({ set: mockSetUpdate });
     mockEq.mockReset().mockReturnValue('eq-clause');
+    mockSetEpisodeSegmentsStudyStatus.mockReset().mockResolvedValue(0);
   });
 
   async function callPatch(body: unknown, id = '5') {
@@ -47,57 +39,60 @@ describe('PATCH /api/episodes/[id]/study', () => {
     );
   }
 
-  it('transitions new → studying and returns the updated episode', async () => {
-    const updatedEpisode = { id: 5, studyStatus: 'studying' };
-    mockWhereSelect.mockResolvedValueOnce([{ id: 5, studyStatus: 'new' }]);
-    mockWhereUpdate.mockReturnValueOnce({
-      returning: vi.fn().mockResolvedValueOnce([updatedEpisode]),
-    });
+  it('cascades "studying" to all segments and derives the status from the cascade', async () => {
+    mockWhereSelect.mockResolvedValueOnce([{ id: 5 }]);
+    mockSetEpisodeSegmentsStudyStatus.mockResolvedValueOnce(3);
 
     const response = await callPatch({ studyStatus: 'studying' });
     const json = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockSetUpdate).toHaveBeenCalledWith({
-      studyStatus: 'studying',
-      updatedAt: expect.any(Date),
-    });
-    expect(json.data).toEqual(updatedEpisode);
+    expect(mockSetEpisodeSegmentsStudyStatus).toHaveBeenCalledWith(5, 'studying');
+    expect(json.data).toEqual({ id: 5, studyStatus: 'studying' });
   });
 
-  it('transitions studying → new and returns the updated episode', async () => {
-    const updatedEpisode = { id: 5, studyStatus: 'new' };
-    mockWhereSelect.mockResolvedValueOnce([{ id: 5, studyStatus: 'studying' }]);
-    mockWhereUpdate.mockReturnValueOnce({
-      returning: vi.fn().mockResolvedValueOnce([updatedEpisode]),
-    });
+  it('cascades "new" to all segments', async () => {
+    mockWhereSelect.mockResolvedValueOnce([{ id: 5 }]);
+    mockSetEpisodeSegmentsStudyStatus.mockResolvedValueOnce(3);
 
     const response = await callPatch({ studyStatus: 'new' });
     const json = await response.json();
 
     expect(response.status).toBe(200);
-    expect(json.data).toEqual(updatedEpisode);
+    expect(mockSetEpisodeSegmentsStudyStatus).toHaveBeenCalledWith(5, 'new');
+    expect(json.data).toEqual({ id: 5, studyStatus: 'new' });
   });
 
-  it('returns 400 when studyStatus is "learned"', async () => {
+  it('derives "new" when the episode has no segments to cascade', async () => {
+    mockWhereSelect.mockResolvedValueOnce([{ id: 5 }]);
+    mockSetEpisodeSegmentsStudyStatus.mockResolvedValueOnce(0);
+
+    const response = await callPatch({ studyStatus: 'studying' });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.data).toEqual({ id: 5, studyStatus: 'new' });
+  });
+
+  it('returns 400 when studyStatus is "learned" (only reachable per-segment)', async () => {
     const response = await callPatch({ studyStatus: 'learned' });
 
     expect(response.status).toBe(400);
-    expect(mockUpdateBuilder).not.toHaveBeenCalled();
+    expect(mockSetEpisodeSegmentsStudyStatus).not.toHaveBeenCalled();
   });
 
   it('returns 400 when studyStatus is missing', async () => {
     const response = await callPatch({});
 
     expect(response.status).toBe(400);
-    expect(mockUpdateBuilder).not.toHaveBeenCalled();
+    expect(mockSetEpisodeSegmentsStudyStatus).not.toHaveBeenCalled();
   });
 
   it('returns 400 when studyStatus is an invalid type', async () => {
     const response = await callPatch({ studyStatus: 123 });
 
     expect(response.status).toBe(400);
-    expect(mockUpdateBuilder).not.toHaveBeenCalled();
+    expect(mockSetEpisodeSegmentsStudyStatus).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the episode does not exist', async () => {
@@ -106,6 +101,6 @@ describe('PATCH /api/episodes/[id]/study', () => {
     const response = await callPatch({ studyStatus: 'studying' });
 
     expect(response.status).toBe(404);
-    expect(mockUpdateBuilder).not.toHaveBeenCalled();
+    expect(mockSetEpisodeSegmentsStudyStatus).not.toHaveBeenCalled();
   });
 });

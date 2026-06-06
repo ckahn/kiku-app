@@ -102,6 +102,7 @@ describe('EpisodeActionMenu', () => {
   });
 
   it('toggles study status from new to studying and refreshes', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, data: {} }),
@@ -132,6 +133,7 @@ describe('EpisodeActionMenu', () => {
   });
 
   it('toggles study status from studying to new and refreshes', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, data: {} }),
@@ -162,6 +164,7 @@ describe('EpisodeActionMenu', () => {
   });
 
   it('alerts on study toggle network failure', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: false,
       json: async () => ({ error: 'Server error' }),
@@ -181,6 +184,27 @@ describe('EpisodeActionMenu', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
 
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Server error'));
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it('does not cascade when the study-toggle confirmation is cancelled', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const fetchSpy = vi.spyOn(global, 'fetch');
+
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="new"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
+
+    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 

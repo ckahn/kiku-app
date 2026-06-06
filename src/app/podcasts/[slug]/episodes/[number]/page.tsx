@@ -6,6 +6,7 @@ import { PageShell } from '@/components/layout';
 import EpisodeStatusPoller from '@/components/EpisodeStatusPoller';
 import EpisodePlayer from '@/components/player/EpisodePlayer';
 import { getSegmentsByEpisodeId } from '@/db/segments';
+import { getEpisodeStudyStatusMap } from '@/db/episodes';
 import LocalDateTime from '@/components/LocalDateTime';
 import EpisodeActionMenu from '@/components/EpisodeActionMenu';
 import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
@@ -36,6 +37,9 @@ export default async function EpisodePage({
     ? await getSegmentsByEpisodeId(episode.id)
     : [];
 
+  const studyStatusMap = await getEpisodeStudyStatusMap([episode.id]);
+  const studyStatus = studyStatusMap.get(episode.id) ?? 'new';
+
   return (
     <PageShell backHref={`/podcasts/${slug}`} backLabel={podcast.name}>
       <div className="flex items-start justify-between gap-4 mb-6">
@@ -46,12 +50,12 @@ export default async function EpisodePage({
           <h1 className="text-2xl font-bold text-ink">{episode.title}</h1>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <EpisodeStatusBadge status={episode.status} studyStatus={episode.studyStatus} className="mt-1 shrink-0" />
+          <EpisodeStatusBadge status={episode.status} studyStatus={studyStatus} className="mt-1 shrink-0" />
           <EpisodeActionMenu
             episodeId={episode.id}
             episodeTitle={episode.title}
             episodeNumber={episode.episodeNumber}
-            studyStatus={episode.studyStatus}
+            studyStatus={studyStatus}
             redirectTo={`/podcasts/${slug}`}
             podcastSlug={slug}
             redirectToEditedEpisode

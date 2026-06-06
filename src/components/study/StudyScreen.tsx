@@ -8,6 +8,7 @@ import type { Segment } from '@/db/schema';
 import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
 import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
+import SegmentStatusControl from '@/components/SegmentStatusControl';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { segmentStartSec } from '@/components/player/segmentUtils';
@@ -20,7 +21,7 @@ function hasDistinctReading(reading: string | undefined, text: string): boolean 
 interface StudyScreenProps {
   readonly segment: Pick<
     Segment,
-    'id' | 'segmentIndex' | 'textRaw' | 'textFurigana' | 'furiganaStatus' | 'furiganaWarning' | 'startMs' | 'endMs'
+    'id' | 'segmentIndex' | 'textRaw' | 'textFurigana' | 'furiganaStatus' | 'furiganaWarning' | 'startMs' | 'endMs' | 'studyStatus'
   >;
   readonly totalSegments: number;
   readonly audioUrl: string;
@@ -236,7 +237,10 @@ export default function StudyScreen({
             )}
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-ink">Study</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-ink">Study</h1>
+          <SegmentStatusControl segmentId={segment.id} initialStatus={segment.studyStatus} />
+        </div>
       </header>
 
       <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
@@ -293,7 +297,7 @@ export default function StudyScreen({
                   setTimeout(() => setCopied(false), 2000);
                 });
               }}
-              className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md hover:bg-muted/20 ${copied ? 'text-success' : 'text-muted hover:text-ink'}`}
+              className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md hover:bg-muted/20 ${copied ? 'text-ink' : 'text-muted hover:text-ink'}`}
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>

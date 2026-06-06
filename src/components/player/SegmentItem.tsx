@@ -6,6 +6,7 @@ import type { Segment } from '@/db/schema';
 import type { PlayerControls } from './usePlayer';
 import { stripFurigana } from './segmentUtils';
 import { saveEpisodeFocusState } from './studyNavigation';
+import SegmentStatusIcon from '@/components/SegmentStatusIcon';
 
 interface SegmentItemProps {
   readonly segment: Segment;
@@ -25,6 +26,8 @@ export default function SegmentItem({
   episodeHref,
 }: SegmentItemProps) {
   const displayHtml = stripFurigana(segment.textFurigana);
+  // 'new' renders no status glyph, so skip the indicator and its left gutter.
+  const showStatusIcon = segment.studyStatus !== 'new';
 
   function handleClick() {
     controls.seekToSegment(segment.id);
@@ -46,8 +49,13 @@ export default function SegmentItem({
           : 'border-border bg-surface hover:border-primary/30 hover:bg-canvas-subtle'
       }`}
     >
+      {showStatusIcon && (
+        <span className="absolute left-2 top-4 flex items-center" title={`Status: ${segment.studyStatus}`}>
+          <SegmentStatusIcon status={segment.studyStatus} />
+        </span>
+      )}
       <p
-        className="text-lg text-ink font-jp leading-loose pr-7"
+        className={`text-lg text-ink font-jp leading-loose pr-7 ${showStatusIcon ? 'pl-7' : ''}`}
         // textFurigana is Claude-generated HTML containing only <ruby>/<rt> tags.
         // It is not user-supplied input.
         dangerouslySetInnerHTML={{ __html: displayHtml }}

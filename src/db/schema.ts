@@ -36,9 +36,6 @@ export const episodes = pgTable('episodes', {
   audioUrl: text('audio_url').notNull(),
   durationMs: integer('duration_ms'),
   status: episodeStatusEnum('status').notNull().default('uploaded'),
-  studyStatus: studyStatusEnum('study_status').notNull().default('new'),
-  learnedAt: timestamp('learned_at', { withTimezone: true }),
-  nextReview: timestamp('next_review', { withTimezone: true }),
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
@@ -66,6 +63,9 @@ export const segments = pgTable('segments', {
   startMs: integer('start_ms').notNull(),
   endMs: integer('end_ms').notNull(),
   sentences: jsonb('sentences').notNull(),
+  studyStatus: studyStatusEnum('study_status').notNull().default('new'),
+  learnedAt: timestamp('learned_at', { withTimezone: true }),
+  nextReview: timestamp('next_review', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (table) => [unique().on(table.episodeId, table.segmentIndex)]);
 
@@ -81,9 +81,9 @@ export const studyGuides = pgTable('study_guides', {
 
 export const reviewLog = pgTable('review_log', {
   id: serial('id').primaryKey(),
-  episodeId: integer('episode_id')
+  segmentId: integer('segment_id')
     .notNull()
-    .references(() => episodes.id, { onDelete: 'cascade' }),
+    .references(() => segments.id, { onDelete: 'cascade' }),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }).defaultNow(),
   outcome: reviewOutcomeEnum('outcome').notNull(),
 });
