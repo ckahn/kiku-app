@@ -2,7 +2,7 @@ import { generateObject } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import studyGuideFixture from '../../../fixtures/study-guide.json';
 import { z } from 'zod';
-import { CLAUDE_STUDY_GUIDE_MODEL } from '@/lib/constants';
+import { CLAUDE_STUDY_GUIDE_MODEL, STUDY_GUIDE_CURRENT_VERSION } from '@/lib/constants';
 import { studyGuideContentSchema } from './study-guide';
 import type { StudyGuideContent } from './types';
 
@@ -49,16 +49,15 @@ Segment to study:
 ${request.segmentText}
 
 Output requirements:
-- version must be 2
-- vocabulary: a curated list of the most useful words or short expressions only; every item must include a dictionaryForm field (the plain dictionary/citation form of the word, e.g. 走る not 走った) and a partOfSpeech field (for example: noun, verb, い-adj, な-adj); include connective and demonstrative phrases (e.g. そういうもの, そんなふうに, こういうわけで) even when their component words are individually simple — learners often struggle with these as set expressions
-- structures: a short list of key grammar points, conjugations, or sentence patterns
+- version must be ${STUDY_GUIDE_CURRENT_VERSION}
+- vocabulary: a curated list of the most useful words or short expressions only; every item must include a dictionaryForm field (the plain dictionary/citation form of the word, e.g. 走る not 走った) and a partOfSpeech field using Jisho-style labels — for verbs combine conjugation class and transitivity: "Ichidan verb, Transitive verb", "Godan verb with 'su' ending, Intransitive verb", "Suru verb, Transitive verb"; for adjectives: "I-adjective", "Na-adjective", "No-adjective"; for nouns: "Noun", "Adverbial noun", "Temporal noun"; other: "Pronoun", "Adverb", "Conjunction", "Expression", "Counter", "Interjection"; include connective and demonstrative phrases (e.g. そういうもの, そんなふうに, こういうわけで) even when their component words are individually simple — learners often struggle with these as set expressions; include first-person and second-person pronouns (僕, 私, あなた, etc.) when they appear in the segment — do not skip them as "too basic"
+- structures: include every particle, conjugation, and grammatical construction in the segment that a learner needs in order to fully understand the breakdown — err on the side of inclusion rather than curation; the pattern field must show the full syntactic frame with labeled slots, not just the bare verb form — use N1, N2, N3 (Japanese textbook convention) to distinguish noun roles, e.g. "N1 + を + verb + N2" not "noun + を + verb", and use [clause] for clausal slots, e.g. "[clause] + けど + [clause]" not "けど", "N + しか + negative verb" not "しか + negative"
 - breakdown: guided interpretation steps in natural study order
 - translation.fullEnglish: one complete fallback English translation
 
 Content rules:
-- Do not be exhaustive
-- Prefer clarity over completeness
-- Keep explanations concise and learner-friendly
+- vocabulary and breakdown: do not be exhaustive — prefer clarity over completeness, keep explanations concise and learner-friendly
+- structures: err on the side of inclusion — if a learner needs it to understand the segment, include it
 - Vocabulary items must use dictionary/citation forms as the japanese field itself; do not include conjugated surface forms like 食べたり in vocabulary
 - Put conjugations and usage notes for inflected forms like 食べたり in structures instead of vocabulary
 - Prefer one vocabulary item per underlying word; do not list both a conjugated surface form and its dictionary form
