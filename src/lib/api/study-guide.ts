@@ -30,7 +30,7 @@ const studyGuideBreakdownSegmentSchema = z.object({
   id: z.string().min(1),
   japanese: z.string().min(1),
   cue: z.string().min(1),
-  order: z.number().int().nonnegative(),
+  order: z.number(),
 }) satisfies z.ZodType<StudyGuideBreakdownSegment>;
 
 export const studyGuideContentSchema = z.object({

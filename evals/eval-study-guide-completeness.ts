@@ -36,8 +36,13 @@ interface Fixture {
 const FIXTURES: readonly Fixture[] = [
   {
     path: '/podcasts/slow-japanese/episodes/154/segments/3/study',
-    expected: 'fail',
+    expected: 'pass',
     note: 'や (non-exhaustive listing particle) missing from structures',
+  },
+  {
+    path: '/podcasts/nihongo-con-teppei/episodes/1491/segments/10/study',
+    expected: 'pass',
+    note: 'しか + negative pattern missing from structures',
   },
 ];
 
