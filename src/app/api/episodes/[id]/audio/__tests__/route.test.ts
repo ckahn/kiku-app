@@ -77,7 +77,7 @@ describe('GET /api/episodes/[id]/audio', () => {
     expect(res.headers.get('Accept-Ranges')).toBe('bytes');
     expect(res.headers.get('Content-Type')).toBe('audio/mpeg');
     expect(res.headers.get('Content-Length')).toBe('5000000');
-    expect(res.headers.get('Cache-Control')).toBe('private, max-age=3600');
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=2592000, immutable');
   });
 
   it('forwards the Range header to the upstream fetch', async () => {

@@ -12,6 +12,12 @@ function getBlobToken(): string {
   return token;
 }
 
+// An episode's audio is immutable once uploaded, so let the browser cache it
+// aggressively. This lets reopens and replays be served from the browser's
+// disk cache instead of re-fetching through this route and re-billing Blob
+// egress. `immutable` also skips conditional revalidation within the window.
+const AUDIO_CACHE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -53,7 +59,7 @@ export async function GET(
     const responseHeaders: Record<string, string> = {
       'Content-Type': upstream.headers.get('content-type') ?? 'audio/mpeg',
       'Accept-Ranges': 'bytes',
-      'Cache-Control': upstream.ok ? 'private, max-age=3600' : 'no-store',
+      'Cache-Control': upstream.ok ? `private, max-age=${AUDIO_CACHE_MAX_AGE_SECONDS}, immutable` : 'no-store',
     };
 
     const contentLength = upstream.headers.get('content-length');
