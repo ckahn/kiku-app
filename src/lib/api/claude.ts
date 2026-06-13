@@ -1,5 +1,4 @@
 import { generateObject } from 'ai';
-import sanitizeHtml from 'sanitize-html';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { CLAUDE_SEGMENT_MODEL, CLAUDE_FURIGANA_MODEL } from '@/lib/constants';
@@ -9,6 +8,7 @@ import type {
   FuriganaSpan,
   TranscriptSegment,
 } from './types';
+import { spansToSegment } from './furigana';
 import segmentsFixture from '../../../fixtures/segments.json';
 import furiganaFixture from '../../../fixtures/furigana.json';
 
@@ -33,18 +33,6 @@ const furiganaResultSchema = z.object({
     spans: z.array(furiganaSpanSchema),
   })),
 });
-
-const KANJI_RE = /[\u4e00-\u9fff]/;
-const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}ー]/u;
-const ONLY_KANA_OR_PUNCT_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Punctuation}\p{Separator}\dA-Za-zＡ-Ｚａ-ｚ０-９ー]+$/u;
-const KANA_ONLY_RE = /^[\p{Script=Hiragana}\p{Script=Katakana}ー]+$/u;
-// Ruby base must contain only kanji — no kana, Latin, digits, or other scripts.
-const KANJI_ONLY_RE = /^[\u4e00-\u9fff\u3400-\u4dbf々]+$/;
-// 1–2 digit prefix (ASCII or full-width) followed immediately by kanji — calendar date/counter
-// compounds like 4月, １日, 20日, ２０日. Capped at 2 digits to avoid generating absurd furigana
-// for large numbers (e.g. 355432円). Full-width digits (１–９, ０) are U+FF11–FF19, U+FF10.
-// These have compound readings (e.g., 4月=しがつ, 1日=ついたち) that belong to the whole surface.
-const DIGIT_KANJI_RE = /^[1-9\uFF11-\uFF19][0-9\uFF10-\uFF19]?[\u4e00-\u9fff\u3400-\u4dbf]+$/;
 
 /**
  * Split a raw transcript into study segments using Claude.
@@ -102,199 +90,6 @@ ${wordList}`;
 
   return object.segments;
 }
-
-/**
- * Returns kanji characters in `annotated` that are not wrapped in a <ruby> tag.
- * Used to detect when annotation HTML missed a character.
- */
-export function findUnannotatedKanji(annotated: string): string[] {
-  const stripped = annotated.replace(/<ruby>[\s\S]*?<\/ruby>/g, '');
-  return [...stripped.matchAll(/[\u4e00-\u9fff]/g)].map((m) => m[0]);
-}
-
-function hasKanji(value: string): boolean {
-  return KANJI_RE.test(value);
-}
-
-function hasKana(value: string): boolean {
-  return KANA_RE.test(value);
-}
-
-function isKanaOrPunctuationOnly(value: string): boolean {
-  return value.length > 0 && ONLY_KANA_OR_PUNCT_RE.test(value) && !hasKanji(value);
-}
-
-function renderSpanToHtml(span: FuriganaSpan): string {
-  const surface = sanitizeHtml(span.surface, { allowedTags: [], allowedAttributes: {} });
-  if (span.reading === null || !hasKanji(span.surface)) {
-    return surface;
-  }
-
-  const reading = sanitizeHtml(span.reading, { allowedTags: [], allowedAttributes: {} });
-  return `<ruby>${surface}<rt>${reading}</rt></ruby>`;
-}
-
-function renderFuriganaHtml(spans: readonly FuriganaSpan[]): string {
-  return sanitizeHtml(spans.map(renderSpanToHtml).join(''), {
-    allowedTags: ['ruby', 'rt', 'rp'],
-    allowedAttributes: {},
-  });
-}
-
-function tokenizeMixedScriptSurface(surface: string): string[] {
-  return surface.match(/[\p{Script=Hiragana}\p{Script=Katakana}ー]+|[^\p{Script=Hiragana}\p{Script=Katakana}ー]+/gu) ?? [surface];
-}
-
-function repairMixedKanaKanjiSpan(span: FuriganaSpan): readonly FuriganaSpan[] {
-  if (span.reading === null || !hasKanji(span.surface)) {
-    return [span];
-  }
-
-  const tokens = tokenizeMixedScriptSurface(span.surface);
-  if (tokens.length === 1) {
-    return [span];
-  }
-
-  if (!tokens.some((token) => KANA_ONLY_RE.test(token)) || !tokens.some((token) => KANJI_ONLY_RE.test(token))) {
-    return [span];
-  }
-
-  let readingCursor = 0;
-  const repaired: FuriganaSpan[] = [];
-
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-
-    if (KANA_ONLY_RE.test(token)) {
-      if (!span.reading.startsWith(token, readingCursor)) {
-        return [span];
-      }
-
-      repaired.push({
-        surface: token,
-        reading: null,
-      });
-      readingCursor += token.length;
-      continue;
-    }
-
-    if (!KANJI_ONLY_RE.test(token)) {
-      return [span];
-    }
-
-    const nextKanaToken = tokens.slice(i + 1).find((nextToken) => KANA_ONLY_RE.test(nextToken));
-
-    let nextBoundary: number;
-    if (nextKanaToken === undefined) {
-      nextBoundary = span.reading.length;
-    } else {
-      const firstIdx = span.reading.indexOf(nextKanaToken, readingCursor);
-      if (firstIdx < 0) {
-        return [span];
-      }
-      // Bail out when the kana token appears more than once in the unconsumed
-      // reading — indexOf would pick the wrong boundary.
-      if (span.reading.indexOf(nextKanaToken, firstIdx + 1) >= 0) {
-        return [span];
-      }
-      nextBoundary = firstIdx;
-    }
-
-    const kanjiReading = span.reading.slice(readingCursor, nextBoundary);
-    if (kanjiReading.trim().length === 0) {
-      return [span];
-    }
-
-    repaired.push({
-      surface: token,
-      reading: kanjiReading,
-    });
-    readingCursor = nextBoundary;
-  }
-
-  if (readingCursor !== span.reading.length) {
-    return [span];
-  }
-
-  return repaired;
-}
-
-function normalizeKanaOnlySpan(span: FuriganaSpan): FuriganaSpan {
-  if (span.reading !== null && isKanaOrPunctuationOnly(span.surface)) {
-    return {
-      surface: span.surface,
-      reading: null,
-    };
-  }
-
-  return span;
-}
-
-function repairFuriganaSpans(spans: readonly FuriganaSpan[]): readonly FuriganaSpan[] {
-  return spans
-    .flatMap((span) => repairMixedKanaKanjiSpan(span))
-    .map((span) => normalizeKanaOnlySpan(span));
-}
-
-function validateFuriganaSpans(
-  segmentText: string,
-  spans: readonly FuriganaSpan[]
-): string | null {
-  if (spans.length === 0) {
-    return 'model returned no spans';
-  }
-
-  for (const span of spans) {
-    if (span.surface.length === 0) {
-      return 'model returned an empty surface span';
-    }
-
-    if (hasKanji(span.surface) && span.reading === null) {
-      return `kanji span "${span.surface}" is missing a reading`;
-    }
-
-    if (isKanaOrPunctuationOnly(span.surface) && span.reading !== null) {
-      return `kana-only span "${span.surface}" should have reading=null`;
-    }
-
-    if (!hasKanji(span.surface) && span.reading !== null) {
-      return `non-kanji span "${span.surface}" should not have a reading`;
-    }
-
-    // Ruby is valid only when the ruby base is kanji-only, or a digit+kanji date/counter
-    // compound (e.g. 4月, 1日, 20日) whose reading belongs to the whole surface.
-    // Reject anything else that mixes kanji with kana, Latin, or other scripts.
-    const isValidRubyBase = KANJI_ONLY_RE.test(span.surface) || DIGIT_KANJI_RE.test(span.surface);
-    if (hasKanji(span.surface) && span.reading !== null && !isValidRubyBase) {
-      if (hasKana(span.surface)) {
-        return `mixed kana+kanji span "${span.surface}" needs manual review — we can auto-fix only simple kana prefixes/suffixes like ご飯 or 同じ`;
-      }
-
-      return `kanji span "${span.surface}" must be kanji-only or a digit+kanji date/counter compound — split out any kana, Latin, or other characters`;
-    }
-
-    if (hasKanji(span.surface) && span.reading !== null && span.reading.trim().length === 0) {
-      return `kanji span "${span.surface}" has an empty reading`;
-    }
-  }
-
-  const reconstructed = spans.map((span) => span.surface).join('');
-  if (reconstructed !== segmentText) {
-    return `span surfaces reconstruct "${reconstructed}" instead of the original segment`;
-  }
-
-  const html = renderFuriganaHtml(spans);
-  const missed = findUnannotatedKanji(html);
-  if (missed.length > 0) {
-    return `rendered HTML is missing furigana for: ${missed.join('')}`;
-  }
-
-  return null;
-}
-
-// TODO: extract furigana-specific functions (annotateSegmentsWithSpans,
-// validateFuriganaSpans, renderSpanToHtml, renderFuriganaHtml)
-// into src/lib/api/furigana.ts as this file grows.
 
 const FURIGANA_PROMPT = `Annotate each Japanese text segment as structured spans for furigana.
 
@@ -382,31 +177,11 @@ export async function addFurigana(
   const results: SegmentWithFurigana[] = [];
 
   for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i];
-    const firstPassSpans = firstPassByIndex.get(i);
-    const fallbackText = sanitizeHtml(segment.text, { allowedTags: [], allowedAttributes: {} });
-    const repairedSpans = firstPassSpans === undefined ? [] : repairFuriganaSpans(firstPassSpans);
-    const finalReason = firstPassSpans === undefined
-      ? 'No furigana annotation was returned for this segment.'
-      : validateFuriganaSpans(segment.text, repairedSpans);
-    const finalSpans = repairedSpans;
-
-    if (finalReason !== null) {
-      console.error(`[addFurigana] segment ${i} suspicious: ${finalReason}`);
+    const result = spansToSegment(segments[i], firstPassByIndex.get(i));
+    if (result.furigana_status === 'suspect') {
+      console.error(`[addFurigana] segment ${i} suspicious: ${result.furigana_warning}`);
     }
-
-    const renderedHtml = finalReason === null
-      ? renderFuriganaHtml(finalSpans)
-      : (finalSpans.length > 0 ? renderFuriganaHtml(finalSpans) : fallbackText);
-
-    results.push({
-      text: segment.text,
-      text_furigana: renderedHtml,
-      first_word_index: segment.first_word_index,
-      last_word_index: segment.last_word_index,
-      furigana_status: finalReason === null ? 'ok' : 'suspect',
-      furigana_warning: finalReason === null ? null : `This furigana may contain mistakes. ${finalReason}`,
-    });
+    results.push(result);
   }
 
   return results;

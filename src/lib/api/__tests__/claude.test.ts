@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ElevenLabsWord, TranscriptSegment } from '../types';
-import { findUnannotatedKanji } from '../claude';
 
 vi.mock('ai', () => ({
   generateObject: vi.fn(),
@@ -16,27 +15,6 @@ const DUMMY_WORDS: ElevenLabsWord[] = [
 const DUMMY_SEGMENTS: TranscriptSegment[] = [
   { text: '日本語', first_word_index: 0, last_word_index: 0 },
 ];
-
-describe('findUnannotatedKanji()', () => {
-  it('returns empty array when all kanji are in ruby tags', () => {
-    expect(findUnannotatedKanji('<ruby>聞<rt>き</rt></ruby>いて')).toEqual([]);
-    expect(findUnannotatedKanji('<ruby>日本語<rt>にほんご</rt></ruby>')).toEqual([]);
-  });
-
-  it('returns bare kanji found outside ruby tags', () => {
-    expect(findUnannotatedKanji('ポッドキャストを聞いて')).toEqual(['聞']);
-    expect(findUnannotatedKanji('勉<ruby>強<rt>きょう</rt></ruby>')).toEqual(['勉']);
-  });
-
-  it('returns empty array for text with no kanji', () => {
-    expect(findUnannotatedKanji('こんにちは、ポッドキャスト！')).toEqual([]);
-    expect(findUnannotatedKanji('テスト')).toEqual([]);
-  });
-
-  it('returns multiple missed kanji', () => {
-    expect(findUnannotatedKanji('今日は元気ですか')).toEqual(['今', '日', '元', '気']);
-  });
-});
 
 describe('segmentTranscript() — mock mode', () => {
   beforeEach(() => {

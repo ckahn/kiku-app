@@ -4,9 +4,11 @@ import { episodes } from '@/db/schema';
 import { apiOk, apiErr } from '@/lib/api-response';
 import { getErrorMessage } from '@/lib/utils';
 import { segmentTranscript, addFurigana } from '@/lib/api/claude';
+import { addFuriganaWithTokenizer } from '@/lib/api/furigana-tokenizer';
 import {
   MINIMUM_SEGMENT_CHARACTERS,
   TRANSCRIPT_SEGMENTATION_STRATEGY,
+  FURIGANA_STRATEGY,
 } from '@/lib/constants';
 import { segmentTranscriptDeterministically } from '@/lib/transcript-segmentation';
 import { getRawTranscript, setEpisodeReady, setEpisodeError } from '@/db/episodes';
@@ -42,6 +44,14 @@ async function segmentTranscriptByStrategy(
   }
 
   return segmentTranscript(text, segments);
+}
+
+function addFuriganaByStrategy(segments: Parameters<typeof addFurigana>[0]) {
+  if (FURIGANA_STRATEGY === 'tokenizer') {
+    return addFuriganaWithTokenizer(segments);
+  }
+
+  return addFurigana(segments);
 }
 
 function attachSentenceMetadata(
@@ -80,8 +90,8 @@ export async function POST(
     const transcriptSegments = await timed(`${TRANSCRIPT_SEGMENTATION_STRATEGY} segmentation`, () =>
       segmentTranscriptByStrategy(rawTranscript.text, rawTranscript.segments)
     );
-    const segmentsWithFurigana = await timed('claude furigana', () =>
-      addFurigana(transcriptSegments)
+    const segmentsWithFurigana = await timed(`${FURIGANA_STRATEGY} furigana`, () =>
+      addFuriganaByStrategy(transcriptSegments)
     );
     await insertSegments(
       episodeId,
