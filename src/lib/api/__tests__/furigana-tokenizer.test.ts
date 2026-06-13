@@ -94,11 +94,14 @@ describe('addFuriganaWithTokenizer() — real tokenizer', () => {
     expect(result.text_furigana).toContain('<ruby>何<rt>なに</rt></ruby>を');
   });
 
-  it('flags out-of-vocabulary kanji as suspect instead of guessing', async () => {
-    // 彁 is a "ghost character" with no dictionary reading.
+  it('leaves out-of-vocabulary kanji without ruby but still returns ok status', async () => {
+    // 彁 is a "ghost character" with no dictionary reading. The tokenizer has no reading
+    // to offer, so it renders as plain text — but we never flag suspect in the deterministic
+    // path since structural errors from the tokenizer are not user-actionable mistakes.
     const result = await annotate('彁');
-    expect(result.furigana_status).toBe('suspect');
-    expect(result.furigana_warning).toMatch(/missing a reading/i);
+    expect(result.furigana_status).toBe('ok');
+    expect(result.furigana_warning).toBeNull();
+    expect(result.text_furigana).toBe('彁');
   });
 
   it('preserves the original text and indices', async () => {

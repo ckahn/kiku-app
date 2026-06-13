@@ -2,7 +2,7 @@ import path from 'node:path';
 import { builder } from 'kuromoji';
 import type { IpadicFeatures, Tokenizer } from 'kuromoji';
 import type { FuriganaSpan, SegmentWithFurigana, TranscriptSegment } from './types';
-import { hasKanji, spansToSegment } from './furigana';
+import { hasKanji, repairFuriganaSpans, renderFuriganaHtml } from './furigana';
 import { counterReading, parseCounterNumber, isKnownCounter } from './counter-readings';
 import furiganaFixture from '../../../fixtures/furigana.json';
 
@@ -167,12 +167,16 @@ export async function addFuriganaWithTokenizer(
 
   const tokenizer = await getTokenizer();
 
-  return segments.map((segment, i) => {
+  return segments.map((segment) => {
     const spans = tokensToSpans(tokenizer.tokenize(segment.text));
-    const result = spansToSegment(segment, spans);
-    if (result.furigana_status === 'suspect') {
-      console.error(`[addFuriganaWithTokenizer] segment ${i} suspicious: ${result.furigana_warning}`);
-    }
-    return result;
+    const repairedSpans = repairFuriganaSpans(spans);
+    return {
+      text: segment.text,
+      text_furigana: renderFuriganaHtml(repairedSpans),
+      first_word_index: segment.first_word_index,
+      last_word_index: segment.last_word_index,
+      furigana_status: 'ok' as const,
+      furigana_warning: null,
+    };
   });
 }
