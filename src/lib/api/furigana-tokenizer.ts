@@ -12,6 +12,12 @@ const KATAKANA_START = 0x30a1;
 const KATAKANA_END = 0x30f6;
 const KANA_OFFSET = 0x60;
 
+// IPADIC picks the less-common reading for some homographs in everyday speech.
+// Override unconditionally for the whole surface; extend when new cases are confirmed.
+const READING_OVERRIDES: Readonly<Record<string, string>> = {
+  日本: 'にほん', // IPADIC returns にっぽん; にほん is standard in conversational Japanese
+};
+
 /** Convert kuromoji's katakana reading into the hiragana shown inside <rt>. */
 export function readingToHiragana(katakana: string): string {
   let out = '';
@@ -54,6 +60,11 @@ function tokenToSpan(token: IpadicFeatures): FuriganaSpan {
   const surface = token.surface_form;
   if (!hasKanji(surface)) {
     return { surface, reading: null };
+  }
+
+  const override = READING_OVERRIDES[surface];
+  if (override !== undefined) {
+    return { surface, reading: override };
   }
 
   // Out-of-vocabulary kanji: kuromoji returns no reading. Leave it unread so the segment is
