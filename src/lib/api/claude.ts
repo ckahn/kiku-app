@@ -1,5 +1,4 @@
 import { generateObject } from 'ai';
-import sanitizeHtml from 'sanitize-html';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { CLAUDE_SEGMENT_MODEL, CLAUDE_FURIGANA_MODEL } from '@/lib/constants';
@@ -9,11 +8,7 @@ import type {
   FuriganaSpan,
   TranscriptSegment,
 } from './types';
-import {
-  renderFuriganaHtml,
-  repairFuriganaSpans,
-  validateFuriganaSpans,
-} from './furigana';
+import { spansToSegment } from './furigana';
 import segmentsFixture from '../../../fixtures/segments.json';
 import furiganaFixture from '../../../fixtures/furigana.json';
 
@@ -182,31 +177,11 @@ export async function addFurigana(
   const results: SegmentWithFurigana[] = [];
 
   for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i];
-    const firstPassSpans = firstPassByIndex.get(i);
-    const fallbackText = sanitizeHtml(segment.text, { allowedTags: [], allowedAttributes: {} });
-    const repairedSpans = firstPassSpans === undefined ? [] : repairFuriganaSpans(firstPassSpans);
-    const finalReason = firstPassSpans === undefined
-      ? 'No furigana annotation was returned for this segment.'
-      : validateFuriganaSpans(segment.text, repairedSpans);
-    const finalSpans = repairedSpans;
-
-    if (finalReason !== null) {
-      console.error(`[addFurigana] segment ${i} suspicious: ${finalReason}`);
+    const result = spansToSegment(segments[i], firstPassByIndex.get(i));
+    if (result.furigana_status === 'suspect') {
+      console.error(`[addFurigana] segment ${i} suspicious: ${result.furigana_warning}`);
     }
-
-    const renderedHtml = finalReason === null
-      ? renderFuriganaHtml(finalSpans)
-      : (finalSpans.length > 0 ? renderFuriganaHtml(finalSpans) : fallbackText);
-
-    results.push({
-      text: segment.text,
-      text_furigana: renderedHtml,
-      first_word_index: segment.first_word_index,
-      last_word_index: segment.last_word_index,
-      furigana_status: finalReason === null ? 'ok' : 'suspect',
-      furigana_warning: finalReason === null ? null : `This furigana may contain mistakes. ${finalReason}`,
-    });
+    results.push(result);
   }
 
   return results;

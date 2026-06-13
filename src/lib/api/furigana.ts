@@ -1,5 +1,5 @@
 import sanitizeHtml from 'sanitize-html';
-import type { FuriganaSpan } from './types';
+import type { FuriganaSpan, SegmentWithFurigana, TranscriptSegment } from './types';
 
 const KANJI_RE = /[一-鿿]/;
 const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}ー]/u;
@@ -22,7 +22,7 @@ export function findUnannotatedKanji(annotated: string): string[] {
   return [...stripped.matchAll(/[一-鿿]/g)].map((m) => m[0]);
 }
 
-function hasKanji(value: string): boolean {
+export function hasKanji(value: string): boolean {
   return KANJI_RE.test(value);
 }
 
@@ -200,4 +200,34 @@ export function validateFuriganaSpans(
   }
 
   return null;
+}
+
+/**
+ * Repair, validate, and render furigana spans into a stored `SegmentWithFurigana`.
+ * Shared by every furigana source (LLM, tokenizer). `spans` is `undefined` when the source
+ * produced no annotation for the segment. Segments that fail validation keep their best-effort
+ * HTML and are flagged `suspect` with a warning, never silently shown as correct.
+ */
+export function spansToSegment(
+  segment: TranscriptSegment,
+  spans: readonly FuriganaSpan[] | undefined
+): SegmentWithFurigana {
+  const fallbackText = sanitizeHtml(segment.text, { allowedTags: [], allowedAttributes: {} });
+  const repairedSpans = spans === undefined ? [] : repairFuriganaSpans(spans);
+  const reason = spans === undefined
+    ? 'No furigana annotation was returned for this segment.'
+    : validateFuriganaSpans(segment.text, repairedSpans);
+
+  const renderedHtml = reason === null
+    ? renderFuriganaHtml(repairedSpans)
+    : (repairedSpans.length > 0 ? renderFuriganaHtml(repairedSpans) : fallbackText);
+
+  return {
+    text: segment.text,
+    text_furigana: renderedHtml,
+    first_word_index: segment.first_word_index,
+    last_word_index: segment.last_word_index,
+    furigana_status: reason === null ? 'ok' : 'suspect',
+    furigana_warning: reason === null ? null : `This furigana may contain mistakes. ${reason}`,
+  };
 }
