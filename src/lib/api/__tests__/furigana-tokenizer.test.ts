@@ -71,6 +71,23 @@ describe('addFuriganaWithTokenizer() — real tokenizer', () => {
     expect(result.furigana_status).toBe('ok');
   });
 
+  it('reads 何 as なん before the copula です', async () => {
+    const result = await annotate('何ですか');
+    expect(result.text_furigana).toBe('<ruby>何<rt>なん</rt></ruby>ですか');
+    expect(result.furigana_status).toBe('ok');
+  });
+
+  it('reads 何 as なん before the particle で', async () => {
+    const result = await annotate('何でできますか');
+    expect(result.text_furigana).toContain('<ruby>何<rt>なん</rt></ruby>で');
+    expect(result.furigana_status).toBe('ok');
+  });
+
+  it('reads 何 as なに before を (not affected by the なん rule)', async () => {
+    const result = await annotate('何をしますか');
+    expect(result.text_furigana).toContain('<ruby>何<rt>なに</rt></ruby>を');
+  });
+
   it('flags out-of-vocabulary kanji as suspect instead of guessing', async () => {
     // 彁 is a "ghost character" with no dictionary reading.
     const result = await annotate('彁');

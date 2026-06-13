@@ -116,6 +116,17 @@ function tokensToSpans(tokens: readonly IpadicFeatures[]): FuriganaSpan[] {
       continue;
     }
 
+    // 何 (nani) → なん before copula/auxiliary forms (です, だ) and the particle で.
+    // Kuromoji defaults to ナニ regardless of context; the following token disambiguates.
+    // There is no standard Japanese context where なにで or なにだ is the correct reading.
+    if (tokens[i].surface_form === '何' && i + 1 < tokens.length) {
+      const next = tokens[i + 1].surface_form;
+      if (next === 'だ' || next.startsWith('で')) {
+        spans.push({ surface: '何', reading: 'なん' });
+        continue;
+      }
+    }
+
     spans.push(tokenToSpan(tokens[i]));
   }
 
