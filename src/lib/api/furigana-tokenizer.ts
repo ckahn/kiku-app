@@ -119,6 +119,11 @@ function tokensToSpans(tokens: readonly IpadicFeatures[]): FuriganaSpan[] {
         i += runLength; // skip the number run; loop increment skips the counter
         continue;
       }
+      // reading is null when the number is outside the 1–100 range (e.g. 百一匹).
+      // Fall through: each sub-token is processed individually and the counter gets kuromoji's
+      // base reading without rendaku (e.g. ひき instead of びき). The LLM review pass should
+      // catch and correct these — counter rendaku on out-of-range numbers is a good check to
+      // include in its prompt.
     }
 
     const singleReading = singleTokenCounterReading(tokens[i].surface_form);
@@ -127,12 +132,12 @@ function tokensToSpans(tokens: readonly IpadicFeatures[]): FuriganaSpan[] {
       continue;
     }
 
-    // 何 (nani) → なん before copula/auxiliary forms (です, だ) and the particle で.
+    // 何 (nani) → なん before copula/auxiliary forms (です, だ, だった, だろう…) and the particle で.
     // Kuromoji defaults to ナニ regardless of context; the following token disambiguates.
     // There is no standard Japanese context where なにで or なにだ is the correct reading.
     if (tokens[i].surface_form === '何' && i + 1 < tokens.length) {
       const next = tokens[i + 1].surface_form;
-      if (next === 'だ' || next.startsWith('で')) {
+      if (next.startsWith('だ') || next.startsWith('で')) {
         spans.push({ surface: '何', reading: 'なん' });
         continue;
       }

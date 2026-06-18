@@ -83,6 +83,12 @@ describe('addFuriganaWithTokenizer() — real tokenizer', () => {
     expect(result.furigana_status).toBe('ok');
   });
 
+  it('reads 何 as なん before past-tense forms of だ (だった, だっけ, etc.)', async () => {
+    const result = await annotate('何だったんですか');
+    expect(result.text_furigana).toContain('<ruby>何<rt>なん</rt></ruby>だっ');
+    expect(result.furigana_status).toBe('ok');
+  });
+
   it('reads 日本 as にほん not にっぽん (IPADIC default override)', async () => {
     const result = await annotate('日本の夏');
     expect(result.text_furigana).toContain('<ruby>日本<rt>にほん</rt></ruby>');
