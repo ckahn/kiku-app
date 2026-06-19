@@ -82,6 +82,8 @@ POST             /api/reviews
 
 Upload → ElevenLabs STT → Claude segmenting → Claude furigana → ready. Each step updates `episodes.status`. Frontend polls `/api/episodes/[id]` for status. MVP uses polling; plan to upgrade to Inngest/Trigger.dev if needed.
 
+**Re-segmenting without re-transcribing:** To reprocess an episode from the segmenting step (e.g. after changing the segmentation strategy or furigana logic) without paying for another ElevenLabs call: delete the episode's `segments` rows, reset `episodes.status` to `'segmenting'`, then POST to `/api/episodes/[id]/segment`. That route reads from the stored `raw_transcripts` row and runs the full Claude segmenting + furigana pipeline.
+
 **Segmenting two-pass approach:**
 1. Claude receives full transcript text + word-index list, returns segment boundaries (`first_word_index`, `last_word_index`)
 2. Map word indices back to timestamps for `start_ms`/`end_ms`
