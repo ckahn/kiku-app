@@ -17,6 +17,13 @@ interface SegmentItemProps {
   readonly episodeHref?: string;
 }
 
+function formatMs(ms: number): string {
+  const totalSecs = Math.floor(ms / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
 export default function SegmentItem({
   segment,
   isActive,
@@ -49,13 +56,18 @@ export default function SegmentItem({
           : 'border-border bg-surface hover:border-primary/30 hover:bg-canvas-subtle'
       }`}
     >
-      {showStatusIcon && (
-        <span className="absolute left-2 top-4 flex items-center" title={`Status: ${segment.studyStatus}`}>
-          <SegmentStatusIcon status={segment.studyStatus} />
+      <div className="flex items-center gap-1.5 mb-2">
+        {showStatusIcon && (
+          <span className="flex items-center shrink-0" title={`Status: ${segment.studyStatus}`}>
+            <SegmentStatusIcon status={segment.studyStatus} />
+          </span>
+        )}
+        <span className="text-xs text-muted font-mono">
+          {formatMs(segment.startMs)}
         </span>
-      )}
+      </div>
       <p
-        className={`text-lg text-ink font-jp leading-loose pr-7 ${showStatusIcon ? 'pl-7' : ''}`}
+        className="text-lg text-ink font-jp leading-loose pr-7"
         // textFurigana is Claude-generated HTML containing only <ruby>/<rt> tags.
         // It is not user-supplied input.
         dangerouslySetInnerHTML={{ __html: displayHtml }}
@@ -69,7 +81,7 @@ export default function SegmentItem({
               saveEpisodeFocusState({ episodeHref, segmentId: segment.id });
             }
           }}
-          className="absolute right-2 top-2 flex h-11 w-11 cursor-pointer items-center justify-center text-muted transition-colors hover:text-primary"
+          className="absolute right-2 top-2 flex h-11 w-11 cursor-pointer items-start justify-center pt-2 text-muted transition-colors hover:text-primary"
           aria-label="Study this segment"
         >
           <BookOpen size={16} />
