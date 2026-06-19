@@ -58,7 +58,6 @@ Audio (MP3) → Vercel Blob
 Five core tables: `podcasts`, `episodes`, `raw_transcripts`, `segments`, `study_guides`, plus `review_log`.
 
 - `episodes.status`: `uploaded | transcribing | segmenting | ready | error`
-- `episodes.study_status`: `new | studying | learned`
 - `segments.sentences`: JSONB array of `{ text, start_ms, end_ms }`
 - `segments.furigana_status`: `ok | suspect` — set to `suspect` when furigana validation/repair fails; `furigana_warning` stores the reason
 - `study_guides.content`: JSONB — `StudyGuideContent` v2: `{ version: 2, vocabulary, structures, breakdown, translation }`
@@ -66,16 +65,19 @@ Five core tables: `podcasts`, `episodes`, `raw_transcripts`, `segments`, `study_
 ### API Routes
 
 ```
-POST/GET         /api/podcasts
-GET/DELETE       /api/podcasts/[id]
-POST             /api/podcasts/[id]/episodes   — upload + kick off pipeline
-GET/DELETE       /api/episodes/[id]
-PATCH            /api/episodes/[id]/study      — update study_status, compute next_review
-GET              /api/episodes/[id]/segments
-GET              /api/segments/[id]/study-guide  — lazy-generates if missing
-POST             /api/segments/[id]/study-guide/regenerate
-GET              /api/reviews/due
-POST             /api/reviews
+POST/GET              /api/podcasts
+GET/PATCH/DELETE      /api/podcasts/[id]
+POST                  /api/podcasts/[id]/episodes             — register episode with blob URL
+GET/PATCH/DELETE      /api/episodes/[id]
+GET                   /api/episodes/[id]/audio               — serve/redirect to audio blob
+POST                  /api/episodes/[id]/transcribe          — call ElevenLabs, store raw transcript
+POST                  /api/episodes/[id]/segment             — run Claude segmenting + furigana
+PATCH                 /api/episodes/[id]/study               — cascade study status to all segments
+GET                   /api/segments/[id]/study-guide         — lazy-generates if missing
+POST                  /api/segments/[id]/study-guide/regenerate
+PATCH                 /api/segments/[id]/study               — update single segment study status
+GET                   /api/segments/random                   — random segment for active study sessions
+POST                  /api/blob/upload                       — upload audio file to Vercel Blob
 ```
 
 ### Processing Pipeline
@@ -109,10 +111,10 @@ State management: React `useState`/`useReducer` only — no external state libra
 ### Pages
 
 ```
-/                               — podcast list
-/podcasts/[id]                  — podcast detail + episode list + upload form
-/podcasts/[id]/episodes/[id]    — transcript/study page (main UI)
-/review                         — episodes due for spaced repetition review
+/                                                          — podcast list
+/podcasts/[slug]                                           — podcast detail + episode list + upload form
+/podcasts/[slug]/episodes/[number]                         — transcript/study page (main UI)
+/podcasts/[slug]/episodes/[number]/segments/[index]/study  — per-segment drilldown study page
 ```
 
 ## Development Mocks
@@ -130,9 +132,9 @@ API wrappers (e.g., `src/lib/api/elevenlabs.ts`) check `process.env.USE_MOCKS` a
 
 The Claude prompts are in `docs/kiku-app-plan.md` under "Prompt Templates". The segmenting prompt returns `[{ text, first_word_index, last_word_index }]`. The furigana prompt uses `<ruby>` HTML tags (kanji only, not kana). The study-guide prompt returns structured JSON for vocabulary, structure, breakdown, and translation.
 
-## Spaced Repetition Intervals
+## Spaced Repetition
 
-`comfortable` advances: 3d → 1w → 2w → 1mo → 3mo. `needs_work` resets to a shorter interval and drops study_status back to `studying`.
+Study status lives on individual segments (`new | studying | learned`). Episode-level status is derived at query time from segment counts (all new → new, all learned → learned, otherwise → studying). `nextReview` is stored on segments but not yet computed — the SRS interval logic (e.g. 3d → 1w → 2w → 1mo → 3mo) is planned but not implemented.
 
 ## Key Design Decisions
 
