@@ -10,13 +10,7 @@ import { getEpisodeStudyStatusMap } from '@/db/episodes';
 import LocalDateTime from '@/components/LocalDateTime';
 import EpisodeActionMenu from '@/components/EpisodeActionMenu';
 import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
-
-function formatDuration(ms: number): string {
-  const totalSecs = Math.round(ms / 1000);
-  const mins = Math.floor(totalSecs / 60);
-  const secs = totalSecs % 60;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-}
+import { formatMs } from '@/components/player/segmentUtils';
 
 export default async function EpisodePage({
   params,
@@ -67,7 +61,7 @@ export default async function EpisodePage({
         {episode.durationMs && (
           <div className="flex gap-6">
             <dt className="text-muted w-20 shrink-0">Duration</dt>
-            <dd className="text-ink">{formatDuration(episode.durationMs)}</dd>
+            <dd className="text-ink">{formatMs(episode.durationMs)}</dd>
           </div>
         )}
         <div className="flex gap-6">

@@ -34,6 +34,16 @@ export function findActiveSegmentId(
 }
 
 /**
+ * Format a millisecond value as m:ss (e.g. 3723000 → "62:03").
+ */
+export function formatMs(ms: number): string {
+  const totalSecs = Math.floor(ms / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+/**
  * Strip <ruby> and <rt> tags from furigana HTML, returning plain text.
  * Used when furigana display is toggled off.
  */

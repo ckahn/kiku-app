@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { segmentStartSec, findActiveSegmentId, stripFurigana } from '../player/segmentUtils';
+import { segmentStartSec, findActiveSegmentId, stripFurigana, formatMs } from '../player/segmentUtils';
 import type { Segment } from '@/db/schema';
 
 function makeSegment(id: number, startMs: number, endMs: number): Segment {
@@ -26,6 +26,39 @@ const SEGMENTS = [
   makeSegment(2, 5000, 12000),
   makeSegment(3, 12000, 20000),
 ];
+
+describe('formatMs', () => {
+  it('formats zero as 0:00', () => {
+    expect(formatMs(0)).toBe('0:00');
+  });
+
+  it('formats sub-minute values', () => {
+    expect(formatMs(5000)).toBe('0:05');
+    expect(formatMs(59999)).toBe('0:59');
+  });
+
+  it('formats exactly one minute', () => {
+    expect(formatMs(60000)).toBe('1:00');
+  });
+
+  it('formats minutes and seconds', () => {
+    expect(formatMs(90500)).toBe('1:30');
+    expect(formatMs(233000)).toBe('3:53');
+  });
+
+  it('floors partial seconds rather than rounding', () => {
+    expect(formatMs(59999)).toBe('0:59');
+    expect(formatMs(60999)).toBe('1:00');
+  });
+
+  it('pads seconds with a leading zero', () => {
+    expect(formatMs(61000)).toBe('1:01');
+  });
+
+  it('handles long durations beyond one hour', () => {
+    expect(formatMs(3723000)).toBe('62:03');
+  });
+});
 
 describe('segmentStartSec', () => {
   it('subtracts SEGMENT_PLAYBACK_OFFSET_SEC from startMs converted to seconds', () => {

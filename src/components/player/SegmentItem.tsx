@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
 import type { Segment } from '@/db/schema';
 import type { PlayerControls } from './usePlayer';
-import { stripFurigana } from './segmentUtils';
+import { stripFurigana, formatMs } from './segmentUtils';
 import { saveEpisodeFocusState } from './studyNavigation';
 import SegmentStatusIcon from '@/components/SegmentStatusIcon';
 
@@ -15,13 +15,6 @@ interface SegmentItemProps {
   readonly podcastSlug?: string;
   readonly episodeNumber?: number;
   readonly episodeHref?: string;
-}
-
-function formatMs(ms: number): string {
-  const totalSecs = Math.floor(ms / 1000);
-  const mins = Math.floor(totalSecs / 60);
-  const secs = totalSecs % 60;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
 }
 
 export default function SegmentItem({
