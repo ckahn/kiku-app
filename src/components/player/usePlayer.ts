@@ -164,8 +164,8 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     toggleLoop: useCallback(() => dispatch({ type: 'TOGGLE_LOOP' }), []),
 
     restart: useCallback(() => {
-      audioEngine.pause();
       audioEngine.seek(0);
+      audioEngine.pause();
       dispatch({ type: 'RESTART', payload: 0 });
     }, []),
 

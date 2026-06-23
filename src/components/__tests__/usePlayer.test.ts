@@ -256,5 +256,22 @@ describe('usePlayer', () => {
       expect(engineMock.pause).toHaveBeenCalled();
       expect(result.current.state.isPlaying).toBe(false);
     });
+
+    it('seeks before pausing so a playing future segment settles at 0:00', () => {
+      const { result } = setup();
+      act(() => { engineMock.play(14); });
+
+      act(() => { result.current.controls.restart(); });
+
+      expect(engineMock.seek).toHaveBeenCalledWith(0);
+      expect(engineMock.pause).toHaveBeenCalled();
+      expect(engineMock.seek.mock.invocationCallOrder[0]).toBeLessThan(
+        engineMock.pause.mock.invocationCallOrder[0],
+      );
+      expect(engineMock.currentTime).toBe(0);
+      expect(engineMock.isPlaying).toBe(false);
+      expect(result.current.state.currentTime).toBe(0);
+      expect(result.current.state.isPlaying).toBe(false);
+    });
   });
 });
