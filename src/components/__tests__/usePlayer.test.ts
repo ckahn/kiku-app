@@ -134,6 +134,16 @@ describe('usePlayer', () => {
       act(() => { result.current.controls.forward(); });
       expect(engineMock.seek).toHaveBeenLastCalledWith(20);
     });
+
+    it('forward starts from the restored segment while audio is still loading', () => {
+      act(() => { engineMock._setStatus('loading'); });
+      const { result } = setup();
+
+      act(() => { result.current.controls.seekToSegment(2); });
+      act(() => { result.current.controls.forward(); });
+
+      expect(engineMock.seek).toHaveBeenLastCalledWith(9.9);
+    });
   });
 
   describe('seekToSegment', () => {

@@ -20,6 +20,14 @@ interface EpisodePlayerProps {
   readonly episodeHref?: string;
 }
 
+function getDurationMs(durationMs: number, segments: readonly Segment[]): number {
+  if (durationMs > 0) {
+    return durationMs;
+  }
+
+  return segments.reduce((maxEndMs, segment) => Math.max(maxEndMs, segment.endMs), 0);
+}
+
 export default function EpisodePlayer({
   segments,
   audioUrl,
@@ -28,13 +36,14 @@ export default function EpisodePlayer({
   episodeNumber,
   episodeHref,
 }: EpisodePlayerProps) {
-  const player = usePlayer(segments, durationMs, audioUrl);
+  const player = usePlayer(segments, getDurationMs(durationMs, segments), audioUrl);
   const { toggle, rewind, forward, toggleLoop } = player.controls;
   useManualScrollRestoration();
   useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop });
 
   const { seekToSegment, pause } = player.controls;
   const activeSegmentId = findActiveSegmentId(segments, player.state.currentTime);
+  const restoredFocusKeyRef = useRef<string | null>(null);
 
   // Restore the focused segment when returning from study or refreshing.
   useEffect(() => {
@@ -51,6 +60,12 @@ export default function EpisodePlayer({
     if (!matchingSegment) {
       return;
     }
+
+    const focusKey = `${episodeHref}:${matchingSegment.id}`;
+    if (restoredFocusKeyRef.current === focusKey) {
+      return;
+    }
+    restoredFocusKeyRef.current = focusKey;
 
     // Pause before seeking so seek() doesn't trigger play() when audio from
     // a previous page is still playing (the old page's cleanup may not have

@@ -108,6 +108,23 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     });
   }, []);
 
+  const clampTime = useCallback(
+    (timeSec: number) => {
+      const max = audioEngine.duration > 0 ? audioEngine.duration : durationMs / 1000;
+      return Math.max(0, Math.min(max, timeSec));
+    },
+    [durationMs],
+  );
+
+  const seekAndSyncState = useCallback(
+    (timeSec: number) => {
+      const clampedTime = clampTime(timeSec);
+      audioEngine.seek(clampedTime);
+      dispatch({ type: 'SET_TIME', payload: clampedTime });
+    },
+    [clampTime],
+  );
+
   const controls: PlayerControls = {
     play: useCallback(() => {
       setPlaybackError(null);
@@ -131,21 +148,18 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
 
     seek: useCallback(
       (timeSec: number) => {
-        const max = audioEngine.duration > 0 ? audioEngine.duration : durationMs / 1000;
-        audioEngine.seek(Math.max(0, Math.min(max, timeSec)));
+        seekAndSyncState(timeSec);
       },
-      [durationMs],
+      [seekAndSyncState],
     ),
 
     rewind: useCallback(() => {
-      const max = audioEngine.duration > 0 ? audioEngine.duration : durationMs / 1000;
-      audioEngine.seek(Math.max(0, Math.min(max, audioEngine.currentTime - 5)));
-    }, [durationMs]),
+      seekAndSyncState(stateRef.current.currentTime - 5);
+    }, [seekAndSyncState]),
 
     forward: useCallback(() => {
-      const max = audioEngine.duration > 0 ? audioEngine.duration : durationMs / 1000;
-      audioEngine.seek(Math.max(0, Math.min(max, audioEngine.currentTime + 5)));
-    }, [durationMs]),
+      seekAndSyncState(stateRef.current.currentTime + 5);
+    }, [seekAndSyncState]),
 
     toggleLoop: useCallback(() => dispatch({ type: 'TOGGLE_LOOP' }), []),
 
@@ -159,13 +173,10 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
       const segment = segments.find((c) => c.id === segmentId);
       if (segment) {
         const startSec = segmentStartSec(segment);
-        audioEngine.seek(startSec);
+        seekAndSyncState(startSec);
         loopSegmentRef.current = segment;
-        // Update state synchronously so the active-segment highlight applies
-        // immediately without waiting for the next rAF tick.
-        dispatch({ type: 'SET_TIME', payload: startSec });
       }
-    }, [segments]),
+    }, [segments, seekAndSyncState]),
   };
 
   const clearPlaybackError = useCallback(() => {

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['127.0.0.1'],
   // The segment route loads kuromoji's IPADIC dictionary from disk at runtime via a dynamic
   // dicPath, which Next's output file tracing cannot detect statically. Force the dictionary
   // files into that function's serverless bundle so they exist on Vercel. resolveDicPath() in
