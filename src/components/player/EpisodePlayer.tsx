@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Segment } from '@/db/schema';
 import { usePlayer } from './usePlayer';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
@@ -20,6 +20,14 @@ interface EpisodePlayerProps {
   readonly episodeHref?: string;
 }
 
+function getDurationMs(durationMs: number, segments: readonly Segment[]): number {
+  if (durationMs > 0) {
+    return durationMs;
+  }
+
+  return segments.reduce((maxEndMs, segment) => Math.max(maxEndMs, segment.endMs), 0);
+}
+
 export default function EpisodePlayer({
   segments,
   audioUrl,
@@ -28,13 +36,32 @@ export default function EpisodePlayer({
   episodeNumber,
   episodeHref,
 }: EpisodePlayerProps) {
-  const player = usePlayer(segments, durationMs, audioUrl);
-  const { toggle, rewind, forward, toggleLoop } = player.controls;
+  const effectiveDurationMs = useMemo(
+    () => getDurationMs(durationMs, segments),
+    [durationMs, segments],
+  );
+  const player = usePlayer(segments, effectiveDurationMs, audioUrl);
+  const { toggle, rewind, forward, toggleLoop, restart } = player.controls;
   useManualScrollRestoration();
-  useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop });
+  const handleRestart = useCallback(() => {
+    restart();
+
+    const firstSegment = segments[0];
+    if (!firstSegment) {
+      return;
+    }
+
+    if (episodeHref) {
+      saveEpisodeFocusState({ episodeHref, segmentId: firstSegment.id });
+    }
+    scrollSegmentToTop(firstSegment.id);
+  }, [restart, segments, episodeHref]);
+
+  useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop, restart: handleRestart });
 
   const { seekToSegment, pause } = player.controls;
   const activeSegmentId = findActiveSegmentId(segments, player.state.currentTime);
+  const restoredFocusSegmentRef = useRef<number | null>(null);
 
   // Restore the focused segment when returning from study or refreshing.
   useEffect(() => {
@@ -51,6 +78,11 @@ export default function EpisodePlayer({
     if (!matchingSegment) {
       return;
     }
+
+    if (restoredFocusSegmentRef.current === matchingSegment.id) {
+      return;
+    }
+    restoredFocusSegmentRef.current = matchingSegment.id;
 
     // Pause before seeking so seek() doesn't trigger play() when audio from
     // a previous page is still playing (the old page's cleanup may not have
@@ -84,7 +116,7 @@ export default function EpisodePlayer({
         episodeNumber={episodeNumber}
         episodeHref={episodeHref}
       />
-      <AudioPlayer player={player} />
+      <AudioPlayer player={player} onRestart={handleRestart} />
     </>
   );
 }

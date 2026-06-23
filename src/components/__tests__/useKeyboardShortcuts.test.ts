@@ -9,6 +9,7 @@ function makeOptions() {
     rewind: vi.fn(),
     forward: vi.fn(),
     toggleLoop: vi.fn(),
+    restart: vi.fn(),
   };
 }
 
@@ -57,6 +58,32 @@ describe('useKeyboardShortcuts', () => {
       renderHook(() => useKeyboardShortcuts(options));
       pressKey('KeyL');
       expect(options.toggleLoop).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('letter shortcuts', () => {
+    it('KeyJ calls rewind', () => {
+      renderHook(() => useKeyboardShortcuts(options));
+      pressKey('KeyJ');
+      expect(options.rewind).toHaveBeenCalledOnce();
+    });
+
+    it('KeyK calls forward', () => {
+      renderHook(() => useKeyboardShortcuts(options));
+      pressKey('KeyK');
+      expect(options.forward).toHaveBeenCalledOnce();
+    });
+
+    it('KeyH calls restart', () => {
+      renderHook(() => useKeyboardShortcuts(options));
+      pressKey('KeyH');
+      expect(options.restart).toHaveBeenCalledOnce();
+    });
+
+    it('KeyM calls toggle', () => {
+      renderHook(() => useKeyboardShortcuts(options));
+      pressKey('KeyM');
+      expect(options.toggle).toHaveBeenCalledOnce();
     });
   });
 

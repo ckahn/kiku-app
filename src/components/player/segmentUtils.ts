@@ -23,8 +23,8 @@ export function findActiveSegmentId(
   currentTimeSec: number,
 ): number | null {
   const sorted = [...segments].sort((a, b) => a.startMs - b.startMs);
-  for (const segment of sorted) {
-    const adjustedStart = segmentStartSec(segment);
+  for (const [index, segment] of sorted.entries()) {
+    const adjustedStart = index === 0 ? 0 : segmentStartSec(segment);
     const adjustedEnd = Math.max(0, segment.endMs / 1000 - SEGMENT_PLAYBACK_OFFSET_SEC);
     if (currentTimeSec >= adjustedStart && currentTimeSec < adjustedEnd) {
       return segment.id;

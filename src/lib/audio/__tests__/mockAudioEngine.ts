@@ -8,6 +8,7 @@ export interface MockAudioEngineState {
   error: string | null;
   status: AudioStatus;
   workletReady: boolean;
+  pendingSeek: number | null;
 }
 
 export interface MockAudioEngine {
@@ -15,6 +16,7 @@ export interface MockAudioEngine {
   load: Mock<(url: string) => Promise<void>>;
   play: Mock<(startSec?: number) => void>;
   pause: Mock<() => void>;
+  restartAtZero: Mock<() => void>;
   seek: Mock<(sec: number) => void>;
   setPlaybackRate: Mock<(rate: number) => void>;
   subscribe: (fn: () => void) => () => void;
@@ -42,6 +44,7 @@ export function createMockAudioEngine(): MockAudioEngine {
     error: null,
     status: 'ready',
     workletReady: true,
+    pendingSeek: null,
   };
   const generalSubs = new Set<() => void>();
   const endSubs = new Set<() => void>();
@@ -62,9 +65,23 @@ export function createMockAudioEngine(): MockAudioEngine {
       state.isPlaying = false;
       notifyGeneral();
     }),
-    seek: vi.fn((sec: number) => {
-      state.time = Math.max(0, sec);
+    restartAtZero: vi.fn(() => {
+      state.pendingSeek = null;
+      state.time = 0;
+      state.isPlaying = false;
       notifyGeneral();
+    }),
+    seek: vi.fn((sec: number) => {
+      if (state.status === 'loading') {
+        state.pendingSeek = Math.max(0, sec);
+        return;
+      }
+
+      state.pendingSeek = null;
+      state.time = Math.max(0, sec);
+      if (state.isPlaying) {
+        notifyGeneral();
+      }
     }),
     setPlaybackRate: vi.fn(),
     subscribe(fn: () => void) {
@@ -78,7 +95,14 @@ export function createMockAudioEngine(): MockAudioEngine {
     _setTime(t: number) { state.time = t; notifyGeneral(); },
     _setIsPlaying(v: boolean) { state.isPlaying = v; notifyGeneral(); },
     _setError(e: string | null) { state.error = e; notifyGeneral(); },
-    _setStatus(s: AudioStatus) { state.status = s; notifyGeneral(); },
+    _setStatus(s: AudioStatus) {
+      state.status = s;
+      if (s === 'ready' && state.pendingSeek !== null) {
+        state.time = state.pendingSeek;
+        state.pendingSeek = null;
+      }
+      notifyGeneral();
+    },
     _setWorkletReady(v: boolean) { state.workletReady = v; notifyGeneral(); },
     _triggerNaturalEnd() {
       state.isPlaying = false;
@@ -91,6 +115,7 @@ export function createMockAudioEngine(): MockAudioEngine {
       state.error = null;
       state.status = 'ready';
       state.workletReady = true;
+      state.pendingSeek = null;
       generalSubs.clear();
       endSubs.clear();
       vi.clearAllMocks();

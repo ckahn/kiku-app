@@ -188,6 +188,17 @@ export class AudioEngine {
     this._notify();
   }
 
+  // Atomically stops playback and resets position to 0 without calling play().
+  // Use this instead of seek(0)+pause() to avoid briefly starting a new source
+  // node at position 0 when the engine is currently playing.
+  restartAtZero(): void {
+    this._stopSource();
+    this._startOffset = 0;
+    this._isPlaying = false;
+    this._pendingSeek = null;
+    this._notify();
+  }
+
   seek(sec: number): void {
     const buffer = this._cache?.buffer;
     if (!buffer) {

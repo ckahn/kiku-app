@@ -134,6 +134,16 @@ describe('usePlayer', () => {
       act(() => { result.current.controls.forward(); });
       expect(engineMock.seek).toHaveBeenLastCalledWith(20);
     });
+
+    it('forward starts from the restored segment while audio is still loading', () => {
+      act(() => { engineMock._setStatus('loading'); });
+      const { result } = setup();
+
+      act(() => { result.current.controls.seekToSegment(2); });
+      act(() => { result.current.controls.forward(); });
+
+      expect(engineMock.seek).toHaveBeenLastCalledWith(9.9);
+    });
   });
 
   describe('seekToSegment', () => {
@@ -238,12 +248,25 @@ describe('usePlayer', () => {
   });
 
   describe('restart', () => {
-    it('seeks to 0 and stops', () => {
+    it('calls restartAtZero and resets state to time 0, not playing', () => {
       const { result } = setup();
       act(() => { engineMock._setTime(15); });
       act(() => { result.current.controls.restart(); });
-      expect(engineMock.seek).toHaveBeenCalledWith(0);
-      expect(engineMock.pause).toHaveBeenCalled();
+      expect(engineMock.restartAtZero).toHaveBeenCalledOnce();
+      expect(result.current.state.currentTime).toBe(0);
+      expect(result.current.state.isPlaying).toBe(false);
+    });
+
+    it('settles at 0:00 even when called while a future segment is playing', () => {
+      const { result } = setup();
+      act(() => { engineMock.play(14); });
+
+      act(() => { result.current.controls.restart(); });
+
+      expect(engineMock.restartAtZero).toHaveBeenCalledOnce();
+      expect(engineMock.currentTime).toBe(0);
+      expect(engineMock.isPlaying).toBe(false);
+      expect(result.current.state.currentTime).toBe(0);
       expect(result.current.state.isPlaying).toBe(false);
     });
   });

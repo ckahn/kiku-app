@@ -10,7 +10,7 @@ import * as studyNavigation from '../player/studyNavigation';
 // ---------------------------------------------------------------------------
 
 const { engineMock } = vi.hoisted(() => {
-  const state = { time: 0, isPlaying: false };
+  const state = { time: 0, isPlaying: false, duration: 20 };
   const generalSubs = new Set<() => void>();
   const endSubs = new Set<() => void>();
 
@@ -25,15 +25,21 @@ const { engineMock } = vi.hoisted(() => {
       notifyGeneral();
     }),
     pause: vi.fn(() => { state.isPlaying = false; notifyGeneral(); }),
+    restartAtZero: vi.fn(() => { state.time = 0; state.isPlaying = false; notifyGeneral(); }),
     seek: vi.fn((sec: number) => { state.time = Math.max(0, sec); notifyGeneral(); }),
     setPlaybackRate: vi.fn(),
     subscribe(fn: () => void) { generalSubs.add(fn); return () => generalSubs.delete(fn); },
     subscribeToEnd(fn: () => void) { endSubs.add(fn); return () => endSubs.delete(fn); },
     _setTime(t: number) { state.time = t; notifyGeneral(); },
     _setIsPlaying(v: boolean) { state.isPlaying = v; notifyGeneral(); },
-    _reset() { state.time = 0; state.isPlaying = false; generalSubs.clear(); endSubs.clear(); },
+    _setDuration(v: number) { state.duration = v; notifyGeneral(); },
+    _reset() {
+      state.time = 0; state.isPlaying = false; state.duration = 20;
+      generalSubs.clear(); endSubs.clear();
+      vi.clearAllMocks();
+    },
     get currentTime() { return state.time; },
-    get duration() { return 20; },
+    get duration() { return state.duration; },
     get status() { return 'ready' as const; },
     get isPlaying() { return state.isPlaying; },
     get error() { return null; },
@@ -144,6 +150,18 @@ describe('EpisodePlayer (integration)', () => {
     expect(loopBtn).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('falls back to the final segment end time when episode duration is missing', () => {
+    engineMock._setDuration(0);
+
+    render(
+      <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={0} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forward 5 seconds' }));
+
+    expect(engineMock.seek).toHaveBeenCalledWith(5);
+  });
+
   it('Space key toggles playback', () => {
     render(
       <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
@@ -158,6 +176,42 @@ describe('EpisodePlayer (integration)', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('restart focuses, scrolls to, and saves the first segment immediately', async () => {
+    vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue(null);
+    const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
+
+    render(
+      <EpisodePlayer
+        segments={SEGMENTS}
+        audioUrl="/api/episodes/1/audio"
+        durationMs={20000}
+        episodeHref="/podcasts/slow-japanese/episodes/7"
+      />,
+    );
+
+    await act(async () => {
+      engineMock._setTime(14);
+    });
+    saveSpy.mockClear();
+    vi.mocked(window.scrollTo).mockClear();
+    vi.mocked(window.requestAnimationFrame).mockImplementationOnce((cb) => {
+      cb(0);
+      return 1;
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }));
+
+    const items = screen.getAllByRole('listitem');
+    expect(items[0]).toHaveAttribute('data-active');
+    expect(items[1]).not.toHaveAttribute('data-active');
+    expect(items[2]).not.toHaveAttribute('data-active');
+    expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'auto' }));
+    expect(saveSpy).toHaveBeenCalledWith({
+      episodeHref: '/podcasts/slow-japanese/episodes/7',
+      segmentId: 1,
+    });
   });
 
   it('uses manual browser scroll restoration while mounted', () => {
@@ -201,6 +255,43 @@ describe('EpisodePlayer (integration)', () => {
     expect(window.scrollTo).toHaveBeenCalledWith(
       expect.objectContaining({ behavior: 'auto' }),
     );
+  });
+
+  it('restores the saved episode focus state only once per segment', async () => {
+    vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue({
+      episodeHref: '/podcasts/slow-japanese/episodes/7',
+      segmentId: 3,
+    });
+
+    const { rerender } = render(
+      <EpisodePlayer
+        segments={SEGMENTS}
+        audioUrl="/api/episodes/1/audio"
+        durationMs={20000}
+        episodeHref="/podcasts/slow-japanese/episodes/7"
+      />,
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const seekCount = engineMock.seek.mock.calls.length;
+
+    rerender(
+      <EpisodePlayer
+        segments={[...SEGMENTS]}
+        audioUrl="/api/episodes/1/audio"
+        durationMs={20000}
+        episodeHref="/podcasts/slow-japanese/episodes/7"
+      />,
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(engineMock.seek).toHaveBeenCalledTimes(seekCount);
   });
 
   it('saves the episode focus state when the active segment changes', async () => {
