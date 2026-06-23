@@ -248,26 +248,22 @@ describe('usePlayer', () => {
   });
 
   describe('restart', () => {
-    it('seeks to 0 and stops', () => {
+    it('calls restartAtZero and resets state to time 0, not playing', () => {
       const { result } = setup();
       act(() => { engineMock._setTime(15); });
       act(() => { result.current.controls.restart(); });
-      expect(engineMock.seek).toHaveBeenCalledWith(0);
-      expect(engineMock.pause).toHaveBeenCalled();
+      expect(engineMock.restartAtZero).toHaveBeenCalledOnce();
+      expect(result.current.state.currentTime).toBe(0);
       expect(result.current.state.isPlaying).toBe(false);
     });
 
-    it('seeks before pausing so a playing future segment settles at 0:00', () => {
+    it('settles at 0:00 even when called while a future segment is playing', () => {
       const { result } = setup();
       act(() => { engineMock.play(14); });
 
       act(() => { result.current.controls.restart(); });
 
-      expect(engineMock.seek).toHaveBeenCalledWith(0);
-      expect(engineMock.pause).toHaveBeenCalled();
-      expect(engineMock.seek.mock.invocationCallOrder[0]).toBeLessThan(
-        engineMock.pause.mock.invocationCallOrder[0],
-      );
+      expect(engineMock.restartAtZero).toHaveBeenCalledOnce();
       expect(engineMock.currentTime).toBe(0);
       expect(engineMock.isPlaying).toBe(false);
       expect(result.current.state.currentTime).toBe(0);

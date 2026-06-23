@@ -108,21 +108,14 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     });
   }, []);
 
-  const clampTime = useCallback(
-    (timeSec: number) => {
-      const max = audioEngine.duration > 0 ? audioEngine.duration : durationMs / 1000;
-      return Math.max(0, Math.min(max, timeSec));
-    },
-    [durationMs],
-  );
-
   const seekAndSyncState = useCallback(
     (timeSec: number) => {
-      const clampedTime = clampTime(timeSec);
+      const max = audioEngine.duration > 0 ? audioEngine.duration : durationMs / 1000;
+      const clampedTime = Math.max(0, Math.min(max, timeSec));
       audioEngine.seek(clampedTime);
       dispatch({ type: 'SET_TIME', payload: clampedTime });
     },
-    [clampTime],
+    [durationMs],
   );
 
   const controls: PlayerControls = {
@@ -146,12 +139,7 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
       }
     }, []),
 
-    seek: useCallback(
-      (timeSec: number) => {
-        seekAndSyncState(timeSec);
-      },
-      [seekAndSyncState],
-    ),
+    seek: seekAndSyncState,
 
     rewind: useCallback(() => {
       seekAndSyncState(stateRef.current.currentTime - 5);
@@ -164,19 +152,18 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     toggleLoop: useCallback(() => dispatch({ type: 'TOGGLE_LOOP' }), []),
 
     restart: useCallback(() => {
-      audioEngine.seek(0);
-      audioEngine.pause();
+      audioEngine.restartAtZero();
       dispatch({ type: 'RESTART', payload: 0 });
     }, []),
 
     seekToSegment: useCallback((segmentId: number) => {
-      const segment = segments.find((c) => c.id === segmentId);
+      const segment = segmentsRef.current.find((c) => c.id === segmentId);
       if (segment) {
         const startSec = segmentStartSec(segment);
         seekAndSyncState(startSec);
         loopSegmentRef.current = segment;
       }
-    }, [segments, seekAndSyncState]),
+    }, [seekAndSyncState]),
   };
 
   const clearPlaybackError = useCallback(() => {

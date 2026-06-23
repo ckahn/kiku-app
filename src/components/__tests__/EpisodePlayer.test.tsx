@@ -25,6 +25,7 @@ const { engineMock } = vi.hoisted(() => {
       notifyGeneral();
     }),
     pause: vi.fn(() => { state.isPlaying = false; notifyGeneral(); }),
+    restartAtZero: vi.fn(() => { state.time = 0; state.isPlaying = false; notifyGeneral(); }),
     seek: vi.fn((sec: number) => { state.time = Math.max(0, sec); notifyGeneral(); }),
     setPlaybackRate: vi.fn(),
     subscribe(fn: () => void) { generalSubs.add(fn); return () => generalSubs.delete(fn); },
@@ -32,7 +33,11 @@ const { engineMock } = vi.hoisted(() => {
     _setTime(t: number) { state.time = t; notifyGeneral(); },
     _setIsPlaying(v: boolean) { state.isPlaying = v; notifyGeneral(); },
     _setDuration(v: number) { state.duration = v; notifyGeneral(); },
-    _reset() { state.time = 0; state.isPlaying = false; state.duration = 20; generalSubs.clear(); endSubs.clear(); },
+    _reset() {
+      state.time = 0; state.isPlaying = false; state.duration = 20;
+      generalSubs.clear(); endSubs.clear();
+      vi.clearAllMocks();
+    },
     get currentTime() { return state.time; },
     get duration() { return state.duration; },
     get status() { return 'ready' as const; },

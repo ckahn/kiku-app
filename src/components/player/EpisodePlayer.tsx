@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Segment } from '@/db/schema';
 import { usePlayer } from './usePlayer';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
@@ -36,7 +36,11 @@ export default function EpisodePlayer({
   episodeNumber,
   episodeHref,
 }: EpisodePlayerProps) {
-  const player = usePlayer(segments, getDurationMs(durationMs, segments), audioUrl);
+  const effectiveDurationMs = useMemo(
+    () => getDurationMs(durationMs, segments),
+    [durationMs, segments],
+  );
+  const player = usePlayer(segments, effectiveDurationMs, audioUrl);
   const { toggle, rewind, forward, toggleLoop, restart } = player.controls;
   useManualScrollRestoration();
   const handleRestart = useCallback(() => {
@@ -57,7 +61,7 @@ export default function EpisodePlayer({
 
   const { seekToSegment, pause } = player.controls;
   const activeSegmentId = findActiveSegmentId(segments, player.state.currentTime);
-  const restoredFocusKeyRef = useRef<string | null>(null);
+  const restoredFocusSegmentRef = useRef<number | null>(null);
 
   // Restore the focused segment when returning from study or refreshing.
   useEffect(() => {
@@ -75,11 +79,10 @@ export default function EpisodePlayer({
       return;
     }
 
-    const focusKey = `${episodeHref}:${matchingSegment.id}`;
-    if (restoredFocusKeyRef.current === focusKey) {
+    if (restoredFocusSegmentRef.current === matchingSegment.id) {
       return;
     }
-    restoredFocusKeyRef.current = focusKey;
+    restoredFocusSegmentRef.current = matchingSegment.id;
 
     // Pause before seeking so seek() doesn't trigger play() when audio from
     // a previous page is still playing (the old page's cleanup may not have
@@ -113,15 +116,7 @@ export default function EpisodePlayer({
         episodeNumber={episodeNumber}
         episodeHref={episodeHref}
       />
-      <AudioPlayer
-        player={{
-          ...player,
-          controls: {
-            ...player.controls,
-            restart: handleRestart,
-          },
-        }}
-      />
+      <AudioPlayer player={player} onRestart={handleRestart} />
     </>
   );
 }

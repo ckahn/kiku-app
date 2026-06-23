@@ -16,6 +16,7 @@ export interface MockAudioEngine {
   load: Mock<(url: string) => Promise<void>>;
   play: Mock<(startSec?: number) => void>;
   pause: Mock<() => void>;
+  restartAtZero: Mock<() => void>;
   seek: Mock<(sec: number) => void>;
   setPlaybackRate: Mock<(rate: number) => void>;
   subscribe: (fn: () => void) => () => void;
@@ -61,6 +62,12 @@ export function createMockAudioEngine(): MockAudioEngine {
       notifyGeneral();
     }),
     pause: vi.fn(() => {
+      state.isPlaying = false;
+      notifyGeneral();
+    }),
+    restartAtZero: vi.fn(() => {
+      state.pendingSeek = null;
+      state.time = 0;
       state.isPlaying = false;
       notifyGeneral();
     }),

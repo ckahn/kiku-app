@@ -6,9 +6,10 @@ import ProgressBar from './ProgressBar';
 
 interface AudioPlayerProps {
   readonly player: UsePlayerReturn;
+  readonly onRestart?: () => void;
 }
 
-export default function AudioPlayer({ player }: AudioPlayerProps) {
+export default function AudioPlayer({ player, onRestart }: AudioPlayerProps) {
   const { state, controls, isLoading, durationSec, playbackError } = player;
 
   return (
@@ -41,7 +42,7 @@ export default function AudioPlayer({ player }: AudioPlayerProps) {
           onRewind={controls.rewind}
           onForward={controls.forward}
           onToggleLoop={controls.toggleLoop}
-          onRestart={controls.restart}
+          onRestart={onRestart ?? controls.restart}
           disabled={isLoading}
         />
         {isLoading ? (
