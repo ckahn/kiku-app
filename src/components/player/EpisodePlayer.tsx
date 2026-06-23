@@ -37,9 +37,9 @@ export default function EpisodePlayer({
   episodeHref,
 }: EpisodePlayerProps) {
   const player = usePlayer(segments, getDurationMs(durationMs, segments), audioUrl);
-  const { toggle, rewind, forward, toggleLoop } = player.controls;
+  const { toggle, rewind, forward, toggleLoop, restart } = player.controls;
   useManualScrollRestoration();
-  useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop });
+  useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop, restart });
 
   const { seekToSegment, pause } = player.controls;
   const activeSegmentId = findActiveSegmentId(segments, player.state.currentTime);

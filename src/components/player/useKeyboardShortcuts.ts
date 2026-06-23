@@ -13,7 +13,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 const HANDLED_KEYS = new Set([
-  'Space', 'ArrowLeft', 'ArrowRight', 'KeyL',
+  'Space', 'ArrowLeft', 'ArrowRight', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'KeyM',
 ]);
 
 interface UseKeyboardShortcutsOptions {
@@ -21,15 +21,26 @@ interface UseKeyboardShortcutsOptions {
   readonly rewind: () => void;
   readonly forward: () => void;
   readonly toggleLoop: () => void;
+  readonly restart: () => void;
 }
 
-export function useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop }: UseKeyboardShortcutsOptions): void {
+export function useKeyboardShortcuts({
+  toggle,
+  rewind,
+  forward,
+  toggleLoop,
+  restart,
+}: UseKeyboardShortcutsOptions): void {
   useEffect(() => {
     const keyMap: Record<string, () => void> = {
       Space: toggle,
       ArrowLeft: rewind,
       ArrowRight: forward,
+      KeyH: restart,
+      KeyJ: rewind,
+      KeyK: forward,
       KeyL: toggleLoop,
+      KeyM: toggle,
     };
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -42,5 +53,5 @@ export function useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop }: Us
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggle, rewind, forward, toggleLoop]);
+  }, [toggle, rewind, forward, toggleLoop, restart]);
 }
