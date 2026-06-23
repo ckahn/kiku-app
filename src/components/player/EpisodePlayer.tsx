@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { Segment } from '@/db/schema';
 import { usePlayer } from './usePlayer';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
@@ -39,7 +39,21 @@ export default function EpisodePlayer({
   const player = usePlayer(segments, getDurationMs(durationMs, segments), audioUrl);
   const { toggle, rewind, forward, toggleLoop, restart } = player.controls;
   useManualScrollRestoration();
-  useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop, restart });
+  const handleRestart = useCallback(() => {
+    restart();
+
+    const firstSegment = segments[0];
+    if (!firstSegment) {
+      return;
+    }
+
+    if (episodeHref) {
+      saveEpisodeFocusState({ episodeHref, segmentId: firstSegment.id });
+    }
+    scrollSegmentToTop(firstSegment.id);
+  }, [restart, segments, episodeHref]);
+
+  useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop, restart: handleRestart });
 
   const { seekToSegment, pause } = player.controls;
   const activeSegmentId = findActiveSegmentId(segments, player.state.currentTime);
@@ -99,7 +113,15 @@ export default function EpisodePlayer({
         episodeNumber={episodeNumber}
         episodeHref={episodeHref}
       />
-      <AudioPlayer player={player} />
+      <AudioPlayer
+        player={{
+          ...player,
+          controls: {
+            ...player.controls,
+            restart: handleRestart,
+          },
+        }}
+      />
     </>
   );
 }

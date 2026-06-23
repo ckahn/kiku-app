@@ -90,6 +90,15 @@ describe('findActiveSegmentId', () => {
     expect(findActiveSegmentId([], 5)).toBeNull();
   });
 
+  it('treats 0:00 as the first segment when the first timestamp starts after initial silence', () => {
+    const delayedFirstSegment = [
+      makeSegment(1, 1200, 5000),
+      makeSegment(2, 5000, 12000),
+    ];
+
+    expect(findActiveSegmentId(delayedFirstSegment, 0)).toBe(1);
+  });
+
   it('returns correct segment id even when segments are passed out of order', () => {
     const reversed = [...SEGMENTS].reverse();
     expect(findActiveSegmentId(reversed, 6)).toBe(2);

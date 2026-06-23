@@ -173,6 +173,42 @@ describe('EpisodePlayer (integration)', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('restart focuses, scrolls to, and saves the first segment immediately', async () => {
+    vi.spyOn(studyNavigation, 'loadEpisodeFocusState').mockReturnValue(null);
+    const saveSpy = vi.spyOn(studyNavigation, 'saveEpisodeFocusState');
+
+    render(
+      <EpisodePlayer
+        segments={SEGMENTS}
+        audioUrl="/api/episodes/1/audio"
+        durationMs={20000}
+        episodeHref="/podcasts/slow-japanese/episodes/7"
+      />,
+    );
+
+    await act(async () => {
+      engineMock._setTime(14);
+    });
+    saveSpy.mockClear();
+    vi.mocked(window.scrollTo).mockClear();
+    vi.mocked(window.requestAnimationFrame).mockImplementationOnce((cb) => {
+      cb(0);
+      return 1;
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }));
+
+    const items = screen.getAllByRole('listitem');
+    expect(items[0]).toHaveAttribute('data-active');
+    expect(items[1]).not.toHaveAttribute('data-active');
+    expect(items[2]).not.toHaveAttribute('data-active');
+    expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'auto' }));
+    expect(saveSpy).toHaveBeenCalledWith({
+      episodeHref: '/podcasts/slow-japanese/episodes/7',
+      segmentId: 1,
+    });
+  });
+
   it('uses manual browser scroll restoration while mounted', () => {
     const { unmount } = render(
       <EpisodePlayer segments={SEGMENTS} audioUrl="/api/episodes/1/audio" durationMs={20000} />,
