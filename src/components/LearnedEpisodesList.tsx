@@ -1,0 +1,45 @@
+'use client';
+
+import type { Episode } from '@/db/schema';
+import EpisodeActionMenu from '@/components/EpisodeActionMenu';
+import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
+import ListItemRow from '@/components/ListItemRow';
+
+type LearnedEpisode = Pick<Episode, 'id' | 'title' | 'episodeNumber' | 'status'> & {
+  studyStatus: 'learned';
+  podcastSlug: string;
+  podcastName: string;
+};
+
+interface LearnedEpisodesListProps {
+  episodes: LearnedEpisode[];
+}
+
+export default function LearnedEpisodesList({ episodes }: LearnedEpisodesListProps) {
+  return (
+    <ul className="space-y-2">
+      {episodes.map((ep) => (
+        <li key={ep.id}>
+          <ListItemRow
+            href={`/podcasts/${ep.podcastSlug}/episodes/${ep.episodeNumber}`}
+            actions={(
+              <>
+                <EpisodeStatusBadge status={ep.status} studyStatus={ep.studyStatus} />
+                <EpisodeActionMenu
+                  episodeId={ep.id}
+                  episodeTitle={ep.title}
+                  episodeNumber={ep.episodeNumber}
+                  studyStatus={ep.studyStatus}
+                  redirectTo="/"
+                />
+              </>
+            )}
+          >
+            <p className="font-medium text-ink truncate">{ep.title}</p>
+            <p className="text-xs text-muted mt-0.5">{ep.podcastName} · Episode {ep.episodeNumber}</p>
+          </ListItemRow>
+        </li>
+      ))}
+    </ul>
+  );
+}
