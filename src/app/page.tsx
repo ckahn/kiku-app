@@ -7,6 +7,7 @@ import { getRandomStudyingSegment } from '@/db/segments';
 import { getEpisodeStudyStatusMap } from '@/db/episodes';
 import PodcastList from '@/components/PodcastList';
 import StudyingEpisodesList from '@/components/StudyingEpisodesList';
+import LearnedEpisodesList from '@/components/LearnedEpisodesList';
 import AddPodcastButton from '@/components/AddPodcastButton';
 import RandomSegmentCard from '@/components/RandomSegmentCard';
 import { PageShell } from '@/components/layout';
@@ -36,6 +37,9 @@ export default async function HomePage() {
   const studyingEpisodes = readyEpisodes
     .filter((ep) => studyStatusMap.get(ep.id) === 'studying')
     .map((ep) => ({ ...ep, studyStatus: 'studying' as const }));
+  const learnedEpisodes = readyEpisodes
+    .filter((ep) => studyStatusMap.get(ep.id) === 'learned')
+    .map((ep) => ({ ...ep, studyStatus: 'learned' as const }));
   return (
     <PageShell>
       <div className="mb-8 flex items-start gap-4">
@@ -104,6 +108,12 @@ export default async function HomePage() {
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">Currently studying</h2>
           <StudyingEpisodesList episodes={studyingEpisodes} />
+        </div>
+      )}
+      {learnedEpisodes.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-ink uppercase tracking-wider mb-3">Learned</h2>
+          <LearnedEpisodesList episodes={learnedEpisodes} />
         </div>
       )}
       <div>
