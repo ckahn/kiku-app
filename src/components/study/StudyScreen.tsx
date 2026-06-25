@@ -179,14 +179,14 @@ export default function StudyScreen({
     audioEngine.seek(segmentStartSec(segment));
     audioEngine.pause();
     setIsPlaying(false);
-  }, [segment.startMs]);
+  }, [segment]);
 
   const playFromSegmentStart = useCallback(() => {
     setErrorMessage(null);
     setIsPlaying(true);
     audioEngine.unlock();
     audioEngine.play(segmentStartSec(segment));
-  }, [segment.startMs]);
+  }, [segment]);
 
   const togglePlay = useCallback(() => {
     if (isPlaying) {
