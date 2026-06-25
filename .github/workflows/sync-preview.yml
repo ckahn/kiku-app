@@ -1,3 +1,6 @@
+# preview is the Vercel deployment target that has Vercel auth enabled.
+# Keeping it in sync with main ensures every main commit gets a
+# password-protected preview build automatically.
 name: Sync preview to main
 
 on:
