@@ -67,10 +67,10 @@ beforeEach(() => {
 
 describe('usePlayer', () => {
   describe('initial state', () => {
-    it('starts paused, not looping, at time 0', () => {
+    it('starts paused, with no loop range, at time 0', () => {
       const { result } = setup();
       expect(result.current.state.isPlaying).toBe(false);
-      expect(result.current.state.isLooping).toBe(false);
+      expect(result.current.state.loopRange).toBeNull();
       expect(result.current.state.currentTime).toBe(0);
     });
   });
@@ -173,12 +173,13 @@ describe('usePlayer', () => {
   });
 
   describe('toggleLoop', () => {
-    it('toggles loop flag', () => {
+    it('anchors loopRange to the active segment, then clears on second press', () => {
       const { result } = setup();
+      // At time 0 the first segment (id=1) is active
       act(() => { result.current.controls.toggleLoop(); });
-      expect(result.current.state.isLooping).toBe(true);
+      expect(result.current.state.loopRange).toEqual({ firstSegmentId: 1, lastSegmentId: 1 });
       act(() => { result.current.controls.toggleLoop(); });
-      expect(result.current.state.isLooping).toBe(false);
+      expect(result.current.state.loopRange).toBeNull();
     });
   });
 
@@ -186,14 +187,16 @@ describe('usePlayer', () => {
     it('seeks back to segment start when time passes the segment end while looping', () => {
       const { result } = setup();
 
-      // Enable looping, start playback atomically at time inside segment 2 (5s–12s)
-      act(() => { result.current.controls.toggleLoop(); });
-      act(() => { engineMock.play(6); });
+      // Start playing inside segment 2, then enable looping to anchor there
+      act(() => { engineMock.play(6); }); // time=6, isPlaying=true
+      act(() => { result.current.controls.toggleLoop(); }); // anchors to segment 2
 
-      // Advance past segment 2's end
+      engineMock.seek.mockClear();
+
+      // Advance past segment 2's end (12s)
       act(() => { engineMock._setTime(12.1); });
 
-      // Should have seeked back to segment 2's start (5s - 0.1s offset = 4.9s)
+      // Should seek back to segment 2's start (5000ms / 1000 - 0.1s offset = 4.9s)
       expect(engineMock.seek).toHaveBeenLastCalledWith(4.9);
     });
 
@@ -228,9 +231,11 @@ describe('usePlayer', () => {
     it('loops segment on natural file end when looping is active', () => {
       const { result } = setup();
 
-      // Enable looping, start in segment 3 (12s–20s)
-      act(() => { result.current.controls.toggleLoop(); });
+      // Start playing inside segment 3, then enable looping to anchor there
       act(() => { engineMock.play(14); }); // isPlaying = true, time = 14
+      act(() => { result.current.controls.toggleLoop(); }); // anchors to segment 3
+
+      vi.clearAllMocks();
 
       // Simulate the audio file reaching its natural end
       act(() => { engineMock._triggerNaturalEnd(); });

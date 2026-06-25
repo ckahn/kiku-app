@@ -2,7 +2,7 @@ import type { PlayerState, PlayerAction } from './types';
 
 export const initialPlayerState: PlayerState = {
   isPlaying: false,
-  isLooping: false,
+  loopRange: null,
   currentTime: 0,
 };
 
@@ -20,8 +20,8 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
     case 'SET_TIME':
       return { ...state, currentTime: action.payload };
 
-    case 'TOGGLE_LOOP':
-      return { ...state, isLooping: !state.isLooping };
+    case 'SET_LOOP':
+      return { ...state, loopRange: action.range };
 
     case 'RESTART':
       return { ...state, currentTime: action.payload, isPlaying: false };

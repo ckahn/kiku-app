@@ -78,14 +78,14 @@ describe('AudioPlayer', () => {
   });
 
   it('loop button has aria-pressed=false when not looping', () => {
-    const player = makePlayer({ isLooping: false });
+    const player = makePlayer({ loopRange: null });
     render(<AudioPlayer player={player} />);
     const loopBtn = screen.getByRole('button', { name: 'Toggle loop' });
     expect(loopBtn).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('loop button has aria-pressed=true when looping', () => {
-    const player = makePlayer({ isLooping: true });
+    const player = makePlayer({ loopRange: { firstSegmentId: 1, lastSegmentId: 1 } });
     render(<AudioPlayer player={player} />);
     const loopBtn = screen.getByRole('button', { name: 'Toggle loop' });
     expect(loopBtn).toHaveAttribute('aria-pressed', 'true');

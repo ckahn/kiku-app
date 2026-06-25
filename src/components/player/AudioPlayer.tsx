@@ -36,7 +36,7 @@ export default function AudioPlayer({ player, onRestart }: AudioPlayerProps) {
         )}
         <PlayerControls
           isPlaying={state.isPlaying}
-          isLooping={state.isLooping}
+          isLooping={state.loopRange !== null}
           onPlay={controls.play}
           onPause={controls.pause}
           onRewind={controls.rewind}
