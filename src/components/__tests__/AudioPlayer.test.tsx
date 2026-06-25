@@ -29,6 +29,7 @@ function makePlayer(overrides: Partial<UsePlayerReturn['state']> = {}, extras: P
     controls,
     isLoading: false,
     durationSec: 120,
+    loopLength: 0,
     playbackError: null,
     clearPlaybackError: vi.fn(),
     ...extras,
@@ -146,5 +147,29 @@ describe('AudioPlayer', () => {
     render(<AudioPlayer player={player} />);
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss error' }));
     expect(player.clearPlaybackError).toHaveBeenCalledOnce();
+  });
+
+  it('shows looping chip when looping with multiple segments', () => {
+    const player = makePlayer(
+      { loopRange: { firstSegmentId: 1, lastSegmentId: 2 } },
+      { loopLength: 2 },
+    );
+    render(<AudioPlayer player={player} />);
+    expect(screen.getByLabelText('Looping 2 segments')).toBeInTheDocument();
+  });
+
+  it('chip uses singular when loopLength is 1', () => {
+    const player = makePlayer(
+      { loopRange: { firstSegmentId: 1, lastSegmentId: 1 } },
+      { loopLength: 1 },
+    );
+    render(<AudioPlayer player={player} />);
+    expect(screen.getByLabelText('Looping 1 segment')).toBeInTheDocument();
+  });
+
+  it('hides looping chip when not looping', () => {
+    const player = makePlayer({ loopRange: null }, { loopLength: 0 });
+    render(<AudioPlayer player={player} />);
+    expect(screen.queryByLabelText(/Looping/)).toBeNull();
   });
 });

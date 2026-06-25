@@ -42,19 +42,35 @@ export default function SegmentList({
     scrollSegmentIntoVisibleArea(activeSegmentId);
   }, [activeSegmentId]);
 
+  const range = playerState.loopRange;
+  const sorted = [...segments].sort((a, b) => a.segmentIndex - b.segmentIndex);
+  const firstBandIdx = range ? sorted.findIndex((s) => s.id === range.firstSegmentId) : -1;
+  const lastBandIdx = range ? sorted.findIndex((s) => s.id === range.lastSegmentId) : -1;
+
   return (
     <ol className="space-y-4 pb-4">
-      {segments.map((segment) => (
-        <SegmentItem
-          key={segment.id}
-          segment={segment}
-          isActive={activeSegmentId === segment.id}
-          controls={controls}
-          podcastSlug={podcastSlug}
-          episodeNumber={episodeNumber}
-          episodeHref={episodeHref}
-        />
-      ))}
+      {segments.map((segment) => {
+        const myIdx = sorted.findIndex((s) => s.id === segment.id);
+        const bandInfo = {
+          inBand: firstBandIdx >= 0 && lastBandIdx >= 0 && myIdx >= firstBandIdx && myIdx <= lastBandIdx,
+          isFirstInBand: firstBandIdx >= 0 && myIdx === firstBandIdx,
+          isLastInBand: lastBandIdx >= 0 && myIdx === lastBandIdx,
+          showGrowUp: firstBandIdx > 0 && myIdx === firstBandIdx - 1,
+          showGrowDown: lastBandIdx >= 0 && lastBandIdx < sorted.length - 1 && myIdx === lastBandIdx + 1,
+        };
+        return (
+          <SegmentItem
+            key={segment.id}
+            segment={segment}
+            isActive={activeSegmentId === segment.id}
+            controls={controls}
+            bandInfo={bandInfo}
+            podcastSlug={podcastSlug}
+            episodeNumber={episodeNumber}
+            episodeHref={episodeHref}
+          />
+        );
+      })}
     </ol>
   );
 }

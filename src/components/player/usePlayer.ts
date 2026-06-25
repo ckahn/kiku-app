@@ -7,7 +7,7 @@ import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
-import { makeAnchor, validateRange, growUp, growDown, shrinkUp, shrinkDown, isInRange } from './loopRange';
+import { makeAnchor, validateRange, growUp, growDown, shrinkUp, shrinkDown, isInRange, rangeLength } from './loopRange';
 import { LOOP_WRAP_PAUSE_MS } from '@/lib/constants';
 
 export type PlayerControls = {
@@ -34,6 +34,7 @@ export type UsePlayerReturn = {
   controls: PlayerControls;
   isLoading: boolean;
   durationSec: number;
+  loopLength: number;
   playbackError: string | null;
   clearPlaybackError: () => void;
 };
@@ -289,6 +290,7 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     controls,
     isLoading: engine.status === 'loading',
     durationSec: engine.durationSec > 0 ? engine.durationSec : durationMs / 1000,
+    loopLength: state.loopRange ? rangeLength(segments, state.loopRange) : 0,
     playbackError,
     clearPlaybackError,
   };
