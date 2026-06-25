@@ -342,7 +342,8 @@ describe('SegmentList', () => {
       expect(items[1]).toHaveAttribute('data-loop-edge');
     });
 
-    it('shows Expand loop up on the neighbor above the band', () => {
+    it('shows Expand loop up strip on the first-in-band card when a segment exists above', () => {
+      // band starts at seg 2, so seg 1 is above → ^ strip on seg 2
       render(
         <SegmentList
           segments={threeSegs}
@@ -364,7 +365,8 @@ describe('SegmentList', () => {
       expect(screen.queryByRole('button', { name: 'Expand loop up' })).toBeNull();
     });
 
-    it('shows Expand loop down on the neighbor below the band', () => {
+    it('shows Expand loop down strip on the last-in-band card when a segment exists below', () => {
+      // band ends at seg 2, so seg 3 is below → v strip on seg 2
       render(
         <SegmentList
           segments={threeSegs}
@@ -386,7 +388,7 @@ describe('SegmentList', () => {
       expect(screen.queryByRole('button', { name: 'Expand loop down' })).toBeNull();
     });
 
-    it('shows shrink handles on edge cards when band length >= 2', () => {
+    it('shows x shrink strips on edge cards when band length >= 2', () => {
       render(
         <SegmentList
           segments={threeSegs}
@@ -398,7 +400,7 @@ describe('SegmentList', () => {
       expect(screen.getByRole('button', { name: 'Shrink loop down' })).toBeInTheDocument();
     });
 
-    it('hides shrink handles when band is length 1', () => {
+    it('hides x shrink strips when band is length 1', () => {
       render(
         <SegmentList
           segments={threeSegs}
@@ -410,7 +412,7 @@ describe('SegmentList', () => {
       expect(screen.queryByRole('button', { name: 'Shrink loop down' })).toBeNull();
     });
 
-    it('Expand loop up button calls controls.growLoopUp', () => {
+    it('Expand loop up strip calls controls.growLoopUp', () => {
       const controls = makeControls();
       render(
         <SegmentList
@@ -423,7 +425,7 @@ describe('SegmentList', () => {
       expect(controls.growLoopUp).toHaveBeenCalledOnce();
     });
 
-    it('Expand loop down button calls controls.growLoopDown', () => {
+    it('Expand loop down strip calls controls.growLoopDown', () => {
       const controls = makeControls();
       render(
         <SegmentList
@@ -436,7 +438,7 @@ describe('SegmentList', () => {
       expect(controls.growLoopDown).toHaveBeenCalledOnce();
     });
 
-    it('Shrink loop up button calls controls.shrinkLoopUp', () => {
+    it('Shrink loop up strip calls controls.shrinkLoopUp', () => {
       const controls = makeControls();
       render(
         <SegmentList
@@ -449,7 +451,7 @@ describe('SegmentList', () => {
       expect(controls.shrinkLoopUp).toHaveBeenCalledOnce();
     });
 
-    it('Shrink loop down button calls controls.shrinkLoopDown', () => {
+    it('Shrink loop down strip calls controls.shrinkLoopDown', () => {
       const controls = makeControls();
       render(
         <SegmentList

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BookOpen, ChevronUp, ChevronDown, Minus } from 'lucide-react';
+import { BookOpen, ChevronUp, ChevronDown, X } from 'lucide-react';
 import type { Segment } from '@/db/schema';
 import type { PlayerControls } from './usePlayer';
 import { stripFurigana, formatMs } from './segmentUtils';
@@ -12,8 +12,8 @@ interface BandInfo {
   readonly inBand: boolean;
   readonly isFirstInBand: boolean;
   readonly isLastInBand: boolean;
-  readonly showGrowUp: boolean;
-  readonly showGrowDown: boolean;
+  readonly canGrowUp: boolean;
+  readonly canGrowDown: boolean;
 }
 
 interface SegmentItemProps {
@@ -25,6 +25,9 @@ interface SegmentItemProps {
   readonly episodeNumber?: number;
   readonly episodeHref?: string;
 }
+
+const STRIP_CLASS =
+  'absolute inset-x-0 flex h-9 cursor-pointer items-center justify-center bg-primary/5 text-primary/50 transition-colors hover:bg-primary/10 hover:text-primary';
 
 export default function SegmentItem({
   segment,
@@ -39,9 +42,20 @@ export default function SegmentItem({
     inBand = false,
     isFirstInBand = false,
     isLastInBand = false,
-    showGrowUp = false,
-    showGrowDown = false,
+    canGrowUp = false,
+    canGrowDown = false,
   } = bandInfo ?? {};
+
+  // Single-segment band: only grow strips, no shrink strips.
+  // Multi-segment: edge cards get a grow strip on the outer edge and an X
+  // strip on the inner edge (the side that faces the band interior).
+  const isSingleSegment = isFirstInBand && isLastInBand;
+  const hasTopStrip =
+    (isFirstInBand && canGrowUp) ||          // ^ grow strip
+    (isLastInBand && !isSingleSegment);       // x shrink strip
+  const hasBottomStrip =
+    (isLastInBand && canGrowDown) ||          // v grow strip
+    (isFirstInBand && !isSingleSegment);      // x shrink strip
 
   const displayHtml = stripFurigana(segment.textFurigana);
   // 'new' renders no status glyph, so skip the indicator and its left gutter.
@@ -63,7 +77,11 @@ export default function SegmentItem({
       data-in-loop={inBand || undefined}
       data-loop-edge={(isFirstInBand || isLastInBand) || undefined}
       onClick={handleClick}
-      className={`relative rounded-lg border transition-all p-4 cursor-pointer ${
+      className={`relative overflow-hidden rounded-lg border transition-all px-4 cursor-pointer ${
+        hasTopStrip ? 'pt-[52px]' : 'pt-4'
+      } ${
+        hasBottomStrip ? 'pb-[52px]' : 'pb-4'
+      } ${
         isActive
           ? 'border-primary/60 bg-primary-subtle hover:bg-primary/10'
           : inBand
@@ -82,51 +100,51 @@ export default function SegmentItem({
         />
       )}
 
-      {/* Grow handle on the card directly above the band */}
-      {showGrowUp && (
+      {/* Top strip: ^ to grow up on the first-in-band card */}
+      {isFirstInBand && canGrowUp && (
         <button
           type="button"
           aria-label="Expand loop up"
           onClick={(e) => { e.stopPropagation(); controls.growLoopUp(); }}
-          className="absolute right-14 bottom-1 flex h-11 w-11 cursor-pointer items-center justify-center text-primary/50 hover:text-primary"
+          className={`${STRIP_CLASS} top-0 rounded-t-lg`}
         >
-          <ChevronUp size={18} />
+          <ChevronUp size={16} />
         </button>
       )}
 
-      {/* Grow handle on the card directly below the band */}
-      {showGrowDown && (
-        <button
-          type="button"
-          aria-label="Expand loop down"
-          onClick={(e) => { e.stopPropagation(); controls.growLoopDown(); }}
-          className="absolute right-14 top-1 flex h-11 w-11 cursor-pointer items-center justify-center text-primary/50 hover:text-primary"
-        >
-          <ChevronDown size={18} />
-        </button>
-      )}
-
-      {/* Shrink handle: collapse the top edge (band ≥ 2) */}
-      {isFirstInBand && !isLastInBand && (
-        <button
-          type="button"
-          aria-label="Shrink loop up"
-          onClick={(e) => { e.stopPropagation(); controls.shrinkLoopUp(); }}
-          className="absolute right-14 top-1 flex h-11 w-11 cursor-pointer items-center justify-center text-primary/50 hover:text-primary"
-        >
-          <Minus size={18} />
-        </button>
-      )}
-
-      {/* Shrink handle: collapse the bottom edge (band ≥ 2) */}
+      {/* Top strip: x to shrink from the top on the last-in-band card (multi-segment) */}
       {isLastInBand && !isFirstInBand && (
         <button
           type="button"
           aria-label="Shrink loop down"
           onClick={(e) => { e.stopPropagation(); controls.shrinkLoopDown(); }}
-          className="absolute right-14 bottom-1 flex h-11 w-11 cursor-pointer items-center justify-center text-primary/50 hover:text-primary"
+          className={`${STRIP_CLASS} top-0 rounded-t-lg`}
         >
-          <Minus size={18} />
+          <X size={16} />
+        </button>
+      )}
+
+      {/* Bottom strip: x to shrink from the bottom on the first-in-band card (multi-segment) */}
+      {isFirstInBand && !isLastInBand && (
+        <button
+          type="button"
+          aria-label="Shrink loop up"
+          onClick={(e) => { e.stopPropagation(); controls.shrinkLoopUp(); }}
+          className={`${STRIP_CLASS} bottom-0 rounded-b-lg`}
+        >
+          <X size={16} />
+        </button>
+      )}
+
+      {/* Bottom strip: v to grow down on the last-in-band card */}
+      {isLastInBand && canGrowDown && (
+        <button
+          type="button"
+          aria-label="Expand loop down"
+          onClick={(e) => { e.stopPropagation(); controls.growLoopDown(); }}
+          className={`${STRIP_CLASS} bottom-0 rounded-b-lg`}
+        >
+          <ChevronDown size={16} />
         </button>
       )}
 
@@ -155,7 +173,9 @@ export default function SegmentItem({
               saveEpisodeFocusState({ episodeHref, segmentId: segment.id });
             }
           }}
-          className="absolute right-2 top-2 flex h-11 w-11 cursor-pointer items-start justify-center pt-2 text-muted transition-colors hover:text-primary"
+          className={`absolute right-2 flex h-11 w-11 cursor-pointer items-start justify-center pt-2 text-muted transition-colors hover:text-primary ${
+            hasTopStrip ? 'top-11' : 'top-2'
+          }`}
           aria-label="Study this segment"
         >
           <BookOpen size={16} />

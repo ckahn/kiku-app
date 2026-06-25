@@ -46,6 +46,8 @@ export default function SegmentList({
   const sorted = [...segments].sort((a, b) => a.segmentIndex - b.segmentIndex);
   const firstBandIdx = range ? sorted.findIndex((s) => s.id === range.firstSegmentId) : -1;
   const lastBandIdx = range ? sorted.findIndex((s) => s.id === range.lastSegmentId) : -1;
+  const canGrowUp = firstBandIdx > 0;
+  const canGrowDown = lastBandIdx >= 0 && lastBandIdx < sorted.length - 1;
 
   return (
     <ol className="space-y-4 pb-4">
@@ -55,8 +57,8 @@ export default function SegmentList({
           inBand: firstBandIdx >= 0 && lastBandIdx >= 0 && myIdx >= firstBandIdx && myIdx <= lastBandIdx,
           isFirstInBand: firstBandIdx >= 0 && myIdx === firstBandIdx,
           isLastInBand: lastBandIdx >= 0 && myIdx === lastBandIdx,
-          showGrowUp: firstBandIdx > 0 && myIdx === firstBandIdx - 1,
-          showGrowDown: lastBandIdx >= 0 && lastBandIdx < sorted.length - 1 && myIdx === lastBandIdx + 1,
+          canGrowUp,
+          canGrowDown,
         };
         return (
           <SegmentItem
