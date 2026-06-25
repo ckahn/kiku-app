@@ -96,15 +96,24 @@ Upload → ElevenLabs STT → Claude segmenting → Claude furigana → ready. E
 Single `<audio>` element for the whole file. Segment mode uses `currentTime` manipulation (seek to `segment.start_ms / 1000`, pause at `segment.end_ms / 1000`). No audio slicing.
 
 ```ts
+type LoopRange = { firstSegmentId: number; lastSegmentId: number };
+
 type PlayerState = {
   mode: 'global' | 'segment';
   isPlaying: boolean;
-  isLooping: boolean;
+  loopRange: LoopRange | null;   // null = not looping; non-null = looping that contiguous range
   focusedSegmentId: string | null;
   showFurigana: Record<string, boolean>;
   currentTime: number;
 };
 ```
+
+`isLooping` is **derived** at the UI boundary (`loopRange !== null`) — there is no separate boolean field. A length-1 range (`firstSegmentId === lastSegmentId`) is the degenerate case equivalent to the old single-segment loop.
+
+**Two loop contexts (scopes are isolated):**
+
+- **Episode page** (`/podcasts/[slug]/episodes/[number]`) — contiguous range loop via `loopRange` in `PlayerState`. The user anchors a segment, then grows/shrinks the range with dedicated handles. Persistence is deferred (ephemeral per-visit for now; see `studyNavigation.ts` for the localStorage pattern to follow in the follow-up PR).
+- **Per-segment study page** (`…/segments/[index]/study`) — single-segment loop via local `useState(isLooping)` in `StudyScreen.tsx`. Self-contained; does not import `usePlayer`, `PlayerControls`, or `playerReducer`.
 
 State management: React `useState`/`useReducer` only — no external state library.
 
