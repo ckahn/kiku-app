@@ -1,16 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-
-const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  // target.contentEditable is 'true'/'false'/'inherit' in browsers, but
-  // jsdom may return a boolean. String() normalises both cases.
-  const ce = String((target as HTMLElement & { contentEditable: unknown }).contentEditable);
-  return INPUT_TAGS.has(target.tagName) || target.isContentEditable || ce === 'true';
-}
+import { isTypingTarget } from './keyboardUtils';
 
 const HANDLED_KEYS = new Set([
   'Space', 'ArrowLeft', 'ArrowRight', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'KeyM',
@@ -24,7 +15,7 @@ interface UseKeyboardShortcutsOptions {
   readonly restart: () => void;
 }
 
-export function useKeyboardShortcuts({
+export function useEpisodeKeyboardShortcuts({
   toggle,
   rewind,
   forward,

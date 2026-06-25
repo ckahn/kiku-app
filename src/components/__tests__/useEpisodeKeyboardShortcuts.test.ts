@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useKeyboardShortcuts } from '../player/useKeyboardShortcuts';
+import { useEpisodeKeyboardShortcuts } from '../player/useEpisodeKeyboardShortcuts';
 
 function makeOptions() {
   return {
@@ -22,7 +22,7 @@ function pressKey(code: string, target?: EventTarget) {
   return event;
 }
 
-describe('useKeyboardShortcuts', () => {
+describe('useEpisodeKeyboardShortcuts', () => {
   let options: ReturnType<typeof makeOptions>;
 
   beforeEach(() => {
@@ -31,7 +31,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('Space', () => {
     it('calls toggle', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('Space');
       expect(options.toggle).toHaveBeenCalledOnce();
     });
@@ -39,7 +39,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('ArrowLeft', () => {
     it('calls rewind', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('ArrowLeft');
       expect(options.rewind).toHaveBeenCalledOnce();
     });
@@ -47,7 +47,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('ArrowRight', () => {
     it('calls forward', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('ArrowRight');
       expect(options.forward).toHaveBeenCalledOnce();
     });
@@ -55,7 +55,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('KeyL', () => {
     it('calls toggleLoop', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('KeyL');
       expect(options.toggleLoop).toHaveBeenCalledOnce();
     });
@@ -63,25 +63,25 @@ describe('useKeyboardShortcuts', () => {
 
   describe('letter shortcuts', () => {
     it('KeyJ calls rewind', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('KeyJ');
       expect(options.rewind).toHaveBeenCalledOnce();
     });
 
     it('KeyK calls forward', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('KeyK');
       expect(options.forward).toHaveBeenCalledOnce();
     });
 
     it('KeyH calls restart', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('KeyH');
       expect(options.restart).toHaveBeenCalledOnce();
     });
 
     it('KeyM calls toggle', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('KeyM');
       expect(options.toggle).toHaveBeenCalledOnce();
     });
@@ -89,7 +89,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('Escape', () => {
     it('does nothing (segment mode removed)', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('Escape');
       expect(options.toggle).not.toHaveBeenCalled();
       expect(options.rewind).not.toHaveBeenCalled();
@@ -98,7 +98,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('input guard', () => {
     it('ignores Space when focus is inside an INPUT', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       const input = document.createElement('input');
       document.body.appendChild(input);
       input.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }));
@@ -107,7 +107,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('ignores Space when focus is inside a TEXTAREA', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       const textarea = document.createElement('textarea');
       document.body.appendChild(textarea);
       textarea.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }));
@@ -116,7 +116,7 @@ describe('useKeyboardShortcuts', () => {
     });
 
     it('ignores keys when target is contentEditable', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       const div = document.createElement('div');
       div.contentEditable = 'true';
       document.body.appendChild(div);
@@ -129,7 +129,7 @@ describe('useKeyboardShortcuts', () => {
 
   describe('unhandled keys', () => {
     it('ignores unrelated keys', () => {
-      renderHook(() => useKeyboardShortcuts(options));
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('KeyA');
       pressKey('Enter');
       pressKey('Tab');
@@ -141,7 +141,7 @@ describe('useKeyboardShortcuts', () => {
   describe('cleanup', () => {
     it('removes event listener on unmount', () => {
       const removeSpy = vi.spyOn(window, 'removeEventListener');
-      const { unmount } = renderHook(() => useKeyboardShortcuts(options));
+      const { unmount } = renderHook(() => useEpisodeKeyboardShortcuts(options));
       unmount();
       expect(removeSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
       removeSpy.mockRestore();

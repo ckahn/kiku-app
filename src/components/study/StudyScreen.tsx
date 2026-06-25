@@ -12,6 +12,7 @@ import SegmentStatusControl from '@/components/SegmentStatusControl';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { segmentStartSec } from '@/components/player/segmentUtils';
+import { useStudyKeyboardShortcuts } from '@/components/player/useStudyKeyboardShortcuts';
 
 // LLM sometimes echoes kana words as their own reading — skip when redundant
 function hasDistinctReading(reading: string | undefined, text: string): boolean {
@@ -178,14 +179,33 @@ export default function StudyScreen({
     audioEngine.seek(segmentStartSec(segment));
     audioEngine.pause();
     setIsPlaying(false);
-  }, [segment.startMs]);
+  }, [segment]);
 
-  function playFromSegmentStart() {
+  const playFromSegmentStart = useCallback(() => {
     setErrorMessage(null);
     setIsPlaying(true);
     audioEngine.unlock();
     audioEngine.play(segmentStartSec(segment));
-  }
+  }, [segment]);
+
+  const togglePlay = useCallback(() => {
+    if (isPlaying) {
+      stopPlayback();
+    } else {
+      playFromSegmentStart();
+    }
+  }, [isPlaying, stopPlayback, playFromSegmentStart]);
+
+  const toggleLoop = useCallback(() => setIsLooping((prev) => !prev), []);
+  const navigate = useCallback((href: string) => router.push(href), [router]);
+
+  useStudyKeyboardShortcuts({
+    togglePlay,
+    toggleLoop,
+    prevHref,
+    nextHref,
+    navigate,
+  });
 
   function cyclePlaybackRate() {
     const next = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(playbackRate) + 1) % PLAYBACK_RATES.length];
