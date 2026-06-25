@@ -30,7 +30,7 @@ export default function SegmentItem({
   const showStatusIcon = segment.studyStatus !== 'new';
 
   function handleClick() {
-    controls.seekToSegment(segment.id);
+    controls.tapSegment(segment.id);
   }
 
   const studyHref =

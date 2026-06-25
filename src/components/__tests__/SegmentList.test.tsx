@@ -61,6 +61,12 @@ function makeControls(): PlayerControls {
     toggleLoop: vi.fn(),
     restart: vi.fn(),
     seekToSegment: vi.fn(),
+    tapSegment: vi.fn(),
+    growLoopUp: vi.fn(),
+    growLoopDown: vi.fn(),
+    shrinkLoopUp: vi.fn(),
+    shrinkLoopDown: vi.fn(),
+    clearLoop: vi.fn(),
   };
 }
 
@@ -98,14 +104,14 @@ describe('SegmentList', () => {
     expect(screen.getByText('今日も')).toBeInTheDocument();
   });
 
-  it('clicking a segment calls controls.seekToSegment with the segment id', () => {
+  it('clicking a segment calls controls.tapSegment with the segment id', () => {
     const controls = makeControls();
     const segments = [makeSegment({ id: 5, segmentIndex: 0 })];
     render(
       <SegmentList segments={segments} playerState={playerState()} controls={controls} />,
     );
     fireEvent.click(screen.getByRole('listitem'));
-    expect(controls.seekToSegment).toHaveBeenCalledWith(5);
+    expect(controls.tapSegment).toHaveBeenCalledWith(5);
   });
 
   it('active segment during playback has data-active attribute', () => {

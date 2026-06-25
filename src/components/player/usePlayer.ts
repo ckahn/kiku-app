@@ -7,7 +7,7 @@ import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
-import { makeAnchor, validateRange } from './loopRange';
+import { makeAnchor, validateRange, growUp, growDown, shrinkUp, shrinkDown, isInRange } from './loopRange';
 import { LOOP_WRAP_PAUSE_MS } from '@/lib/constants';
 
 export type PlayerControls = {
@@ -20,6 +20,12 @@ export type PlayerControls = {
   toggleLoop: () => void;
   restart: () => void;
   seekToSegment: (segmentId: number) => void;
+  tapSegment: (segmentId: number) => void;
+  growLoopUp: () => void;
+  growLoopDown: () => void;
+  shrinkLoopUp: () => void;
+  shrinkLoopDown: () => void;
+  clearLoop: () => void;
 };
 
 export type UsePlayerReturn = {
@@ -210,6 +216,66 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
         dispatch({ type: 'SET_LOOP', range: makeAnchor(segmentId) });
       }
     }, [seekAndSyncState]),
+
+    // The card-body tap. Semantics depend on loop state per the spec table:
+    //   loop off          → pure seek (unchanged behavior)
+    //   inside band       → seek only; range untouched
+    //   outside band      → clear loop + seek
+    tapSegment: useCallback((segmentId: number) => {
+      const range = stateRef.current.loopRange;
+      const segs = segmentsRef.current;
+      const segment = segs.find((s) => s.id === segmentId);
+      if (!segment) return;
+      const startSec = segmentStartSec(segment);
+
+      if (range === null || isInRange(segs, range, segmentId)) {
+        seekAndSyncState(startSec);
+      } else {
+        // Outside band — cancel any pending wrap beat before clearing
+        if (wrapTimeoutRef.current !== null) {
+          clearTimeout(wrapTimeoutRef.current);
+          wrapTimeoutRef.current = null;
+        }
+        dispatch({ type: 'SET_LOOP', range: null });
+        seekAndSyncState(startSec);
+      }
+    }, [seekAndSyncState]),
+
+    growLoopUp: useCallback(() => {
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const next = growUp(segmentsRef.current, range);
+      if (next) dispatch({ type: 'SET_LOOP', range: next });
+    }, []),
+
+    growLoopDown: useCallback(() => {
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const next = growDown(segmentsRef.current, range);
+      if (next) dispatch({ type: 'SET_LOOP', range: next });
+    }, []),
+
+    shrinkLoopUp: useCallback(() => {
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const next = shrinkUp(segmentsRef.current, range);
+      if (next) dispatch({ type: 'SET_LOOP', range: next });
+    }, []),
+
+    shrinkLoopDown: useCallback(() => {
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const next = shrinkDown(segmentsRef.current, range);
+      if (next) dispatch({ type: 'SET_LOOP', range: next });
+    }, []),
+
+    clearLoop: useCallback(() => {
+      if (wrapTimeoutRef.current !== null) {
+        clearTimeout(wrapTimeoutRef.current);
+        wrapTimeoutRef.current = null;
+      }
+      dispatch({ type: 'SET_LOOP', range: null });
+    }, []),
   };
 
   const clearPlaybackError = useCallback(() => {

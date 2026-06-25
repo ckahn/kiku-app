@@ -16,6 +16,12 @@ function makePlayer(overrides: Partial<UsePlayerReturn['state']> = {}, extras: P
     toggleLoop: vi.fn(),
     restart: vi.fn(),
     seekToSegment: vi.fn(),
+    tapSegment: vi.fn(),
+    growLoopUp: vi.fn(),
+    growLoopDown: vi.fn(),
+    shrinkLoopUp: vi.fn(),
+    shrinkLoopDown: vi.fn(),
+    clearLoop: vi.fn(),
   };
   return {
     state: { ...initialPlayerState, ...overrides },
