@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { usePlayer } from '../player/usePlayer';
 import type { Segment } from '@/db/schema';
@@ -184,31 +184,35 @@ describe('usePlayer', () => {
   });
 
   describe('segment looping', () => {
-    it('seeks back to segment start when time passes the segment end while looping', () => {
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('pauses at segment end then resumes from start after wrap beat', () => {
       const { result } = setup();
 
       // Start playing inside segment 2, then enable looping to anchor there
       act(() => { engineMock.play(6); }); // time=6, isPlaying=true
       act(() => { result.current.controls.toggleLoop(); }); // anchors to segment 2
 
-      engineMock.seek.mockClear();
+      engineMock.pause.mockClear();
+      engineMock.play.mockClear();
 
       // Advance past segment 2's end (12s)
       act(() => { engineMock._setTime(12.1); });
 
-      // Should seek back to segment 2's start (5000ms / 1000 - 0.1s offset = 4.9s)
-      expect(engineMock.seek).toHaveBeenLastCalledWith(4.9);
+      expect(engineMock.pause).toHaveBeenCalled();
+
+      // After the wrap beat, playback resumes from segment 2's start (4.9s)
+      act(() => { vi.advanceTimersByTime(700); }); // LOOP_WRAP_PAUSE_MS
+      expect(engineMock.play).toHaveBeenCalledWith(4.9);
     });
 
-    it('does not seek back when looping is off', () => {
+    it('does not wrap when looping is off', () => {
       setup();
-      act(() => {
-        engineMock.play(6); // isPlaying = true, time = 6
-      });
-      vi.clearAllMocks();
+      act(() => { engineMock.play(6); });
+      engineMock.pause.mockClear();
       act(() => { engineMock._setTime(12.1); });
-      // seek() should not have been called (no loop)
-      expect(engineMock.seek).not.toHaveBeenCalled();
+      expect(engineMock.pause).not.toHaveBeenCalled();
     });
 
     it('loops the new segment after seekToSegment while looping', () => {
@@ -218,14 +222,15 @@ describe('usePlayer', () => {
       act(() => { result.current.controls.toggleLoop(); });
       act(() => { engineMock.play(2); }); // isPlaying = true, time = 2
 
-      // Seek to segment 3 (12s–20s) — locks loop segment to segment 3
-      vi.clearAllMocks();
+      // Seek to segment 3 (12s–20s) — re-anchors loop to segment 3
       act(() => { result.current.controls.seekToSegment(3); });
+      engineMock.play.mockClear();
 
-      // Advance past segment 3's end
+      // Advance past segment 3's end, then let the beat fire
       act(() => { engineMock._setTime(20.1); });
+      act(() => { vi.advanceTimersByTime(700); }); // LOOP_WRAP_PAUSE_MS
 
-      expect(engineMock.seek).toHaveBeenLastCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
+      expect(engineMock.play).toHaveBeenCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
     });
 
     it('loops segment on natural file end when looping is active', () => {
@@ -235,13 +240,14 @@ describe('usePlayer', () => {
       act(() => { engineMock.play(14); }); // isPlaying = true, time = 14
       act(() => { result.current.controls.toggleLoop(); }); // anchors to segment 3
 
-      vi.clearAllMocks();
+      engineMock.play.mockClear();
 
       // Simulate the audio file reaching its natural end
       act(() => { engineMock._triggerNaturalEnd(); });
 
-      // Should have restarted from segment 3's start (12s - 0.1s offset = 11.9s)
-      expect(engineMock.play).toHaveBeenCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
+      // After the wrap beat, restarts from segment 3's start (12s - 0.1s = 11.9s)
+      act(() => { vi.advanceTimersByTime(700); }); // LOOP_WRAP_PAUSE_MS
+      expect(engineMock.play).toHaveBeenCalledWith(11.9);
     });
 
     it('pauses on natural file end when looping is off', () => {
