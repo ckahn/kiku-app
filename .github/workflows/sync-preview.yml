@@ -1,6 +1,8 @@
-# preview is the Vercel deployment target that has Vercel auth enabled.
-# Keeping it in sync with main ensures every main commit gets a
-# password-protected preview build automatically.
+# "preview" is effectively the production deployment. Vercel's free plan
+# only supports password protection on preview branches, not on the main
+# branch, so the live site is intentionally served from preview rather
+# than main. Keeping preview in sync with main ensures every merge
+# automatically ships to the protected deployment.
 name: Sync preview to main
 
 on:
