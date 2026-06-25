@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 
 const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
-function isTypingTarget(target: EventTarget | null): boolean {
+export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   // target.contentEditable is 'true'/'false'/'inherit' in browsers, but
   // jsdom may return a boolean. String() normalises both cases.
