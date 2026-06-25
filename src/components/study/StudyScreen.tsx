@@ -181,12 +181,12 @@ export default function StudyScreen({
     setIsPlaying(false);
   }, [segment.startMs]);
 
-  function playFromSegmentStart() {
+  const playFromSegmentStart = useCallback(() => {
     setErrorMessage(null);
     setIsPlaying(true);
     audioEngine.unlock();
     audioEngine.play(segmentStartSec(segment));
-  }
+  }, [segment.startMs]);
 
   const togglePlay = useCallback(() => {
     if (isPlaying) {
@@ -194,14 +194,17 @@ export default function StudyScreen({
     } else {
       playFromSegmentStart();
     }
-  }, [isPlaying, stopPlayback]);
+  }, [isPlaying, stopPlayback, playFromSegmentStart]);
+
+  const toggleLoop = useCallback(() => setIsLooping((prev) => !prev), []);
+  const navigate = useCallback((href: string) => router.push(href), [router]);
 
   useStudyKeyboardShortcuts({
     togglePlay,
-    toggleLoop: () => setIsLooping((prev) => !prev),
+    toggleLoop,
     prevHref,
     nextHref,
-    navigate: router.push,
+    navigate,
   });
 
   function cyclePlaybackRate() {
