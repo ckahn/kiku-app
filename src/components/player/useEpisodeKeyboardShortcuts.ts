@@ -24,7 +24,7 @@ interface UseKeyboardShortcutsOptions {
   readonly restart: () => void;
 }
 
-export function useKeyboardShortcuts({
+export function useEpisodeKeyboardShortcuts({
   toggle,
   rewind,
   forward,

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Segment } from '@/db/schema';
 import { usePlayer } from './usePlayer';
-import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { useEpisodeKeyboardShortcuts } from './useEpisodeKeyboardShortcuts';
 import AudioPlayer from './AudioPlayer';
 import SegmentList from '@/components/SegmentList';
 import { saveEpisodeFocusState, loadEpisodeFocusState } from './studyNavigation';
@@ -57,7 +57,7 @@ export default function EpisodePlayer({
     scrollSegmentToTop(firstSegment.id);
   }, [restart, segments, episodeHref]);
 
-  useKeyboardShortcuts({ toggle, rewind, forward, toggleLoop, restart: handleRestart });
+  useEpisodeKeyboardShortcuts({ toggle, rewind, forward, toggleLoop, restart: handleRestart });
 
   const { seekToSegment, pause } = player.controls;
   const activeSegmentId = findActiveSegmentId(segments, player.state.currentTime);

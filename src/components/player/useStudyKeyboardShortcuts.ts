@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { isTypingTarget } from './useKeyboardShortcuts';
+import { isTypingTarget } from './useEpisodeKeyboardShortcuts';
 
 const HANDLED_KEYS = new Set(['Space', 'KeyM', 'KeyJ', 'KeyK', 'KeyL', 'ArrowLeft', 'ArrowRight']);
 
