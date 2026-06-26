@@ -93,17 +93,14 @@ Upload → ElevenLabs STT → Claude segmenting → Claude furigana → ready. E
 
 ### Audio Player
 
-Single `<audio>` element for the whole file. Segment mode uses `currentTime` manipulation (seek to `segment.start_ms / 1000`, pause at `segment.end_ms / 1000`). No audio slicing.
+Single `<audio>` element for the whole file — playback is driven entirely by `currentTime` manipulation (seek to a segment's `start_ms / 1000`; when looping, seek back to the range's first segment on reaching the last segment's `end_ms`, with no pause between iterations). No audio slicing.
 
 ```ts
 type LoopRange = { firstSegmentId: number; lastSegmentId: number };
 
 type PlayerState = {
-  mode: 'global' | 'segment';
   isPlaying: boolean;
   loopRange: LoopRange | null;   // null = not looping; non-null = looping that contiguous range
-  focusedSegmentId: string | null;
-  showFurigana: Record<string, boolean>;
   currentTime: number;
 };
 ```
