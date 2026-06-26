@@ -9,7 +9,6 @@ import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
 import type { LoopRange } from './loopRange';
 import { makeAnchor, validateRange, growUp, growDown, shrinkUp, shrinkDown, isInRange, rangeLength } from './loopRange';
-import { LOOP_WRAP_PAUSE_MS } from '@/lib/constants';
 
 export type PlayerControls = {
   play: () => void;
@@ -59,10 +58,6 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
   // Mirror segments in a ref so effects always see current segments without
   // needing them in dependency arrays.
   const segmentsRef = useRef(segments);
-
-  // Pending wrap-pause timeout — non-null while the beat between loop
-  // iterations is in progress. Guards against re-entrant wraps.
-  const wrapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useLayoutEffect(() => {
     segmentsRef.current = segments;
   });
@@ -77,59 +72,37 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
   }, [engine.isPlaying]);
 
   // Sync currentTime into reducer state and enforce segment boundary looping.
+  // On crossing the last segment's end, seek straight back to the first
+  // segment's start (no pause beat). Seeking moves currentTime below the
+  // boundary, so the effect won't re-fire for the same crossing.
   useEffect(() => {
     dispatch({ type: 'SET_TIME', payload: engine.currentTime });
 
     const range = stateRef.current.loopRange;
-    if (range && engine.isPlaying && wrapTimeoutRef.current === null) {
+    if (range && engine.isPlaying) {
       const segs = segmentsRef.current;
       const lastSeg = segs.find((s) => s.id === range.lastSegmentId);
       if (lastSeg && engine.currentTime >= lastSeg.endMs / 1000) {
         const firstSeg = segs.find((s) => s.id === range.firstSegmentId);
         if (firstSeg) {
-          const firstStart = segmentStartSec(firstSeg);
-          audioEngine.pause();
-          wrapTimeoutRef.current = setTimeout(() => {
-            wrapTimeoutRef.current = null;
-            audioEngine.play(firstStart);
-          }, LOOP_WRAP_PAUSE_MS);
+          audioEngine.play(segmentStartSec(firstSeg));
         }
       }
     }
   }, [engine.currentTime, engine.isPlaying]);
 
-  // When the audio file reaches its natural end while looping, restart from
-  // the first segment with the same pause beat. This handles the edge case
-  // where endMs equals file duration and the boundary check above doesn't
-  // trigger in time.
+  // When the audio file reaches its natural end while looping, restart from the
+  // first segment. Handles the edge case where the last segment's endMs equals
+  // the file duration and the boundary check above can't catch it in time.
   useEffect(() => {
     return audioEngine.subscribeToEnd(() => {
-      if (wrapTimeoutRef.current !== null) return;
       const range = stateRef.current.loopRange;
       if (!range) return;
       const firstSeg = segmentsRef.current.find((s) => s.id === range.firstSegmentId);
       if (!firstSeg) return;
-      const firstStart = segmentStartSec(firstSeg);
-      audioEngine.pause();
-      wrapTimeoutRef.current = setTimeout(() => {
-        wrapTimeoutRef.current = null;
-        audioEngine.play(firstStart);
-      }, LOOP_WRAP_PAUSE_MS);
+      audioEngine.play(segmentStartSec(firstSeg));
     });
   }, []);
-
-  // Cancel any pending wrap timeout when the loop is cleared or the hook unmounts.
-  useEffect(() => {
-    if (state.loopRange === null && wrapTimeoutRef.current !== null) {
-      clearTimeout(wrapTimeoutRef.current);
-      wrapTimeoutRef.current = null;
-    }
-    return () => {
-      if (wrapTimeoutRef.current !== null) {
-        clearTimeout(wrapTimeoutRef.current);
-      }
-    };
-  }, [state.loopRange]);
 
   // Drop a stale loopRange when segments change (e.g. after re-segmentation).
   useEffect(() => {
@@ -246,11 +219,7 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
       if (range === null || isInRange(segs, range, segmentId)) {
         seekAndSyncState(startSec);
       } else {
-        // Outside band — cancel any pending wrap beat before clearing
-        if (wrapTimeoutRef.current !== null) {
-          clearTimeout(wrapTimeoutRef.current);
-          wrapTimeoutRef.current = null;
-        }
+        // Outside band — clear the loop, then seek.
         dispatch({ type: 'SET_LOOP', range: null });
         seekAndSyncState(startSec);
       }
@@ -262,10 +231,6 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     shrinkLoopDown: useMemo(() => makeLoopMutator(shrinkDown), [makeLoopMutator]),
 
     clearLoop: useCallback(() => {
-      if (wrapTimeoutRef.current !== null) {
-        clearTimeout(wrapTimeoutRef.current);
-        wrapTimeoutRef.current = null;
-      }
       dispatch({ type: 'SET_LOOP', range: null });
     }, []),
   };

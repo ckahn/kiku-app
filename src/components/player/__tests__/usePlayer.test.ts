@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { usePlayer } from '../usePlayer';
-import { LOOP_WRAP_PAUSE_MS } from '@/lib/constants';
 import type { Segment } from '@/db/schema';
 
 vi.mock('@/lib/audio/audioEngine', async () => {
@@ -79,10 +78,7 @@ describe('toggleLoop — anchor-at-active', () => {
 });
 
 describe('loop boundary wrap', () => {
-  beforeEach(() => { vi.useFakeTimers(); });
-  afterEach(() => { vi.useRealTimers(); });
-
-  it('pauses immediately then plays from first segment start after the beat', () => {
+  it('seeks back to the first segment start immediately on crossing the last segment end', () => {
     const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
 
     act(() => {
@@ -97,12 +93,7 @@ describe('loop boundary wrap', () => {
       engineMock._setTime(12); // SEG2.endMs / 1000
     });
 
-    expect(engineMock.pause).toHaveBeenCalled();
-    expect(engineMock.play).not.toHaveBeenCalled();
-
-    // After the wrap beat, play resumes from the first segment
-    act(() => { vi.advanceTimersByTime(LOOP_WRAP_PAUSE_MS); });
-
+    // No pause beat: playback jumps straight back to the first segment.
     // segmentStartSec(SEG1) = max(0, 0 - 0.1) = 0
     expect(engineMock.play).toHaveBeenCalledWith(0);
   });
@@ -116,14 +107,14 @@ describe('loop boundary wrap', () => {
         range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
       });
     });
-    engineMock.pause.mockClear();
+    engineMock.play.mockClear();
 
     act(() => {
       engineMock._setIsPlaying(true);
       engineMock._setTime(10); // inside SEG2, before endMs
     });
 
-    expect(engineMock.pause).not.toHaveBeenCalled();
+    expect(engineMock.play).not.toHaveBeenCalled();
   });
 
   it('does not wrap when paused at the boundary', () => {
@@ -135,15 +126,15 @@ describe('loop boundary wrap', () => {
         range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
       });
     });
-    engineMock.pause.mockClear();
+    engineMock.play.mockClear();
 
     // isPlaying stays false; advance time to boundary
     act(() => { engineMock._setTime(12); });
 
-    expect(engineMock.pause).not.toHaveBeenCalled();
+    expect(engineMock.play).not.toHaveBeenCalled();
   });
 
-  it('re-entrancy guard: second boundary tick while beat is pending does not start another timeout', () => {
+  it('restarts from the first segment on natural file end while looping', () => {
     const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
 
     act(() => {
@@ -154,18 +145,16 @@ describe('loop boundary wrap', () => {
     });
     act(() => {
       engineMock._setIsPlaying(true);
-      engineMock._setTime(12); // triggers first wrap
+      engineMock._setTime(12);
     });
+    engineMock.play.mockClear();
 
-    const pauseCount = engineMock.pause.mock.calls.length;
-
-    // Natural-end fires while timeout is still pending
     act(() => { engineMock._triggerNaturalEnd(); });
 
-    expect(engineMock.pause).toHaveBeenCalledTimes(pauseCount);
+    expect(engineMock.play).toHaveBeenCalledWith(0);
   });
 
-  it('cancels the wrap timeout when the loop is cleared mid-beat', () => {
+  it('clearing the loop mid-playback stops further wrapping', () => {
     const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
 
     act(() => {
@@ -174,39 +163,15 @@ describe('loop boundary wrap', () => {
         range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
       });
     });
+    act(() => { result.current.controls.clearLoop(); });
+    engineMock.play.mockClear();
+
     act(() => {
       engineMock._setIsPlaying(true);
-      engineMock._setTime(12);
+      engineMock._setTime(12); // past the (now-cleared) boundary
     });
 
-    // Clear the loop while the beat is pending
-    act(() => { result.current.dispatch({ type: 'SET_LOOP', range: null }); });
-
-    act(() => { vi.advanceTimersByTime(LOOP_WRAP_PAUSE_MS); });
-
-    // play should not have been called with firstStart
-    expect(engineMock.play).not.toHaveBeenCalledWith(0);
-  });
-
-  it('cancels the wrap timeout on unmount', () => {
-    const { result, unmount } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
-
-    act(() => {
-      result.current.dispatch({
-        type: 'SET_LOOP',
-        range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
-      });
-    });
-    act(() => {
-      engineMock._setIsPlaying(true);
-      engineMock._setTime(12);
-    });
-
-    unmount();
-
-    act(() => { vi.advanceTimersByTime(LOOP_WRAP_PAUSE_MS); });
-
-    expect(engineMock.play).not.toHaveBeenCalledWith(0);
+    expect(engineMock.play).not.toHaveBeenCalled();
   });
 });
 
@@ -565,15 +530,12 @@ describe('restart', () => {
 });
 
 describe('segment looping — additional cases', () => {
-  beforeEach(() => { vi.useFakeTimers(); });
-  afterEach(() => { vi.useRealTimers(); });
-
   it('does not wrap when looping is off', () => {
     renderHook(() => usePlayer(SEGS, 20000, '/audio'));
     act(() => { engineMock.play(6); });
-    engineMock.pause.mockClear();
+    engineMock.play.mockClear();
     act(() => { engineMock._setTime(12.1); });
-    expect(engineMock.pause).not.toHaveBeenCalled();
+    expect(engineMock.play).not.toHaveBeenCalled();
   });
 
   it('loops the new segment after seekToSegment re-anchors the loop', () => {
@@ -586,7 +548,6 @@ describe('segment looping — additional cases', () => {
     engineMock.play.mockClear();
 
     act(() => { engineMock._setTime(20.1); });
-    act(() => { vi.advanceTimersByTime(LOOP_WRAP_PAUSE_MS); });
 
     expect(engineMock.play).toHaveBeenCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
   });

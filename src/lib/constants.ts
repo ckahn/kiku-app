@@ -9,7 +9,6 @@ export const TRANSCRIPT_SEGMENTATION_STRATEGY = 'deterministic';
 export const FURIGANA_STRATEGY: 'tokenizer' | 'llm' = 'tokenizer';
 export const MINIMUM_SEGMENT_CHARACTERS = 30;
 export const SEGMENT_PLAYBACK_OFFSET_SEC = 0.1; // start playback slightly before the stored timestamp
-export const LOOP_WRAP_PAUSE_MS = 700; // brief pause between loop iterations
 export const STUDY_GUIDE_CONTEXT_SEGMENTS = 10;
 export const STUDY_GUIDE_CURRENT_VERSION = 2;
 
