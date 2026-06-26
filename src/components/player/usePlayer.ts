@@ -1,12 +1,13 @@
 'use client';
 
-import { useReducer, useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
+import { useReducer, useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import type { Segment } from '@/db/schema';
 import { playerReducer, initialPlayerState } from './playerReducer';
 import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
+import type { LoopRange } from './loopRange';
 import { makeAnchor, validateRange, growUp, growDown, shrinkUp, shrinkDown, isInRange, rangeLength } from './loopRange';
 import { LOOP_WRAP_PAUSE_MS } from '@/lib/constants';
 
@@ -162,6 +163,19 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     [durationMs],
   );
 
+  // The four grow/shrink controls differ only in which pure loopRange helper
+  // they apply, so share one factory: read the current range, run the mutator,
+  // and dispatch the result when it produces a new (non-null) range.
+  const makeLoopMutator = useCallback(
+    (mutate: (segs: readonly Segment[], range: LoopRange) => LoopRange | null) => () => {
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const next = mutate(segmentsRef.current, range);
+      if (next) dispatch({ type: 'SET_LOOP', range: next });
+    },
+    [],
+  );
+
   const controls: PlayerControls = {
     play: useCallback(() => {
       setPlaybackError(null);
@@ -242,33 +256,10 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
       }
     }, [seekAndSyncState]),
 
-    growLoopUp: useCallback(() => {
-      const range = stateRef.current.loopRange;
-      if (!range) return;
-      const next = growUp(segmentsRef.current, range);
-      if (next) dispatch({ type: 'SET_LOOP', range: next });
-    }, []),
-
-    growLoopDown: useCallback(() => {
-      const range = stateRef.current.loopRange;
-      if (!range) return;
-      const next = growDown(segmentsRef.current, range);
-      if (next) dispatch({ type: 'SET_LOOP', range: next });
-    }, []),
-
-    shrinkLoopUp: useCallback(() => {
-      const range = stateRef.current.loopRange;
-      if (!range) return;
-      const next = shrinkUp(segmentsRef.current, range);
-      if (next) dispatch({ type: 'SET_LOOP', range: next });
-    }, []),
-
-    shrinkLoopDown: useCallback(() => {
-      const range = stateRef.current.loopRange;
-      if (!range) return;
-      const next = shrinkDown(segmentsRef.current, range);
-      if (next) dispatch({ type: 'SET_LOOP', range: next });
-    }, []),
+    growLoopUp: useMemo(() => makeLoopMutator(growUp), [makeLoopMutator]),
+    growLoopDown: useMemo(() => makeLoopMutator(growDown), [makeLoopMutator]),
+    shrinkLoopUp: useMemo(() => makeLoopMutator(shrinkUp), [makeLoopMutator]),
+    shrinkLoopDown: useMemo(() => makeLoopMutator(shrinkDown), [makeLoopMutator]),
 
     clearLoop: useCallback(() => {
       if (wrapTimeoutRef.current !== null) {

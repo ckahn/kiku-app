@@ -82,6 +82,45 @@ export function shrinkDown(segments: readonly Segment[], range: LoopRange): Loop
   return { ...range, lastSegmentId: segs[li - 1].id };
 }
 
+// Per-segment band rendering info, consumed by SegmentItem. The grow flags are
+// band-level (identical for every member) but only meaningful on the edge cards.
+export type SegmentBandInfo = {
+  readonly inBand: boolean;
+  readonly isFirstInBand: boolean;
+  readonly isLastInBand: boolean;
+  readonly canGrowUp: boolean;
+  readonly canGrowDown: boolean;
+};
+
+// Builds the band-rendering info for every in-band segment in a single sort.
+// Returns a Map keyed by segment id holding only the members of the range;
+// segments outside the band (or when range is null) are simply absent, and the
+// consumer falls back to "not in band". This is the single source of truth for
+// band membership/edges/grow-ability — callers must not re-derive it.
+export function computeBandInfo(
+  segments: readonly Segment[],
+  range: LoopRange | null,
+): Map<number, SegmentBandInfo> {
+  const info = new Map<number, SegmentBandInfo>();
+  if (!range) return info;
+  const segs = sorted(segments);
+  const fi = idxOf(segs, range.firstSegmentId);
+  const li = idxOf(segs, range.lastSegmentId);
+  if (fi === -1 || li === -1) return info;
+  const growUpAllowed = fi > 0;
+  const growDownAllowed = li < segs.length - 1;
+  for (let i = fi; i <= li; i++) {
+    info.set(segs[i].id, {
+      inBand: true,
+      isFirstInBand: i === fi,
+      isLastInBand: i === li,
+      canGrowUp: growUpAllowed,
+      canGrowDown: growDownAllowed,
+    });
+  }
+  return info;
+}
+
 // Returns the range if both endpoints exist and are contiguous; null otherwise.
 // Used at runtime and by the persistence loader to discard stale ranges.
 export function validateRange(

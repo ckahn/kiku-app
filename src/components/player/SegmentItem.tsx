@@ -2,32 +2,58 @@
 
 import Link from 'next/link';
 import { BookOpen, ChevronUp, ChevronDown, X } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { Segment } from '@/db/schema';
 import type { PlayerControls } from './usePlayer';
+import type { SegmentBandInfo } from './loopRange';
 import { stripFurigana, formatMs } from './segmentUtils';
 import { saveEpisodeFocusState } from './studyNavigation';
 import SegmentStatusIcon from '@/components/SegmentStatusIcon';
-
-interface BandInfo {
-  readonly inBand: boolean;
-  readonly isFirstInBand: boolean;
-  readonly isLastInBand: boolean;
-  readonly canGrowUp: boolean;
-  readonly canGrowDown: boolean;
-}
 
 interface SegmentItemProps {
   readonly segment: Segment;
   readonly isActive: boolean;
   readonly controls: PlayerControls;
-  readonly bandInfo?: BandInfo;
+  readonly bandInfo?: SegmentBandInfo;
   readonly podcastSlug?: string;
   readonly episodeNumber?: number;
   readonly episodeHref?: string;
 }
 
+// Loop grow/shrink strip. h-11 (44px) keeps the touch target at the required
+// minimum; the card reserves STRIP_PAD (> strip height) so the strip never
+// overlaps the segment text.
+const STRIP_HEIGHT = 'h-11';
+const STRIP_PAD_TOP = 'pt-[60px]';
+const STRIP_PAD_BOTTOM = 'pb-[60px]';
 const STRIP_CLASS =
-  'absolute inset-x-0 flex h-9 cursor-pointer items-center justify-center bg-primary/5 text-primary/50 transition-colors hover:bg-primary/10 hover:text-primary';
+  `absolute inset-x-0 flex ${STRIP_HEIGHT} cursor-pointer items-center justify-center bg-primary/5 text-primary/50 transition-colors hover:bg-primary/10 hover:text-primary`;
+
+function StripButton({
+  edge,
+  label,
+  onActivate,
+  children,
+}: {
+  readonly edge: 'top' | 'bottom';
+  readonly label: string;
+  readonly onActivate: () => void;
+  readonly children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onActivate();
+      }}
+      className={`${STRIP_CLASS} ${edge === 'top' ? 'top-0 rounded-t-lg' : 'bottom-0 rounded-b-lg'}`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function SegmentItem({
   segment,
@@ -78,9 +104,9 @@ export default function SegmentItem({
       data-loop-edge={(isFirstInBand || isLastInBand) || undefined}
       onClick={handleClick}
       className={`relative overflow-hidden rounded-lg border transition-all px-4 cursor-pointer ${
-        hasTopStrip ? 'pt-[52px]' : 'pt-4'
+        hasTopStrip ? STRIP_PAD_TOP : 'pt-4'
       } ${
-        hasBottomStrip ? 'pb-[52px]' : 'pb-4'
+        hasBottomStrip ? STRIP_PAD_BOTTOM : 'pb-4'
       } ${
         isActive
           ? 'border-primary/60 bg-primary-subtle hover:bg-primary/10'
@@ -102,50 +128,30 @@ export default function SegmentItem({
 
       {/* Top strip: ^ to grow up on the first-in-band card */}
       {isFirstInBand && canGrowUp && (
-        <button
-          type="button"
-          aria-label="Expand loop up"
-          onClick={(e) => { e.stopPropagation(); controls.growLoopUp(); }}
-          className={`${STRIP_CLASS} top-0 rounded-t-lg`}
-        >
+        <StripButton edge="top" label="Expand loop up" onActivate={controls.growLoopUp}>
           <ChevronUp size={16} />
-        </button>
+        </StripButton>
       )}
 
       {/* Top strip: x to shrink from the top on the last-in-band card (multi-segment) */}
       {isLastInBand && !isFirstInBand && (
-        <button
-          type="button"
-          aria-label="Shrink loop down"
-          onClick={(e) => { e.stopPropagation(); controls.shrinkLoopDown(); }}
-          className={`${STRIP_CLASS} top-0 rounded-t-lg`}
-        >
+        <StripButton edge="top" label="Shrink loop down" onActivate={controls.shrinkLoopDown}>
           <X size={16} />
-        </button>
+        </StripButton>
       )}
 
       {/* Bottom strip: x to shrink from the bottom on the first-in-band card (multi-segment) */}
       {isFirstInBand && !isLastInBand && (
-        <button
-          type="button"
-          aria-label="Shrink loop up"
-          onClick={(e) => { e.stopPropagation(); controls.shrinkLoopUp(); }}
-          className={`${STRIP_CLASS} bottom-0 rounded-b-lg`}
-        >
+        <StripButton edge="bottom" label="Shrink loop up" onActivate={controls.shrinkLoopUp}>
           <X size={16} />
-        </button>
+        </StripButton>
       )}
 
       {/* Bottom strip: v to grow down on the last-in-band card */}
       {isLastInBand && canGrowDown && (
-        <button
-          type="button"
-          aria-label="Expand loop down"
-          onClick={(e) => { e.stopPropagation(); controls.growLoopDown(); }}
-          className={`${STRIP_CLASS} bottom-0 rounded-b-lg`}
-        >
+        <StripButton edge="bottom" label="Expand loop down" onActivate={controls.growLoopDown}>
           <ChevronDown size={16} />
-        </button>
+        </StripButton>
       )}
 
       <div className="flex items-center gap-1.5 mb-2">

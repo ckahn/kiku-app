@@ -433,3 +433,168 @@ describe('stale-range clear', () => {
     expect(result.current.state.loopRange).toBeNull();
   });
 });
+
+describe('initial state', () => {
+  it('starts paused, with no loop range, at time 0', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    expect(result.current.state.isPlaying).toBe(false);
+    expect(result.current.state.loopRange).toBeNull();
+    expect(result.current.state.currentTime).toBe(0);
+  });
+});
+
+describe('play / pause / toggle', () => {
+  it('play() calls audioEngine.play()', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.play(); });
+    expect(engineMock.play).toHaveBeenCalled();
+  });
+
+  it('play() sets isPlaying when the engine confirms', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.play(); });
+    expect(result.current.state.isPlaying).toBe(true);
+  });
+
+  it('pause() calls audioEngine.pause() and clears isPlaying', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.play(); });
+    act(() => { result.current.controls.pause(); });
+    expect(engineMock.pause).toHaveBeenCalled();
+    expect(result.current.state.isPlaying).toBe(false);
+  });
+
+  it('toggle() while paused calls play', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.toggle(); });
+    expect(engineMock.play).toHaveBeenCalled();
+    expect(result.current.state.isPlaying).toBe(true);
+  });
+
+  it('toggle() while playing calls pause', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.play(); });
+    act(() => { result.current.controls.toggle(); });
+    expect(engineMock.pause).toHaveBeenCalled();
+    expect(result.current.state.isPlaying).toBe(false);
+  });
+});
+
+describe('engine error propagation', () => {
+  it('propagates engine error to playbackError', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { engineMock._setError('Audio fetch failed: 404'); });
+    expect(result.current.playbackError).toMatch(/404/);
+  });
+});
+
+describe('rewind / forward', () => {
+  it('rewind subtracts 5 seconds, clamped to 0', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { engineMock._setTime(3); });
+    act(() => { result.current.controls.rewind(); });
+    expect(engineMock.seek).toHaveBeenLastCalledWith(0);
+  });
+
+  it('forward adds 5 seconds, clamped to duration', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { engineMock._setTime(18); });
+    act(() => { result.current.controls.forward(); });
+    expect(engineMock.seek).toHaveBeenLastCalledWith(20);
+  });
+
+  it('forward starts from the restored segment while audio is still loading', () => {
+    engineMock._setStatus('loading');
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+
+    act(() => { result.current.controls.seekToSegment(2); });
+    act(() => { result.current.controls.forward(); });
+
+    expect(engineMock.seek).toHaveBeenLastCalledWith(9.9);
+  });
+});
+
+describe('seekToSegment', () => {
+  it('seeks the engine to the segment start', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.seekToSegment(2); });
+    expect(engineMock.seek).toHaveBeenCalledWith(4.9); // 5000ms / 1000 - 0.1s offset
+  });
+
+  it('to the first segment seeks to 0', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.seekToSegment(1); });
+    expect(engineMock.seek).toHaveBeenCalledWith(0);
+  });
+
+  it('with an unknown segment id does nothing', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.seekToSegment(999); });
+    expect(engineMock.seek).not.toHaveBeenCalled();
+  });
+
+  it('updates state.currentTime synchronously', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.seekToSegment(2); });
+    expect(result.current.state.currentTime).toBe(4.9);
+  });
+});
+
+describe('restart', () => {
+  it('calls restartAtZero and resets state to time 0, not playing', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { engineMock._setTime(15); });
+    act(() => { result.current.controls.restart(); });
+    expect(engineMock.restartAtZero).toHaveBeenCalledOnce();
+    expect(result.current.state.currentTime).toBe(0);
+    expect(result.current.state.isPlaying).toBe(false);
+  });
+
+  it('settles at 0:00 even when called while a future segment is playing', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { engineMock.play(14); });
+
+    act(() => { result.current.controls.restart(); });
+
+    expect(engineMock.restartAtZero).toHaveBeenCalledOnce();
+    expect(engineMock.currentTime).toBe(0);
+    expect(engineMock.isPlaying).toBe(false);
+    expect(result.current.state.currentTime).toBe(0);
+    expect(result.current.state.isPlaying).toBe(false);
+  });
+});
+
+describe('segment looping — additional cases', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('does not wrap when looping is off', () => {
+    renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { engineMock.play(6); });
+    engineMock.pause.mockClear();
+    act(() => { engineMock._setTime(12.1); });
+    expect(engineMock.pause).not.toHaveBeenCalled();
+  });
+
+  it('loops the new segment after seekToSegment re-anchors the loop', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+
+    act(() => { result.current.controls.toggleLoop(); }); // anchors to SEG1 at t=0
+    act(() => { engineMock.play(2); });
+
+    act(() => { result.current.controls.seekToSegment(3); }); // re-anchors to SEG3
+    engineMock.play.mockClear();
+
+    act(() => { engineMock._setTime(20.1); });
+    act(() => { vi.advanceTimersByTime(LOOP_WRAP_PAUSE_MS); });
+
+    expect(engineMock.play).toHaveBeenCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
+  });
+
+  it('pauses on natural file end when looping is off', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.play(); });
+    act(() => { engineMock._triggerNaturalEnd(); });
+    expect(result.current.state.isPlaying).toBe(false);
+  });
+});

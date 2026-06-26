@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Segment } from '@/db/schema';
 import type { PlayerState } from './player/types';
 import type { PlayerControls } from './player/usePlayer';
 import { findActiveSegmentId } from './player/segmentUtils';
+import { computeBandInfo } from './player/loopRange';
 import { scrollSegmentIntoVisibleArea } from './player/scrollSegment';
 import SegmentItem from './player/SegmentItem';
 
@@ -42,37 +43,27 @@ export default function SegmentList({
     scrollSegmentIntoVisibleArea(activeSegmentId);
   }, [activeSegmentId]);
 
-  const range = playerState.loopRange;
-  const sorted = [...segments].sort((a, b) => a.segmentIndex - b.segmentIndex);
-  const firstBandIdx = range ? sorted.findIndex((s) => s.id === range.firstSegmentId) : -1;
-  const lastBandIdx = range ? sorted.findIndex((s) => s.id === range.lastSegmentId) : -1;
-  const canGrowUp = firstBandIdx > 0;
-  const canGrowDown = lastBandIdx >= 0 && lastBandIdx < sorted.length - 1;
+  // Single source of truth for band geometry (loopRange.ts), recomputed only
+  // when the segment list or the loop range changes — not on every time tick.
+  const bandInfoBySegmentId = useMemo(
+    () => computeBandInfo(segments, playerState.loopRange),
+    [segments, playerState.loopRange],
+  );
 
   return (
     <ol className="space-y-4 pb-4">
-      {segments.map((segment) => {
-        const myIdx = sorted.findIndex((s) => s.id === segment.id);
-        const bandInfo = {
-          inBand: firstBandIdx >= 0 && lastBandIdx >= 0 && myIdx >= firstBandIdx && myIdx <= lastBandIdx,
-          isFirstInBand: firstBandIdx >= 0 && myIdx === firstBandIdx,
-          isLastInBand: lastBandIdx >= 0 && myIdx === lastBandIdx,
-          canGrowUp,
-          canGrowDown,
-        };
-        return (
-          <SegmentItem
-            key={segment.id}
-            segment={segment}
-            isActive={activeSegmentId === segment.id}
-            controls={controls}
-            bandInfo={bandInfo}
-            podcastSlug={podcastSlug}
-            episodeNumber={episodeNumber}
-            episodeHref={episodeHref}
-          />
-        );
-      })}
+      {segments.map((segment) => (
+        <SegmentItem
+          key={segment.id}
+          segment={segment}
+          isActive={activeSegmentId === segment.id}
+          controls={controls}
+          bandInfo={bandInfoBySegmentId.get(segment.id)}
+          podcastSlug={podcastSlug}
+          episodeNumber={episodeNumber}
+          episodeHref={episodeHref}
+        />
+      ))}
     </ol>
   );
 }

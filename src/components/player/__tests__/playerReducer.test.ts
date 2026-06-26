@@ -1,37 +1,94 @@
 import { describe, it, expect } from 'vitest';
 import { playerReducer, initialPlayerState } from '../playerReducer';
+import type { PlayerState } from '../types';
+
+function state(overrides: Partial<PlayerState> = {}): PlayerState {
+  return { ...initialPlayerState, ...overrides };
+}
 
 describe('playerReducer', () => {
-  it('initial state has loopRange null', () => {
-    expect(initialPlayerState.loopRange).toBeNull();
+  describe('PLAY', () => {
+    it('sets isPlaying to true', () => {
+      const result = playerReducer(state({ isPlaying: false }), { type: 'PLAY' });
+      expect(result.isPlaying).toBe(true);
+    });
+
+    it('does not mutate existing state', () => {
+      const original = state({ isPlaying: false });
+      const result = playerReducer(original, { type: 'PLAY' });
+      expect(result).not.toBe(original);
+      expect(original.isPlaying).toBe(false);
+    });
   });
 
-  it('SET_LOOP stores a range', () => {
-    const range = { firstSegmentId: 1, lastSegmentId: 3 };
-    const state = playerReducer(initialPlayerState, { type: 'SET_LOOP', range });
-    expect(state.loopRange).toEqual(range);
+  describe('PAUSE', () => {
+    it('sets isPlaying to false', () => {
+      const result = playerReducer(state({ isPlaying: true }), { type: 'PAUSE' });
+      expect(result.isPlaying).toBe(false);
+    });
   });
 
-  it('SET_LOOP with null clears the range', () => {
-    const withRange = { ...initialPlayerState, loopRange: { firstSegmentId: 1, lastSegmentId: 1 } };
-    const state = playerReducer(withRange, { type: 'SET_LOOP', range: null });
-    expect(state.loopRange).toBeNull();
+  describe('TOGGLE_PLAY', () => {
+    it('flips isPlaying from false to true', () => {
+      const result = playerReducer(state({ isPlaying: false }), { type: 'TOGGLE_PLAY' });
+      expect(result.isPlaying).toBe(true);
+    });
+
+    it('flips isPlaying from true to false', () => {
+      const result = playerReducer(state({ isPlaying: true }), { type: 'TOGGLE_PLAY' });
+      expect(result.isPlaying).toBe(false);
+    });
   });
 
-  it('SET_LOOP does not mutate the previous state', () => {
-    const range = { firstSegmentId: 2, lastSegmentId: 4 };
-    playerReducer(initialPlayerState, { type: 'SET_LOOP', range });
-    expect(initialPlayerState.loopRange).toBeNull();
+  describe('SET_TIME', () => {
+    it('updates currentTime', () => {
+      const result = playerReducer(state(), { type: 'SET_TIME', payload: 42.5 });
+      expect(result.currentTime).toBe(42.5);
+    });
+
+    it('preserves other state fields', () => {
+      const loop = { firstSegmentId: 1, lastSegmentId: 2 };
+      const s = state({ isPlaying: true, loopRange: loop });
+      const result = playerReducer(s, { type: 'SET_TIME', payload: 10 });
+      expect(result.isPlaying).toBe(true);
+      expect(result.loopRange).toEqual(loop);
+    });
   });
 
-  it('PLAY sets isPlaying true', () => {
-    const state = playerReducer(initialPlayerState, { type: 'PLAY' });
-    expect(state.isPlaying).toBe(true);
+  describe('SET_LOOP', () => {
+    it('stores a range', () => {
+      const range = { firstSegmentId: 1, lastSegmentId: 3 };
+      const result = playerReducer(state(), { type: 'SET_LOOP', range });
+      expect(result.loopRange).toEqual(range);
+    });
+
+    it('clears the range when given null', () => {
+      const s = state({ loopRange: { firstSegmentId: 1, lastSegmentId: 1 } });
+      const result = playerReducer(s, { type: 'SET_LOOP', range: null });
+      expect(result.loopRange).toBeNull();
+    });
+
+    it('does not mutate the previous state', () => {
+      const original = state();
+      playerReducer(original, { type: 'SET_LOOP', range: { firstSegmentId: 2, lastSegmentId: 4 } });
+      expect(original.loopRange).toBeNull();
+    });
   });
 
-  it('PAUSE sets isPlaying false', () => {
-    const playing = { ...initialPlayerState, isPlaying: true };
-    const state = playerReducer(playing, { type: 'PAUSE' });
-    expect(state.isPlaying).toBe(false);
+  describe('RESTART', () => {
+    it('sets currentTime to payload and stops playback', () => {
+      const s = state({ currentTime: 120, isPlaying: true });
+      const result = playerReducer(s, { type: 'RESTART', payload: 5 });
+      expect(result.currentTime).toBe(5);
+      expect(result.isPlaying).toBe(false);
+    });
+  });
+
+  describe('initialPlayerState', () => {
+    it('starts paused, with no loop range, at time 0', () => {
+      expect(initialPlayerState.isPlaying).toBe(false);
+      expect(initialPlayerState.loopRange).toBeNull();
+      expect(initialPlayerState.currentTime).toBe(0);
+    });
   });
 });
