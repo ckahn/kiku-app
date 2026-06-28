@@ -327,6 +327,28 @@ describe('restart', () => {
   });
 });
 
+describe('shiftLoopEndpoint', () => {
+  it('moves the end endpoint one segment later', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.toggleLoop(); }); // anchors to SEG1
+    act(() => { result.current.controls.shiftLoopEndpoint('end', 'later'); });
+    expect(result.current.state.loopRange).toEqual({ firstSegmentId: SEG1.id, lastSegmentId: SEG2.id });
+  });
+
+  it('moves the start endpoint one segment earlier (no-op at first segment)', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.toggleLoop(); }); // anchors to SEG1
+    act(() => { result.current.controls.shiftLoopEndpoint('start', 'earlier'); });
+    expect(result.current.state.loopRange).toEqual({ firstSegmentId: SEG1.id, lastSegmentId: SEG1.id });
+  });
+
+  it('does nothing when not looping', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.shiftLoopEndpoint('end', 'later'); });
+    expect(result.current.state.loopRange).toBeNull();
+  });
+});
+
 describe('segment looping — additional cases', () => {
   it('does not wrap when looping is off', () => {
     renderHook(() => usePlayer(SEGS, 20000, '/audio'));

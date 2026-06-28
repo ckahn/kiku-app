@@ -2,9 +2,11 @@
 
 import { useEffect } from 'react';
 import { isTypingTarget } from './keyboardUtils';
+import type { Endpoint } from './loopRange';
 
 const HANDLED_KEYS = new Set([
   'Space', 'ArrowLeft', 'ArrowRight', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'KeyM',
+  'BracketLeft', 'BracketRight',
 ]);
 
 interface UseKeyboardShortcutsOptions {
@@ -13,6 +15,7 @@ interface UseKeyboardShortcutsOptions {
   readonly forward: () => void;
   readonly toggleLoop: () => void;
   readonly restart: () => void;
+  readonly shiftLoopEndpoint: (which: Endpoint, direction: 'earlier' | 'later') => void;
 }
 
 export function useEpisodeKeyboardShortcuts({
@@ -21,6 +24,7 @@ export function useEpisodeKeyboardShortcuts({
   forward,
   toggleLoop,
   restart,
+  shiftLoopEndpoint,
 }: UseKeyboardShortcutsOptions): void {
   useEffect(() => {
     const keyMap: Record<string, () => void> = {
@@ -39,10 +43,24 @@ export function useEpisodeKeyboardShortcuts({
       if (isTypingTarget(e.target)) return;
 
       e.preventDefault();
+
+      if (e.code === 'BracketLeft') {
+        // [ = grow loop from start (move start earlier)
+        // { = shrink loop from start (move start later)
+        shiftLoopEndpoint('start', e.shiftKey ? 'later' : 'earlier');
+        return;
+      }
+      if (e.code === 'BracketRight') {
+        // ] = grow loop from end (move end later)
+        // } = shrink loop from end (move end earlier)
+        shiftLoopEndpoint('end', e.shiftKey ? 'earlier' : 'later');
+        return;
+      }
+
       keyMap[e.code]?.();
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggle, rewind, forward, toggleLoop, restart]);
+  }, [toggle, rewind, forward, toggleLoop, restart, shiftLoopEndpoint]);
 }

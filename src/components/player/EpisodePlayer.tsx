@@ -41,7 +41,7 @@ export default function EpisodePlayer({
     [durationMs, segments],
   );
   const player = usePlayer(segments, effectiveDurationMs, audioUrl);
-  const { toggle, rewind, forward, toggleLoop, restart } = player.controls;
+  const { toggle, rewind, forward, toggleLoop, restart, shiftLoopEndpoint } = player.controls;
   useManualScrollRestoration();
   const handleRestart = useCallback(() => {
     restart();
@@ -57,7 +57,7 @@ export default function EpisodePlayer({
     scrollSegmentToTop(firstSegment.id);
   }, [restart, segments, episodeHref]);
 
-  useEpisodeKeyboardShortcuts({ toggle, rewind, forward, toggleLoop, restart: handleRestart });
+  useEpisodeKeyboardShortcuts({ toggle, rewind, forward, toggleLoop, restart: handleRestart, shiftLoopEndpoint });
 
   const { seekToSegment, pause } = player.controls;
   const activeSegmentId = findActiveSegmentId(segments, player.state.currentTime);

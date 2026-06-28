@@ -10,11 +10,12 @@ function makeOptions() {
     forward: vi.fn(),
     toggleLoop: vi.fn(),
     restart: vi.fn(),
+    shiftLoopEndpoint: vi.fn(),
   };
 }
 
-function pressKey(code: string, target?: EventTarget) {
-  const event = new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true });
+function pressKey(code: string, target?: EventTarget, shiftKey = false) {
+  const event = new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true, shiftKey });
   if (target) {
     Object.defineProperty(event, 'target', { value: target, enumerable: true });
   }
@@ -84,6 +85,32 @@ describe('useEpisodeKeyboardShortcuts', () => {
       renderHook(() => useEpisodeKeyboardShortcuts(options));
       pressKey('KeyM');
       expect(options.toggle).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('loop range keyboard shortcuts', () => {
+    it('[ calls shiftLoopEndpoint(start, earlier)', () => {
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
+      pressKey('BracketLeft');
+      expect(options.shiftLoopEndpoint).toHaveBeenCalledWith('start', 'earlier');
+    });
+
+    it('{ (Shift+[) calls shiftLoopEndpoint(start, later)', () => {
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
+      pressKey('BracketLeft', undefined, true);
+      expect(options.shiftLoopEndpoint).toHaveBeenCalledWith('start', 'later');
+    });
+
+    it('] calls shiftLoopEndpoint(end, later)', () => {
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
+      pressKey('BracketRight');
+      expect(options.shiftLoopEndpoint).toHaveBeenCalledWith('end', 'later');
+    });
+
+    it('} (Shift+]) calls shiftLoopEndpoint(end, earlier)', () => {
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
+      pressKey('BracketRight', undefined, true);
+      expect(options.shiftLoopEndpoint).toHaveBeenCalledWith('end', 'earlier');
     });
   });
 

@@ -7,7 +7,7 @@ import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
-import { makeAnchor, validateRange } from './loopRange';
+import { makeAnchor, validateRange, setEndpoint as setLoopEndpointFn, isInRange, type Endpoint } from './loopRange';
 
 export type PlayerControls = {
   play: () => void;
@@ -19,6 +19,8 @@ export type PlayerControls = {
   toggleLoop: () => void;
   restart: () => void;
   seekToSegment: (segmentId: number) => void;
+  setLoopEndpoint: (which: Endpoint, segmentId: number) => void;
+  shiftLoopEndpoint: (which: Endpoint, direction: 'earlier' | 'later') => void;
 };
 
 export type UsePlayerReturn = {
@@ -179,10 +181,31 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
       const segment = segmentsRef.current.find((c) => c.id === segmentId);
       if (!segment) return;
       seekAndSyncState(segmentStartSec(segment));
-      if (stateRef.current.loopRange !== null) {
+      const range = stateRef.current.loopRange;
+      if (range !== null && !isInRange(segmentsRef.current, range, segmentId)) {
         dispatch({ type: 'SET_LOOP', range: makeAnchor(segmentId) });
       }
     }, [seekAndSyncState]),
+
+    setLoopEndpoint: useCallback((which: Endpoint, segmentId: number) => {
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const newRange = setLoopEndpointFn(segmentsRef.current, range, which, segmentId);
+      dispatch({ type: 'SET_LOOP', range: newRange });
+    }, []),
+
+    shiftLoopEndpoint: useCallback((which: Endpoint, direction: 'earlier' | 'later') => {
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const segs = [...segmentsRef.current].sort((a, b) => a.segmentIndex - b.segmentIndex);
+      const segmentId = which === 'start' ? range.firstSegmentId : range.lastSegmentId;
+      const idx = segs.findIndex((s) => s.id === segmentId);
+      if (idx === -1) return;
+      const step = direction === 'earlier' ? -1 : 1;
+      const newIdx = Math.max(0, Math.min(segs.length - 1, idx + step));
+      const newRange = setLoopEndpointFn(segmentsRef.current, range, which, segs[newIdx].id);
+      dispatch({ type: 'SET_LOOP', range: newRange });
+    }, []),
   };
 
   const clearPlaybackError = useCallback(() => {

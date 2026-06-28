@@ -3,35 +3,30 @@
 import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
 import type { Segment } from '@/db/schema';
-import type { PlayerControls } from './usePlayer';
 import { stripFurigana, formatMs } from './segmentUtils';
 import { saveEpisodeFocusState } from './studyNavigation';
 import SegmentStatusIcon from '@/components/SegmentStatusIcon';
 
-interface SegmentItemProps {
+interface SegmentCardProps {
   readonly segment: Segment;
   readonly isActive: boolean;
-  readonly controls: PlayerControls;
+  readonly isDimmed: boolean;
   readonly podcastSlug?: string;
   readonly episodeNumber?: number;
   readonly episodeHref?: string;
 }
 
-export default function SegmentItem({
+export default function SegmentCard({
   segment,
   isActive,
-  controls,
+  isDimmed,
   podcastSlug,
   episodeNumber,
   episodeHref,
-}: SegmentItemProps) {
+}: SegmentCardProps) {
   const displayHtml = stripFurigana(segment.textFurigana);
   // 'new' renders no status glyph, so skip the indicator and its left gutter.
   const showStatusIcon = segment.studyStatus !== 'new';
-
-  function handleClick() {
-    controls.seekToSegment(segment.id);
-  }
 
   const studyHref =
     podcastSlug && episodeNumber !== undefined
@@ -39,15 +34,12 @@ export default function SegmentItem({
       : null;
 
   return (
-    <li
-      data-segment-id={segment.id}
-      data-active={isActive || undefined}
-      onClick={handleClick}
-      className={`relative rounded-lg border transition-all p-4 cursor-pointer ${
+    <div
+      className={`flex-1 relative rounded-lg border transition-all p-4 cursor-pointer ${
         isActive
           ? 'border-primary/60 bg-primary-subtle hover:bg-primary/10'
           : 'border-border bg-surface hover:border-primary/30 hover:bg-canvas-subtle'
-      }`}
+      } ${isDimmed ? 'opacity-40' : ''}`}
     >
       <div className="flex items-center gap-1.5 mb-2">
         {showStatusIcon && (
@@ -59,12 +51,9 @@ export default function SegmentItem({
           {formatMs(segment.startMs)}
         </span>
       </div>
-      <p
-        className="text-lg text-ink font-jp leading-loose pr-7"
-        // textFurigana is Claude-generated HTML containing only <ruby>/<rt> tags.
-        // It is not user-supplied input.
-        dangerouslySetInnerHTML={{ __html: displayHtml }}
-      />
+      <p className="text-lg text-ink font-jp leading-loose pr-7">
+        {displayHtml}
+      </p>
       {studyHref && (
         <Link
           href={studyHref}
@@ -80,6 +69,6 @@ export default function SegmentItem({
           <BookOpen size={16} />
         </Link>
       )}
-    </li>
+    </div>
   );
 }
