@@ -17,7 +17,7 @@ export type PlayerControls = {
   rewind: () => void;
   forward: () => void;
   toggleLoop: () => void;
-  restart: () => void;
+  restart: () => number | null;
   seekToSegment: (segmentId: number) => void;
   setLoopEndpoint: (which: Endpoint, segmentId: number) => void;
   shiftLoopEndpoint: (which: Endpoint, direction: 'earlier' | 'later') => void;
@@ -172,17 +172,18 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
       }
     }, []),
 
-    restart: useCallback(() => {
+    restart: useCallback((): number | null => {
       const range = stateRef.current.loopRange;
       if (range) {
         const firstSeg = segmentsRef.current.find((s) => s.id === range.firstSegmentId);
         if (firstSeg) {
           seekAndSyncState(segmentStartSec(firstSeg));
-          return;
+          return firstSeg.id;
         }
       }
       audioEngine.restartAtZero();
       dispatch({ type: 'RESTART', payload: 0 });
+      return segmentsRef.current[0]?.id ?? null;
     }, [seekAndSyncState]),
 
     seekToSegment: useCallback((segmentId: number) => {
