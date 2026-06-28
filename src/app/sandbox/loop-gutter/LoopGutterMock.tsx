@@ -19,14 +19,29 @@ const EDGE_ZONE = 84;
 const MIN_SCROLL_SPEED = 4;
 const MAX_SCROLL_SPEED = 18;
 
-// Resolve a pointer position to the gutter cell index it is over, by walking up
-// from the topmost element to the nearest [data-gutter-index] ancestor.
-function gutterIndexAtPoint(clientX: number, clientY: number): number | null {
-  const el = document.elementFromPoint(clientX, clientY);
-  const cell = el?.closest('[data-gutter-index]');
-  if (!cell) return null;
-  const value = Number((cell as HTMLElement).dataset.gutterIndex);
-  return Number.isNaN(value) ? null : value;
+// Map a vertical viewport position to a gutter cell index, ignoring X entirely.
+// Once a handle is grabbed the drag is "locked" to vertical movement: we pick
+// the row whose vertical band the pointer is level with (clamping to the
+// nearest row when the pointer is above the first / below the last / in a gap),
+// so sliding sideways off the thin rail never drops the grip.
+function gutterIndexAtY(clientY: number): number | null {
+  const cells = document.querySelectorAll<HTMLElement>('[data-gutter-index]');
+  let bestIndex: number | null = null;
+  let bestDistance = Infinity;
+  cells.forEach((cell) => {
+    const rect = cell.getBoundingClientRect();
+    const distance =
+      clientY < rect.top
+        ? rect.top - clientY
+        : clientY > rect.bottom
+          ? clientY - rect.bottom
+          : 0;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = Number(cell.dataset.gutterIndex);
+    }
+  });
+  return bestIndex;
 }
 
 // Signed per-frame scroll delta for a pointer Y: negative near the top edge,
@@ -55,8 +70,9 @@ export default function LoopGutterMock() {
   // range grows.
   const [dragging, setDragging] = useState<Endpoint | null>(null);
 
-  // Live pointer position + current auto-scroll velocity, read by the rAF loop.
-  const pointerRef = useRef<{ x: number; y: number } | null>(null);
+  // Live pointer Y + current auto-scroll velocity, read by the rAF loop. Only
+  // vertical position matters once a handle is grabbed.
+  const pointerYRef = useRef<number | null>(null);
   const scrollDeltaRef = useRef(0);
   const rafRef = useRef<number | null>(null);
 
@@ -68,9 +84,9 @@ export default function LoopGutterMock() {
     // Called on pointermove and on every auto-scroll frame (where the pointer
     // is stationary but new segments scroll beneath it).
     function syncEdgeToPointer() {
-      const pos = pointerRef.current;
-      if (!pos) return;
-      const index = gutterIndexAtPoint(pos.x, pos.y);
+      const y = pointerYRef.current;
+      if (y === null) return;
+      const index = gutterIndexAtY(y);
       if (index === null) return;
       setRange((r) => setEndpoint(r, which, index, COUNT));
     }
@@ -87,7 +103,7 @@ export default function LoopGutterMock() {
     }
 
     function handleMove(e: PointerEvent) {
-      pointerRef.current = { x: e.clientX, y: e.clientY };
+      pointerYRef.current = e.clientY;
       scrollDeltaRef.current = autoScrollDelta(e.clientY);
       // Kick off the auto-scroll loop if we entered an edge zone.
       if (scrollDeltaRef.current !== 0 && rafRef.current === null) {
@@ -112,7 +128,7 @@ export default function LoopGutterMock() {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      pointerRef.current = null;
+      pointerYRef.current = null;
     };
   }, [dragging]);
 
@@ -123,7 +139,7 @@ export default function LoopGutterMock() {
   function handlePointerDown(which: Endpoint, e: React.PointerEvent) {
     e.preventDefault();
     e.stopPropagation();
-    pointerRef.current = { x: e.clientX, y: e.clientY };
+    pointerYRef.current = e.clientY;
     setDragging(which);
   }
 
