@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { isTypingTarget } from './keyboardUtils';
+import { isTypingTarget, hasModifier } from './keyboardUtils';
 import type { Endpoint } from './loopRange';
 
 const HANDLED_KEYS = new Set([
@@ -40,6 +40,7 @@ export function useEpisodeKeyboardShortcuts({
 
     function handleKeyDown(e: KeyboardEvent) {
       if (!HANDLED_KEYS.has(e.code)) return;
+      if (hasModifier(e)) return;
       if (isTypingTarget(e.target)) return;
 
       e.preventDefault();

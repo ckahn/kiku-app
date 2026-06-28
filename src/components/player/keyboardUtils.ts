@@ -7,3 +7,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   const ce = String((target as HTMLElement & { contentEditable: unknown }).contentEditable);
   return INPUT_TAGS.has(target.tagName) || target.isContentEditable || ce === 'true';
 }
+
+export function hasModifier(e: KeyboardEvent): boolean {
+  return e.ctrlKey || e.metaKey || e.altKey;
+}

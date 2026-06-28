@@ -14,8 +14,8 @@ function makeOptions() {
   };
 }
 
-function pressKey(code: string, target?: EventTarget, shiftKey = false) {
-  const event = new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true, shiftKey });
+function pressKey(code: string, target?: EventTarget, shiftKey = false, modifiers: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean } = {}) {
+  const event = new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true, shiftKey, ...modifiers });
   if (target) {
     Object.defineProperty(event, 'target', { value: target, enumerable: true });
   }
@@ -120,6 +120,26 @@ describe('useEpisodeKeyboardShortcuts', () => {
       pressKey('Escape');
       expect(options.toggle).not.toHaveBeenCalled();
       expect(options.rewind).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('modifier key guard', () => {
+    it('ignores KeyL with Ctrl held (e.g. Ctrl+L for address bar)', () => {
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
+      pressKey('KeyL', undefined, false, { ctrlKey: true });
+      expect(options.toggleLoop).not.toHaveBeenCalled();
+    });
+
+    it('ignores KeyL with Meta held (e.g. Cmd+L)', () => {
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
+      pressKey('KeyL', undefined, false, { metaKey: true });
+      expect(options.toggleLoop).not.toHaveBeenCalled();
+    });
+
+    it('ignores Space with Alt held', () => {
+      renderHook(() => useEpisodeKeyboardShortcuts(options));
+      pressKey('Space', undefined, false, { altKey: true });
+      expect(options.toggle).not.toHaveBeenCalled();
     });
   });
 

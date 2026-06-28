@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { isTypingTarget } from './keyboardUtils';
+import { isTypingTarget, hasModifier } from './keyboardUtils';
 
 const HANDLED_KEYS = new Set(['Space', 'KeyM', 'KeyJ', 'KeyK', 'KeyL', 'ArrowLeft', 'ArrowRight']);
 
@@ -33,6 +33,7 @@ export function useStudyKeyboardShortcuts({
 
     function handleKeyDown(e: KeyboardEvent) {
       if (!HANDLED_KEYS.has(e.code)) return;
+      if (hasModifier(e)) return;
       if (isTypingTarget(e.target)) return;
 
       const action = keyMap[e.code];
