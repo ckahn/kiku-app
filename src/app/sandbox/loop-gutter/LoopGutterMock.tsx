@@ -226,10 +226,8 @@ export default function LoopGutterMock() {
               )}
 
               <div
-                className={`flex-1 rounded-lg border p-4 transition-colors ${
-                  inRange
-                    ? 'border-primary/60 bg-primary-subtle'
-                    : 'border-border bg-surface'
+                className={`flex-1 rounded-lg border border-border bg-surface p-4 transition-opacity ${
+                  isLooping && !inRange ? 'opacity-40' : 'opacity-100'
                 }`}
               >
                 <div className="mb-1 text-xs font-mono text-muted">
