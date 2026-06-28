@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { makeAnchor, validateRange } from '../loopRange';
+import { makeAnchor, validateRange, setEndpoint } from '../loopRange';
 import type { LoopRange } from '../loopRange';
 import type { Segment } from '@/db/schema';
 
@@ -63,5 +63,45 @@ describe('validateRange', () => {
 
   it('returns null when first comes after last in segment order', () => {
     expect(validateRange(segs, { firstSegmentId: C.id, lastSegmentId: A.id })).toBeNull();
+  });
+});
+
+describe('setEndpoint', () => {
+  const range: LoopRange = { firstSegmentId: A.id, lastSegmentId: C.id };
+
+  it('moves start forward within the range', () => {
+    const result = setEndpoint(segs, range, 'start', B.id);
+    expect(result).toEqual<LoopRange>({ firstSegmentId: B.id, lastSegmentId: C.id });
+  });
+
+  it('pins start to end when moved past end (length-1 range)', () => {
+    const result = setEndpoint(segs, range, 'start', C.id);
+    expect(result).toEqual<LoopRange>({ firstSegmentId: C.id, lastSegmentId: C.id });
+  });
+
+  it('moves end backward within the range', () => {
+    const result = setEndpoint(segs, range, 'end', B.id);
+    expect(result).toEqual<LoopRange>({ firstSegmentId: A.id, lastSegmentId: B.id });
+  });
+
+  it('pins end to start when moved past start (length-1 range)', () => {
+    const result = setEndpoint(segs, range, 'end', A.id);
+    expect(result).toEqual<LoopRange>({ firstSegmentId: A.id, lastSegmentId: A.id });
+  });
+
+  it('returns the same range when moving start to its current position', () => {
+    const result = setEndpoint(segs, range, 'start', A.id);
+    expect(result).toEqual(range);
+  });
+
+  it('returns the range unchanged when targetSegmentId is not in segments', () => {
+    const result = setEndpoint(segs, range, 'start', 99);
+    expect(result).toBe(range);
+  });
+
+  it('works on a length-1 anchor range', () => {
+    const anchor = makeAnchor(B.id);
+    const result = setEndpoint(segs, anchor, 'end', C.id);
+    expect(result).toEqual<LoopRange>({ firstSegmentId: B.id, lastSegmentId: C.id });
   });
 });

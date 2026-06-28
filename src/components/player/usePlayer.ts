@@ -7,7 +7,7 @@ import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
-import { makeAnchor, validateRange } from './loopRange';
+import { makeAnchor, validateRange, setEndpoint as setLoopEndpointFn, type Endpoint } from './loopRange';
 
 export type PlayerControls = {
   play: () => void;
@@ -19,6 +19,7 @@ export type PlayerControls = {
   toggleLoop: () => void;
   restart: () => void;
   seekToSegment: (segmentId: number) => void;
+  setLoopEndpoint: (which: Endpoint, segmentId: number) => void;
 };
 
 export type UsePlayerReturn = {
@@ -183,6 +184,13 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
         dispatch({ type: 'SET_LOOP', range: makeAnchor(segmentId) });
       }
     }, [seekAndSyncState]),
+
+    setLoopEndpoint: useCallback((which: Endpoint, segmentId: number) => {
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const newRange = setLoopEndpointFn(segmentsRef.current, range, which, segmentId);
+      dispatch({ type: 'SET_LOOP', range: newRange });
+    }, []),
   };
 
   const clearPlaybackError = useCallback(() => {
