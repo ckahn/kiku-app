@@ -8,7 +8,8 @@ import type { LoopRange, Endpoint } from './player/loopRange';
 import { findActiveSegmentId } from './player/segmentUtils';
 import { scrollSegmentIntoVisibleArea } from './player/scrollSegment';
 import { useLoopDrag } from './player/useLoopDrag';
-import SegmentItem from './player/SegmentItem';
+import SegmentCard from './player/SegmentCard';
+import GutterCell from './player/GutterCell';
 
 interface SegmentListProps {
   readonly segments: readonly Segment[];
@@ -92,27 +93,39 @@ export default function SegmentList({
   return (
     <ol className={`space-y-4 pb-4 ${dragging ? 'select-none' : ''}`}>
       {segments.map((segment) => {
+        const isActive = activeSegmentId === segment.id;
         const inRange = rangeSet ? rangeSet.has(segment.id) : false;
         const isRangeStart = segment.id === loopRange?.firstSegmentId;
         const isRangeEnd = segment.id === loopRange?.lastSegmentId;
         return (
-          <SegmentItem
+          <li
             key={segment.id}
-            segment={segment}
-            isActive={activeSegmentId === segment.id}
-            controls={controls}
-            podcastSlug={podcastSlug}
-            episodeNumber={episodeNumber}
-            episodeHref={episodeHref}
-            isLooping={isLooping}
-            inRange={inRange}
-            isRangeStart={isRangeStart}
-            isRangeEnd={isRangeEnd}
-            onStartHandlePointerDown={(e) => handlePointerDown('start', e)}
-            onEndHandlePointerDown={(e) => handlePointerDown('end', e)}
-            onStartHandleKeyDown={makeHandleKeyDown('start', segments, controls)}
-            onEndHandleKeyDown={makeHandleKeyDown('end', segments, controls)}
-          />
+            data-segment-id={segment.id}
+            data-active={isActive || undefined}
+            onClick={() => controls.seekToSegment(segment.id)}
+            className="flex items-stretch gap-2"
+          >
+            {isLooping && (
+              <GutterCell
+                segmentId={segment.id}
+                inRange={inRange}
+                isRangeStart={isRangeStart}
+                isRangeEnd={isRangeEnd}
+                onStartPointerDown={(e) => handlePointerDown('start', e)}
+                onEndPointerDown={(e) => handlePointerDown('end', e)}
+                onStartKeyDown={makeHandleKeyDown('start', segments, controls)}
+                onEndKeyDown={makeHandleKeyDown('end', segments, controls)}
+              />
+            )}
+            <SegmentCard
+              segment={segment}
+              isActive={isActive}
+              isDimmed={isLooping && !inRange}
+              podcastSlug={podcastSlug}
+              episodeNumber={episodeNumber}
+              episodeHref={episodeHref}
+            />
+          </li>
         );
       })}
     </ol>
