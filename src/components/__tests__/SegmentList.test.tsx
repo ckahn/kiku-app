@@ -62,6 +62,7 @@ function makeControls(): PlayerControls {
     restart: vi.fn(),
     seekToSegment: vi.fn(),
     setLoopEndpoint: vi.fn(),
+    shiftLoopEndpoint: vi.fn(),
   };
 }
 

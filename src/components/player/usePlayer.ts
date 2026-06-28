@@ -20,6 +20,7 @@ export type PlayerControls = {
   restart: () => void;
   seekToSegment: (segmentId: number) => void;
   setLoopEndpoint: (which: Endpoint, segmentId: number) => void;
+  shiftLoopEndpoint: (which: Endpoint, direction: 'earlier' | 'later') => void;
 };
 
 export type UsePlayerReturn = {
@@ -190,6 +191,19 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
       const range = stateRef.current.loopRange;
       if (!range) return;
       const newRange = setLoopEndpointFn(segmentsRef.current, range, which, segmentId);
+      dispatch({ type: 'SET_LOOP', range: newRange });
+    }, []),
+
+    shiftLoopEndpoint: useCallback((which: Endpoint, direction: 'earlier' | 'later') => {
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const segs = [...segmentsRef.current].sort((a, b) => a.segmentIndex - b.segmentIndex);
+      const segmentId = which === 'start' ? range.firstSegmentId : range.lastSegmentId;
+      const idx = segs.findIndex((s) => s.id === segmentId);
+      if (idx === -1) return;
+      const step = direction === 'earlier' ? -1 : 1;
+      const newIdx = Math.max(0, Math.min(segs.length - 1, idx + step));
+      const newRange = setLoopEndpointFn(segmentsRef.current, range, which, segs[newIdx].id);
       dispatch({ type: 'SET_LOOP', range: newRange });
     }, []),
   };

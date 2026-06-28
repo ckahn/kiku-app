@@ -21,6 +21,8 @@ interface SegmentItemProps {
   readonly isRangeEnd?: boolean;
   readonly onStartHandlePointerDown?: (e: React.PointerEvent) => void;
   readonly onEndHandlePointerDown?: (e: React.PointerEvent) => void;
+  readonly onStartHandleKeyDown?: (e: React.KeyboardEvent) => void;
+  readonly onEndHandleKeyDown?: (e: React.KeyboardEvent) => void;
 }
 
 export default function SegmentItem({
@@ -36,6 +38,8 @@ export default function SegmentItem({
   isRangeEnd = false,
   onStartHandlePointerDown,
   onEndHandlePointerDown,
+  onStartHandleKeyDown,
+  onEndHandleKeyDown,
 }: SegmentItemProps) {
   const displayHtml = stripFurigana(segment.textFurigana);
   // 'new' renders no status glyph, so skip the indicator and its left gutter.
@@ -103,14 +107,14 @@ export default function SegmentItem({
         <div
           data-gutter-id={segment.id}
           className="relative flex w-11 shrink-0 items-center justify-center"
-          aria-hidden
           onClick={(e) => e.stopPropagation()}
         >
           {/* Faint full-height track so the gutter reads as a column. */}
-          <span className="absolute inset-y-0 w-1.5 rounded-full bg-border/50" />
+          <span aria-hidden className="absolute inset-y-0 w-1.5 rounded-full bg-border/50" />
           {/* Filled bar for in-range cells; capped only at the endpoints. */}
           {inRange && (
             <span
+              aria-hidden
               className={`absolute inset-y-0 w-1.5 bg-primary ${isRangeStart ? 'rounded-t-full' : ''} ${isRangeEnd ? 'rounded-b-full' : ''}`}
             />
           )}
@@ -119,11 +123,12 @@ export default function SegmentItem({
             <button
               type="button"
               onPointerDown={onStartHandlePointerDown}
+              onKeyDown={onStartHandleKeyDown}
               aria-label="Drag to move loop start"
               style={{ touchAction: 'none' }}
               className="absolute -top-1 flex h-11 w-11 cursor-grab items-start justify-center active:cursor-grabbing"
             >
-              <span className="h-4 w-4 rounded-full border-2 border-white bg-primary shadow" />
+              <span aria-hidden className="h-4 w-4 rounded-full border-2 border-white bg-primary shadow" />
             </button>
           )}
           {/* End handle on the last in-range cell. */}
@@ -131,11 +136,12 @@ export default function SegmentItem({
             <button
               type="button"
               onPointerDown={onEndHandlePointerDown}
+              onKeyDown={onEndHandleKeyDown}
               aria-label="Drag to move loop end"
               style={{ touchAction: 'none' }}
               className="absolute -bottom-1 flex h-11 w-11 cursor-grab items-end justify-center active:cursor-grabbing"
             >
-              <span className="h-4 w-4 rounded-full border-2 border-white bg-primary shadow" />
+              <span aria-hidden className="h-4 w-4 rounded-full border-2 border-white bg-primary shadow" />
             </button>
           )}
         </div>

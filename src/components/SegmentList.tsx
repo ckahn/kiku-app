@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { Segment } from '@/db/schema';
 import type { PlayerState } from './player/types';
 import type { PlayerControls } from './player/usePlayer';
-import type { LoopRange } from './player/loopRange';
+import type { LoopRange, Endpoint } from './player/loopRange';
 import { findActiveSegmentId } from './player/segmentUtils';
 import { scrollSegmentIntoVisibleArea } from './player/scrollSegment';
 import { useLoopDrag } from './player/useLoopDrag';
@@ -28,6 +28,34 @@ function buildRangeSet(segments: readonly Segment[], range: LoopRange): Set<numb
     ids.add(segments[i].id);
   }
   return ids;
+}
+
+function makeHandleKeyDown(
+  which: Endpoint,
+  segments: readonly Segment[],
+  controls: PlayerControls,
+) {
+  return (e: React.KeyboardEvent) => {
+    const isArrowEarlier = e.key === 'ArrowUp' || e.key === 'ArrowLeft';
+    const isArrowLater = e.key === 'ArrowDown' || e.key === 'ArrowRight';
+    const isHome = e.key === 'Home';
+    const isEnd = e.key === 'End';
+    if (!isArrowEarlier && !isArrowLater && !isHome && !isEnd) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (isArrowEarlier) {
+      controls.shiftLoopEndpoint(which, 'earlier');
+    } else if (isArrowLater) {
+      controls.shiftLoopEndpoint(which, 'later');
+    } else {
+      const sorted = [...segments].sort((a, b) => a.segmentIndex - b.segmentIndex);
+      if (sorted.length === 0) return;
+      const targetId = isHome ? sorted[0].id : sorted[sorted.length - 1].id;
+      controls.setLoopEndpoint(which, targetId);
+    }
+  };
 }
 
 export default function SegmentList({
@@ -82,6 +110,8 @@ export default function SegmentList({
             isRangeEnd={isRangeEnd}
             onStartHandlePointerDown={(e) => handlePointerDown('start', e)}
             onEndHandlePointerDown={(e) => handlePointerDown('end', e)}
+            onStartHandleKeyDown={makeHandleKeyDown('start', segments, controls)}
+            onEndHandleKeyDown={makeHandleKeyDown('end', segments, controls)}
           />
         );
       })}
