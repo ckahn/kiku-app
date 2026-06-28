@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { makeAnchor, validateRange, setEndpoint } from '../loopRange';
+import { makeAnchor, validateRange, setEndpoint, isInRange } from '../loopRange';
 import type { LoopRange } from '../loopRange';
 import type { Segment } from '@/db/schema';
 
@@ -63,6 +63,35 @@ describe('validateRange', () => {
 
   it('returns null when first comes after last in segment order', () => {
     expect(validateRange(segs, { firstSegmentId: C.id, lastSegmentId: A.id })).toBeNull();
+  });
+});
+
+describe('isInRange', () => {
+  const range: LoopRange = { firstSegmentId: A.id, lastSegmentId: C.id };
+
+  it('returns true for the first segment', () => {
+    expect(isInRange(segs, range, A.id)).toBe(true);
+  });
+
+  it('returns true for a middle segment', () => {
+    expect(isInRange(segs, range, B.id)).toBe(true);
+  });
+
+  it('returns true for the last segment', () => {
+    expect(isInRange(segs, range, C.id)).toBe(true);
+  });
+
+  it('returns false for a segment outside the range', () => {
+    const D = seg(4, 3);
+    expect(isInRange([...segs, D], range, D.id)).toBe(false);
+  });
+
+  it('returns true for a length-1 range when querying its only segment', () => {
+    expect(isInRange(segs, makeAnchor(B.id), B.id)).toBe(true);
+  });
+
+  it('returns false when the segmentId is not in segments at all', () => {
+    expect(isInRange(segs, range, 99)).toBe(false);
   });
 });
 

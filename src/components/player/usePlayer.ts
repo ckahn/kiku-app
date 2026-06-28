@@ -7,7 +7,7 @@ import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
-import { makeAnchor, validateRange, setEndpoint as setLoopEndpointFn, type Endpoint } from './loopRange';
+import { makeAnchor, validateRange, setEndpoint as setLoopEndpointFn, isInRange, type Endpoint } from './loopRange';
 
 export type PlayerControls = {
   play: () => void;
@@ -180,7 +180,8 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
       const segment = segmentsRef.current.find((c) => c.id === segmentId);
       if (!segment) return;
       seekAndSyncState(segmentStartSec(segment));
-      if (stateRef.current.loopRange !== null) {
+      const range = stateRef.current.loopRange;
+      if (range !== null && !isInRange(segmentsRef.current, range, segmentId)) {
         dispatch({ type: 'SET_LOOP', range: makeAnchor(segmentId) });
       }
     }, [seekAndSyncState]),

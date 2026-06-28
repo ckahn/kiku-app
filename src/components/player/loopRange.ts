@@ -35,6 +35,20 @@ export function validateRange(
   return range;
 }
 
+// Returns true if segmentId falls within the range (inclusive on both ends).
+export function isInRange(
+  segments: readonly Segment[],
+  range: LoopRange,
+  segmentId: number,
+): boolean {
+  const segs = sorted(segments);
+  const firstIdx = idxOf(segs, range.firstSegmentId);
+  const lastIdx = idxOf(segs, range.lastSegmentId);
+  const targetIdx = idxOf(segs, segmentId);
+  if (firstIdx === -1 || lastIdx === -1 || targetIdx === -1) return false;
+  return targetIdx >= firstIdx && targetIdx <= lastIdx;
+}
+
 // Move one endpoint to targetSegmentId, clamping so start <= end.
 // Dragging past the partner pins to the partner (length-1 range).
 // Returns the range unchanged if targetSegmentId is not in segments.
