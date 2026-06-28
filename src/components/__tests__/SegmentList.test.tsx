@@ -61,12 +61,6 @@ function makeControls(): PlayerControls {
     toggleLoop: vi.fn(),
     restart: vi.fn(),
     seekToSegment: vi.fn(),
-    tapSegment: vi.fn(),
-    growLoopUp: vi.fn(),
-    growLoopDown: vi.fn(),
-    shrinkLoopUp: vi.fn(),
-    shrinkLoopDown: vi.fn(),
-    clearLoop: vi.fn(),
   };
 }
 
@@ -104,14 +98,14 @@ describe('SegmentList', () => {
     expect(screen.getByText('今日も')).toBeInTheDocument();
   });
 
-  it('clicking a segment calls controls.tapSegment with the segment id', () => {
+  it('clicking a segment calls controls.seekToSegment with the segment id', () => {
     const controls = makeControls();
     const segments = [makeSegment({ id: 5, segmentIndex: 0 })];
     render(
       <SegmentList segments={segments} playerState={playerState()} controls={controls} />,
     );
     fireEvent.click(screen.getByRole('listitem'));
-    expect(controls.tapSegment).toHaveBeenCalledWith(5);
+    expect(controls.seekToSegment).toHaveBeenCalledWith(5);
   });
 
   it('active segment during playback has data-active attribute', () => {
@@ -294,174 +288,4 @@ describe('SegmentList', () => {
     );
   });
 
-  describe('loop band visual affordances', () => {
-    const threeSegs = [
-      makeSegment({ id: 1, segmentIndex: 0 }),
-      makeSegment({ id: 2, segmentIndex: 1 }),
-      makeSegment({ id: 3, segmentIndex: 2 }),
-    ];
-
-    it('in-band segments receive data-in-loop; out-of-band do not', () => {
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 1, lastSegmentId: 2 } })}
-          controls={makeControls()}
-        />,
-      );
-      const items = screen.getAllByRole('listitem');
-      expect(items[0]).toHaveAttribute('data-in-loop');
-      expect(items[1]).toHaveAttribute('data-in-loop');
-      expect(items[2]).not.toHaveAttribute('data-in-loop');
-    });
-
-    it('first and last in-band segments receive data-loop-edge; middle segments do not', () => {
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 1, lastSegmentId: 3 } })}
-          controls={makeControls()}
-        />,
-      );
-      const items = screen.getAllByRole('listitem');
-      expect(items[0]).toHaveAttribute('data-loop-edge');
-      expect(items[1]).not.toHaveAttribute('data-loop-edge');
-      expect(items[2]).toHaveAttribute('data-loop-edge');
-    });
-
-    it('single-segment band gets both data-in-loop and data-loop-edge', () => {
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 2, lastSegmentId: 2 } })}
-          controls={makeControls()}
-        />,
-      );
-      const items = screen.getAllByRole('listitem');
-      expect(items[1]).toHaveAttribute('data-in-loop');
-      expect(items[1]).toHaveAttribute('data-loop-edge');
-    });
-
-    it('shows Expand loop up strip on the first-in-band card when a segment exists above', () => {
-      // band starts at seg 2, so seg 1 is above → ^ strip on seg 2
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 2, lastSegmentId: 3 } })}
-          controls={makeControls()}
-        />,
-      );
-      expect(screen.getByRole('button', { name: 'Expand loop up' })).toBeInTheDocument();
-    });
-
-    it('hides Expand loop up when band starts at the top of the list', () => {
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 1, lastSegmentId: 2 } })}
-          controls={makeControls()}
-        />,
-      );
-      expect(screen.queryByRole('button', { name: 'Expand loop up' })).toBeNull();
-    });
-
-    it('shows Expand loop down strip on the last-in-band card when a segment exists below', () => {
-      // band ends at seg 2, so seg 3 is below → v strip on seg 2
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 1, lastSegmentId: 2 } })}
-          controls={makeControls()}
-        />,
-      );
-      expect(screen.getByRole('button', { name: 'Expand loop down' })).toBeInTheDocument();
-    });
-
-    it('hides Expand loop down when band ends at the bottom of the list', () => {
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 2, lastSegmentId: 3 } })}
-          controls={makeControls()}
-        />,
-      );
-      expect(screen.queryByRole('button', { name: 'Expand loop down' })).toBeNull();
-    });
-
-    it('shows x shrink strips on edge cards when band length >= 2', () => {
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 1, lastSegmentId: 3 } })}
-          controls={makeControls()}
-        />,
-      );
-      expect(screen.getByRole('button', { name: 'Shrink loop up' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Shrink loop down' })).toBeInTheDocument();
-    });
-
-    it('hides x shrink strips when band is length 1', () => {
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 2, lastSegmentId: 2 } })}
-          controls={makeControls()}
-        />,
-      );
-      expect(screen.queryByRole('button', { name: 'Shrink loop up' })).toBeNull();
-      expect(screen.queryByRole('button', { name: 'Shrink loop down' })).toBeNull();
-    });
-
-    it('Expand loop up strip calls controls.growLoopUp', () => {
-      const controls = makeControls();
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 2, lastSegmentId: 3 } })}
-          controls={controls}
-        />,
-      );
-      fireEvent.click(screen.getByRole('button', { name: 'Expand loop up' }));
-      expect(controls.growLoopUp).toHaveBeenCalledOnce();
-    });
-
-    it('Expand loop down strip calls controls.growLoopDown', () => {
-      const controls = makeControls();
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 1, lastSegmentId: 2 } })}
-          controls={controls}
-        />,
-      );
-      fireEvent.click(screen.getByRole('button', { name: 'Expand loop down' }));
-      expect(controls.growLoopDown).toHaveBeenCalledOnce();
-    });
-
-    it('Shrink loop up strip calls controls.shrinkLoopUp', () => {
-      const controls = makeControls();
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 1, lastSegmentId: 3 } })}
-          controls={controls}
-        />,
-      );
-      fireEvent.click(screen.getByRole('button', { name: 'Shrink loop up' }));
-      expect(controls.shrinkLoopUp).toHaveBeenCalledOnce();
-    });
-
-    it('Shrink loop down strip calls controls.shrinkLoopDown', () => {
-      const controls = makeControls();
-      render(
-        <SegmentList
-          segments={threeSegs}
-          playerState={playerState({ loopRange: { firstSegmentId: 1, lastSegmentId: 3 } })}
-          controls={controls}
-        />,
-      );
-      fireEvent.click(screen.getByRole('button', { name: 'Shrink loop down' }));
-      expect(controls.shrinkLoopDown).toHaveBeenCalledOnce();
-    });
-  });
 });

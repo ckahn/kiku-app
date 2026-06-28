@@ -1,14 +1,13 @@
 'use client';
 
-import { useReducer, useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useReducer, useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import type { Segment } from '@/db/schema';
 import { playerReducer, initialPlayerState } from './playerReducer';
 import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
-import type { LoopRange } from './loopRange';
-import { makeAnchor, validateRange, growUp, growDown, shrinkUp, shrinkDown, isInRange, rangeLength } from './loopRange';
+import { makeAnchor, validateRange } from './loopRange';
 
 export type PlayerControls = {
   play: () => void;
@@ -20,12 +19,6 @@ export type PlayerControls = {
   toggleLoop: () => void;
   restart: () => void;
   seekToSegment: (segmentId: number) => void;
-  tapSegment: (segmentId: number) => void;
-  growLoopUp: () => void;
-  growLoopDown: () => void;
-  shrinkLoopUp: () => void;
-  shrinkLoopDown: () => void;
-  clearLoop: () => void;
 };
 
 export type UsePlayerReturn = {
@@ -34,7 +27,6 @@ export type UsePlayerReturn = {
   controls: PlayerControls;
   isLoading: boolean;
   durationSec: number;
-  loopLength: number;
   playbackError: string | null;
   clearPlaybackError: () => void;
 };
@@ -136,19 +128,6 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     [durationMs],
   );
 
-  // The four grow/shrink controls differ only in which pure loopRange helper
-  // they apply, so share one factory: read the current range, run the mutator,
-  // and dispatch the result when it produces a new (non-null) range.
-  const makeLoopMutator = useCallback(
-    (mutate: (segs: readonly Segment[], range: LoopRange) => LoopRange | null) => () => {
-      const range = stateRef.current.loopRange;
-      if (!range) return;
-      const next = mutate(segmentsRef.current, range);
-      if (next) dispatch({ type: 'SET_LOOP', range: next });
-    },
-    [],
-  );
-
   const controls: PlayerControls = {
     play: useCallback(() => {
       setPlaybackError(null);
@@ -204,35 +183,6 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
         dispatch({ type: 'SET_LOOP', range: makeAnchor(segmentId) });
       }
     }, [seekAndSyncState]),
-
-    // The card-body tap. Semantics depend on loop state per the spec table:
-    //   loop off          → pure seek (unchanged behavior)
-    //   inside band       → seek only; range untouched
-    //   outside band      → clear loop + seek
-    tapSegment: useCallback((segmentId: number) => {
-      const range = stateRef.current.loopRange;
-      const segs = segmentsRef.current;
-      const segment = segs.find((s) => s.id === segmentId);
-      if (!segment) return;
-      const startSec = segmentStartSec(segment);
-
-      if (range === null || isInRange(segs, range, segmentId)) {
-        seekAndSyncState(startSec);
-      } else {
-        // Outside band — clear the loop, then seek.
-        dispatch({ type: 'SET_LOOP', range: null });
-        seekAndSyncState(startSec);
-      }
-    }, [seekAndSyncState]),
-
-    growLoopUp: useMemo(() => makeLoopMutator(growUp), [makeLoopMutator]),
-    growLoopDown: useMemo(() => makeLoopMutator(growDown), [makeLoopMutator]),
-    shrinkLoopUp: useMemo(() => makeLoopMutator(shrinkUp), [makeLoopMutator]),
-    shrinkLoopDown: useMemo(() => makeLoopMutator(shrinkDown), [makeLoopMutator]),
-
-    clearLoop: useCallback(() => {
-      dispatch({ type: 'SET_LOOP', range: null });
-    }, []),
   };
 
   const clearPlaybackError = useCallback(() => {
@@ -246,7 +196,6 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     controls,
     isLoading: engine.status === 'loading',
     durationSec: engine.durationSec > 0 ? engine.durationSec : durationMs / 1000,
-    loopLength: state.loopRange ? rangeLength(segments, state.loopRange) : 0,
     playbackError,
     clearPlaybackError,
   };

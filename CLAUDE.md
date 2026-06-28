@@ -105,11 +105,13 @@ type PlayerState = {
 };
 ```
 
-`isLooping` is **derived** at the UI boundary (`loopRange !== null`) — there is no separate boolean field. A length-1 range (`firstSegmentId === lastSegmentId`) is the degenerate case equivalent to the old single-segment loop.
+`isLooping` is **derived** at the UI boundary (`loopRange !== null`) — there is no separate boolean field. A length-1 range (`firstSegmentId === lastSegmentId`) is the degenerate case equivalent to the single-segment loop.
+
+The `loopRange` data model is in place as **plumbing for a future range-loop UI**, but the current UI only ever creates length-1 ranges: `toggleLoop` anchors the active segment, and that's the whole interaction. The grow/shrink/band affordances were intentionally removed pending a UI revamp — `loopRange.ts` exposes only `makeAnchor` and `validateRange`, and `usePlayer` exposes only `toggleLoop` + `seekToSegment` for loop control.
 
 **Two loop contexts (scopes are isolated):**
 
-- **Episode page** (`/podcasts/[slug]/episodes/[number]`) — contiguous range loop via `loopRange` in `PlayerState`. The user anchors a segment, then grows/shrinks the range with dedicated handles. Persistence is deferred (ephemeral per-visit for now; see `studyNavigation.ts` for the localStorage pattern to follow in the follow-up PR).
+- **Episode page** (`/podcasts/[slug]/episodes/[number]`) — single-segment loop via `loopRange` (length-1) in `PlayerState`. Toggling loop anchors the active segment; the boundary effect in `usePlayer` seeks back to the segment's start on reaching its `end_ms`. No persistence yet (ephemeral per-visit; see `studyNavigation.ts` for the localStorage pattern to follow when range looping is added).
 - **Per-segment study page** (`…/segments/[index]/study`) — single-segment loop via local `useState(isLooping)` in `StudyScreen.tsx`. Self-contained; does not import `usePlayer`, `PlayerControls`, or `playerReducer`.
 
 State management: React `useState`/`useReducer` only — no external state library.

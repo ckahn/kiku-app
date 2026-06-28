@@ -10,7 +10,7 @@ interface AudioPlayerProps {
 }
 
 export default function AudioPlayer({ player, onRestart }: AudioPlayerProps) {
-  const { state, controls, isLoading, durationSec, loopLength, playbackError } = player;
+  const { state, controls, isLoading, durationSec, playbackError } = player;
 
   return (
     <div
@@ -37,7 +37,6 @@ export default function AudioPlayer({ player, onRestart }: AudioPlayerProps) {
         <PlayerControls
           isPlaying={state.isPlaying}
           isLooping={state.loopRange !== null}
-          loopLength={loopLength}
           onPlay={controls.play}
           onPause={controls.pause}
           onRewind={controls.rewind}

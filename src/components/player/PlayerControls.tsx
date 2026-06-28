@@ -5,7 +5,6 @@ import { Play, Pause, Rewind, FastForward, SkipBack, Repeat } from 'lucide-react
 interface PlayerControlsProps {
   readonly isPlaying: boolean;
   readonly isLooping: boolean;
-  readonly loopLength: number;
   readonly onPlay: () => void;
   readonly onPause: () => void;
   readonly onRewind: () => void;
@@ -20,7 +19,6 @@ const PLAYER_CONTROL_BUTTON_CLASS = 'cursor-pointer p-3 transition-colors sm:p-1
 export default function PlayerControls({
   isPlaying,
   isLooping,
-  loopLength,
   onPlay,
   onPause,
   onRewind,
@@ -85,17 +83,6 @@ export default function PlayerControls({
       >
         <Repeat className="w-5 h-5 sm:w-[18px] sm:h-[18px]" />
       </button>
-      {isLooping && loopLength > 0 && (
-        <span
-          aria-label={`Looping ${loopLength} segment${loopLength !== 1 ? 's' : ''}`}
-          className="text-primary text-xs font-medium whitespace-nowrap pl-1"
-        >
-          <span className="sm:hidden">{loopLength}</span>
-          <span className="hidden sm:inline">
-            Looping · {loopLength} segment{loopLength !== 1 ? 's' : ''}
-          </span>
-        </span>
-      )}
     </div>
   );
 }
