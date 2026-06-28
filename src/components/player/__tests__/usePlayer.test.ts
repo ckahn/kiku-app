@@ -325,6 +325,29 @@ describe('restart', () => {
     expect(result.current.state.currentTime).toBe(0);
     expect(result.current.state.isPlaying).toBe(false);
   });
+
+  it('seeks to the loop start segment when looping, without stopping playback', () => {
+    engineMock._setTime(6); // inside SEG2
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.toggleLoop(); }); // anchors loop to SEG2
+    act(() => { engineMock.play(11); }); // advance within SEG2
+    act(() => { result.current.controls.restart(); });
+
+    expect(engineMock.restartAtZero).not.toHaveBeenCalled();
+    // SEG2 startMs = 5000, adjusted start = 4.9s
+    expect(result.current.state.currentTime).toBeCloseTo(4.9, 1);
+    expect(result.current.state.isPlaying).toBe(true);
+  });
+
+  it('does not stop playback when restarting to loop start', () => {
+    engineMock._setTime(6);
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+    act(() => { result.current.controls.toggleLoop(); });
+    act(() => { engineMock.play(6); });
+    act(() => { result.current.controls.restart(); });
+
+    expect(engineMock.isPlaying).toBe(true);
+  });
 });
 
 describe('shiftLoopEndpoint', () => {

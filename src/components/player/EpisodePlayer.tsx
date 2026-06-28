@@ -44,18 +44,19 @@ export default function EpisodePlayer({
   const { toggle, rewind, forward, toggleLoop, restart, shiftLoopEndpoint } = player.controls;
   useManualScrollRestoration();
   const handleRestart = useCallback(() => {
+    const loopRange = player.state.loopRange;
     restart();
 
-    const firstSegment = segments[0];
-    if (!firstSegment) {
-      return;
-    }
+    const targetSegment = loopRange
+      ? (segments.find((s) => s.id === loopRange.firstSegmentId) ?? segments[0])
+      : segments[0];
+    if (!targetSegment) return;
 
     if (episodeHref) {
-      saveEpisodeFocusState({ episodeHref, segmentId: firstSegment.id });
+      saveEpisodeFocusState({ episodeHref, segmentId: targetSegment.id });
     }
-    scrollSegmentToTop(firstSegment.id);
-  }, [restart, segments, episodeHref]);
+    scrollSegmentToTop(targetSegment.id);
+  }, [restart, segments, episodeHref, player.state.loopRange]);
 
   useEpisodeKeyboardShortcuts({ toggle, rewind, forward, toggleLoop, restart: handleRestart, shiftLoopEndpoint });
 

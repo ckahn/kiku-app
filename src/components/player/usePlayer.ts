@@ -173,9 +173,17 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     }, []),
 
     restart: useCallback(() => {
+      const range = stateRef.current.loopRange;
+      if (range) {
+        const firstSeg = segmentsRef.current.find((s) => s.id === range.firstSegmentId);
+        if (firstSeg) {
+          seekAndSyncState(segmentStartSec(firstSeg));
+          return;
+        }
+      }
       audioEngine.restartAtZero();
       dispatch({ type: 'RESTART', payload: 0 });
-    }, []),
+    }, [seekAndSyncState]),
 
     seekToSegment: useCallback((segmentId: number) => {
       const segment = segmentsRef.current.find((c) => c.id === segmentId);
