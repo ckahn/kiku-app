@@ -51,12 +51,9 @@ export default function SegmentCard({
           {formatMs(segment.startMs)}
         </span>
       </div>
-      <p
-        className="text-lg text-ink font-jp leading-loose pr-7"
-        // textFurigana is Claude-generated HTML containing only <ruby>/<rt> tags.
-        // It is not user-supplied input.
-        dangerouslySetInnerHTML={{ __html: displayHtml }}
-      />
+      <p className="text-lg text-ink font-jp leading-loose pr-7">
+        {displayHtml}
+      </p>
       {studyHref && (
         <Link
           href={studyHref}
