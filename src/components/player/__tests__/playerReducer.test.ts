@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { playerReducer, initialPlayerState } from '../player/playerReducer';
-import type { PlayerState } from '../player/types';
+import { playerReducer, initialPlayerState } from '../playerReducer';
+import type { PlayerState } from '../types';
 
 function state(overrides: Partial<PlayerState> = {}): PlayerState {
   return { ...initialPlayerState, ...overrides };
@@ -47,22 +47,31 @@ describe('playerReducer', () => {
     });
 
     it('preserves other state fields', () => {
-      const s = state({ isPlaying: true, isLooping: true });
+      const loop = { firstSegmentId: 1, lastSegmentId: 2 };
+      const s = state({ isPlaying: true, loopRange: loop });
       const result = playerReducer(s, { type: 'SET_TIME', payload: 10 });
       expect(result.isPlaying).toBe(true);
-      expect(result.isLooping).toBe(true);
+      expect(result.loopRange).toEqual(loop);
     });
   });
 
-  describe('TOGGLE_LOOP', () => {
-    it('flips isLooping from false to true', () => {
-      const result = playerReducer(state({ isLooping: false }), { type: 'TOGGLE_LOOP' });
-      expect(result.isLooping).toBe(true);
+  describe('SET_LOOP', () => {
+    it('stores a range', () => {
+      const range = { firstSegmentId: 1, lastSegmentId: 3 };
+      const result = playerReducer(state(), { type: 'SET_LOOP', range });
+      expect(result.loopRange).toEqual(range);
     });
 
-    it('flips isLooping from true to false', () => {
-      const result = playerReducer(state({ isLooping: true }), { type: 'TOGGLE_LOOP' });
-      expect(result.isLooping).toBe(false);
+    it('clears the range when given null', () => {
+      const s = state({ loopRange: { firstSegmentId: 1, lastSegmentId: 1 } });
+      const result = playerReducer(s, { type: 'SET_LOOP', range: null });
+      expect(result.loopRange).toBeNull();
+    });
+
+    it('does not mutate the previous state', () => {
+      const original = state();
+      playerReducer(original, { type: 'SET_LOOP', range: { firstSegmentId: 2, lastSegmentId: 4 } });
+      expect(original.loopRange).toBeNull();
     });
   });
 
@@ -76,9 +85,9 @@ describe('playerReducer', () => {
   });
 
   describe('initialPlayerState', () => {
-    it('starts paused, not looping, at time 0', () => {
+    it('starts paused, with no loop range, at time 0', () => {
       expect(initialPlayerState.isPlaying).toBe(false);
-      expect(initialPlayerState.isLooping).toBe(false);
+      expect(initialPlayerState.loopRange).toBeNull();
       expect(initialPlayerState.currentTime).toBe(0);
     });
   });

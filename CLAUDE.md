@@ -93,18 +93,26 @@ Upload → ElevenLabs STT → Claude segmenting → Claude furigana → ready. E
 
 ### Audio Player
 
-Single `<audio>` element for the whole file. Segment mode uses `currentTime` manipulation (seek to `segment.start_ms / 1000`, pause at `segment.end_ms / 1000`). No audio slicing.
+Single `<audio>` element for the whole file — playback is driven entirely by `currentTime` manipulation (seek to a segment's `start_ms / 1000`; when looping, seek back to the range's first segment on reaching the last segment's `end_ms`, with no pause between iterations). No audio slicing.
 
 ```ts
+type LoopRange = { firstSegmentId: number; lastSegmentId: number };
+
 type PlayerState = {
-  mode: 'global' | 'segment';
   isPlaying: boolean;
-  isLooping: boolean;
-  focusedSegmentId: string | null;
-  showFurigana: Record<string, boolean>;
+  loopRange: LoopRange | null;   // null = not looping; non-null = looping that contiguous range
   currentTime: number;
 };
 ```
+
+`isLooping` is **derived** at the UI boundary (`loopRange !== null`) — there is no separate boolean field. A length-1 range (`firstSegmentId === lastSegmentId`) is the degenerate case equivalent to the single-segment loop.
+
+The `loopRange` data model is in place as **plumbing for a future range-loop UI**, but the current UI only ever creates length-1 ranges: `toggleLoop` anchors the active segment, and that's the whole interaction. The grow/shrink/band affordances were intentionally removed pending a UI revamp — `loopRange.ts` exposes only `makeAnchor` and `validateRange`, and `usePlayer` exposes only `toggleLoop` + `seekToSegment` for loop control.
+
+**Two loop contexts (scopes are isolated):**
+
+- **Episode page** (`/podcasts/[slug]/episodes/[number]`) — single-segment loop via `loopRange` (length-1) in `PlayerState`. Toggling loop anchors the active segment; the boundary effect in `usePlayer` seeks back to the segment's start on reaching its `end_ms`. No persistence yet (ephemeral per-visit; see `studyNavigation.ts` for the localStorage pattern to follow when range looping is added).
+- **Per-segment study page** (`…/segments/[index]/study`) — single-segment loop via local `useState(isLooping)` in `StudyScreen.tsx`. Self-contained; does not import `usePlayer`, `PlayerControls`, or `playerReducer`.
 
 State management: React `useState`/`useReducer` only — no external state library.
 

@@ -7,6 +7,7 @@ import type { PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
+import { makeAnchor, validateRange } from './loopRange';
 
 export type PlayerControls = {
   play: () => void;
@@ -53,9 +54,6 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
     segmentsRef.current = segments;
   });
 
-  // Tracks which segment is being looped.
-  const loopSegmentRef = useRef<Segment | null>(null);
-
   // Sync engine isPlaying → reducer state.
   useEffect(() => {
     if (engine.isPlaying) {
@@ -66,34 +64,46 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
   }, [engine.isPlaying]);
 
   // Sync currentTime into reducer state and enforce segment boundary looping.
+  // On crossing the last segment's end, seek straight back to the first
+  // segment's start (no pause beat). Seeking moves currentTime below the
+  // boundary, so the effect won't re-fire for the same crossing.
   useEffect(() => {
     dispatch({ type: 'SET_TIME', payload: engine.currentTime });
 
-    if (stateRef.current.isLooping && engine.isPlaying) {
-      const t = engine.currentTime;
-      if (!loopSegmentRef.current) {
-        // First tick with loop on: lock onto whatever segment is playing.
-        // Use findActiveSegmentId so the shifted offset windows are respected.
-        const activeId = findActiveSegmentId(segmentsRef.current, t);
-        loopSegmentRef.current = segmentsRef.current.find((c) => c.id === activeId) ?? null;
-      } else if (t >= loopSegmentRef.current.endMs / 1000) {
-        audioEngine.seek(segmentStartSec(loopSegmentRef.current));
+    const range = stateRef.current.loopRange;
+    if (range && engine.isPlaying) {
+      const segs = segmentsRef.current;
+      const lastSeg = segs.find((s) => s.id === range.lastSegmentId);
+      if (lastSeg && engine.currentTime >= lastSeg.endMs / 1000) {
+        const firstSeg = segs.find((s) => s.id === range.firstSegmentId);
+        if (firstSeg) {
+          audioEngine.play(segmentStartSec(firstSeg));
+        }
       }
-    } else if (!stateRef.current.isLooping) {
-      loopSegmentRef.current = null;
     }
   }, [engine.currentTime, engine.isPlaying]);
 
-  // When the audio file reaches its natural end while looping, restart from
-  // the locked segment start. This handles the edge case where endMs equals
-  // file duration and the boundary enforcement above doesn't trigger in time.
+  // When the audio file reaches its natural end while looping, restart from the
+  // first segment. Handles the edge case where the last segment's endMs equals
+  // the file duration and the boundary check above can't catch it in time.
   useEffect(() => {
     return audioEngine.subscribeToEnd(() => {
-      if (stateRef.current.isLooping && loopSegmentRef.current) {
-        audioEngine.play(segmentStartSec(loopSegmentRef.current));
-      }
+      const range = stateRef.current.loopRange;
+      if (!range) return;
+      const firstSeg = segmentsRef.current.find((s) => s.id === range.firstSegmentId);
+      if (!firstSeg) return;
+      audioEngine.play(segmentStartSec(firstSeg));
     });
   }, []);
+
+  // Drop a stale loopRange when segments change (e.g. after re-segmentation).
+  useEffect(() => {
+    const range = stateRef.current.loopRange;
+    if (!range) return;
+    if (!validateRange(segments, range)) {
+      dispatch({ type: 'SET_LOOP', range: null });
+    }
+  }, [segments]);
 
   // Surface engine errors as playbackError strings, unless the user has
   // already dismissed this exact error via clearPlaybackError(). Subscribe
@@ -149,7 +159,16 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
       seekAndSyncState(stateRef.current.currentTime + 5);
     }, [seekAndSyncState]),
 
-    toggleLoop: useCallback(() => dispatch({ type: 'TOGGLE_LOOP' }), []),
+    toggleLoop: useCallback(() => {
+      if (stateRef.current.loopRange === null) {
+        const activeId = findActiveSegmentId(segmentsRef.current, stateRef.current.currentTime);
+        if (activeId !== null) {
+          dispatch({ type: 'SET_LOOP', range: makeAnchor(activeId) });
+        }
+      } else {
+        dispatch({ type: 'SET_LOOP', range: null });
+      }
+    }, []),
 
     restart: useCallback(() => {
       audioEngine.restartAtZero();
@@ -158,10 +177,10 @@ export function usePlayer(segments: readonly Segment[], durationMs: number, audi
 
     seekToSegment: useCallback((segmentId: number) => {
       const segment = segmentsRef.current.find((c) => c.id === segmentId);
-      if (segment) {
-        const startSec = segmentStartSec(segment);
-        seekAndSyncState(startSec);
-        loopSegmentRef.current = segment;
+      if (!segment) return;
+      seekAndSyncState(segmentStartSec(segment));
+      if (stateRef.current.loopRange !== null) {
+        dispatch({ type: 'SET_LOOP', range: makeAnchor(segmentId) });
       }
     }, [seekAndSyncState]),
   };
