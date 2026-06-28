@@ -227,7 +227,7 @@ export default function StudyScreen({
 
   return (
     <div className="space-y-6">
-      <div>
+      <header className="space-y-1">
         <button
           type="button"
           onClick={handleBack}
@@ -235,9 +235,6 @@ export default function StudyScreen({
         >
           ← Full episode
         </button>
-      </div>
-
-      <header className="space-y-1">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted">Segment {segment.segmentIndex + 1} of {totalSegments}</p>
           <div className="flex items-center gap-3">

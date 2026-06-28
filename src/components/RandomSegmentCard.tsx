@@ -31,12 +31,13 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
   const pendingPlayRef = useRef(false);
 
   // Auto-play as soon as the buffer is ready if one was queued.
+  const queuedStartSec = segmentStartSec(segment);
   useEffect(() => {
     if (engine.status === 'ready' && pendingPlayRef.current) {
       pendingPlayRef.current = false;
-      audioEngine.play(segmentStartSec(segment));
+      audioEngine.play(queuedStartSec);
     }
-  }, [engine.status, segment.startMs]);
+  }, [engine.status, queuedStartSec]);
 
   // Reset UI if loading fails while a play is queued.
   useEffect(() => {
