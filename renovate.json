@@ -1,6 +1,38 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended"
+  "extends": ["config:recommended"],
+  "schedule": ["every weekend"],
+  "minimumReleaseAge": "7 days",
+  "packageRules": [
+    {
+      "description": "Group dev tooling patches/minors into one PR — low risk, high noise",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "dev tooling",
+      "automerge": true
+    },
+    {
+      "description": "Next.js + React core — review manually, can have breaking changes",
+      "matchPackageNames": ["next", "react", "react-dom", "eslint-config-next"],
+      "groupName": "Next.js + React core",
+      "automerge": false
+    },
+    {
+      "description": "Vercel AI SDK — minor versions have had breaking changes; keep together and review",
+      "matchPackageNames": ["ai", "@ai-sdk/anthropic", "@ai-sdk/elevenlabs"],
+      "groupName": "Vercel AI SDK",
+      "automerge": false
+    },
+    {
+      "description": "Drizzle — orm and kit must stay in sync",
+      "matchPackageNames": ["drizzle-orm", "drizzle-kit"],
+      "groupName": "Drizzle ORM",
+      "automerge": false
+    },
+    {
+      "description": "Major version bumps always need manual review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
   ]
 }
