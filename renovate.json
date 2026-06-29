@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["every weekend"],
+  "npm": {
+    "minimumReleaseAge": "7 days"
+  },
+  "packageRules": [
+    {
+      "description": "Group dev tooling patches/minors into one PR — low risk, high noise. Excludes packages covered by specific group rules below.",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "excludePackageNames": [
+        "next", "react", "react-dom", "eslint-config-next",
+        "ai", "@ai-sdk/anthropic", "@ai-sdk/elevenlabs",
+        "drizzle-orm", "drizzle-kit"
+      ],
+      "groupName": "dev tooling",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Next.js + React core — review manually, can have breaking changes",
+      "matchPackageNames": ["next", "react", "react-dom", "eslint-config-next"],
+      "groupName": "Next.js + React core",
+      "automerge": false
+    },
+    {
+      "description": "Vercel AI SDK — minor versions have had breaking changes; keep together and review",
+      "matchPackageNames": ["ai", "@ai-sdk/anthropic", "@ai-sdk/elevenlabs"],
+      "groupName": "Vercel AI SDK",
+      "automerge": false
+    },
+    {
+      "description": "Drizzle + Neon driver — must stay in sync",
+      "matchPackageNames": ["drizzle-orm", "drizzle-kit", "@neondatabase/serverless"],
+      "groupName": "Drizzle ORM",
+      "automerge": false
+    },
+    {
+      "description": "Major version bumps always need manual review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ]
+}
