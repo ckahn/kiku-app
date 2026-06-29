@@ -2,14 +2,22 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "schedule": ["every weekend"],
-  "minimumReleaseAge": "7 days",
+  "npm": {
+    "minimumReleaseAge": "7 days"
+  },
   "packageRules": [
     {
-      "description": "Group dev tooling patches/minors into one PR — low risk, high noise",
+      "description": "Group dev tooling patches/minors into one PR — low risk, high noise. Excludes packages covered by specific group rules below.",
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
+      "excludePackageNames": [
+        "next", "react", "react-dom", "eslint-config-next",
+        "ai", "@ai-sdk/anthropic", "@ai-sdk/elevenlabs",
+        "drizzle-orm", "drizzle-kit"
+      ],
       "groupName": "dev tooling",
-      "automerge": true
+      "automerge": true,
+      "automergeType": "pr"
     },
     {
       "description": "Next.js + React core — review manually, can have breaking changes",
@@ -24,9 +32,14 @@
       "automerge": false
     },
     {
-      "description": "Drizzle — orm and kit must stay in sync",
-      "matchPackageNames": ["drizzle-orm", "drizzle-kit"],
+      "description": "Drizzle + Neon driver — must stay in sync",
+      "matchPackageNames": ["drizzle-orm", "drizzle-kit", "@neondatabase/serverless"],
       "groupName": "Drizzle ORM",
+      "automerge": false
+    },
+    {
+      "description": "Zod — used for API-boundary validation with generateObject; keep manual",
+      "matchPackageNames": ["zod"],
       "automerge": false
     },
     {
