@@ -38,11 +38,6 @@
       "automerge": false
     },
     {
-      "description": "Zod — used for API-boundary validation with generateObject; keep manual",
-      "matchPackageNames": ["zod"],
-      "automerge": false
-    },
-    {
       "description": "Major version bumps always need manual review",
       "matchUpdateTypes": ["major"],
       "automerge": false
