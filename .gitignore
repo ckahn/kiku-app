@@ -22,7 +22,9 @@
 
 # misc
 .DS_Store
-.claude/
+# ignore .claude except committed project skills
+.claude/*
+!.claude/skills/
 /.planning/
 *.pem
 
