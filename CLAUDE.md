@@ -18,6 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Detailed procedures and guardrails live in the project skills under `.claude/skills/` (re-segmenting, migrations, mocks, pipeline, player state, furigana, route/study-guide recipes, verification). Prefer those over re-deriving from code.
 
+**If a change alters behavior described in `.claude/skills/` or this file, update the affected doc in the same commit.** A reference-consistency test (`src/test/skill-references.test.ts`) fails the suite when these docs cite files or skills that no longer exist, but it cannot catch descriptions that are merely outdated — that part is on you.
+
 ## Common Commands
 
 ```bash
