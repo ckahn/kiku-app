@@ -1,18 +1,22 @@
 ---
 name: processing-pipeline
-description: Use when working on transcription, segmentation, or episode processing — "how does an episode get processed", changing segmentation behavior or the strategy constants, debugging an episode stuck in uploaded/transcribing/segmenting, or whenever CLAUDE.md's pipeline description seems to contradict the code (it is stale in places).
+description: Use when working on transcription, segmentation, or episode processing — "how does an episode get processed", changing segmentation behavior or the strategy constants, or debugging an episode stuck in uploaded/transcribing/segmenting.
 ---
 
 # The episode processing pipeline (as actually implemented)
 
-## Corrections to CLAUDE.md (verified against code, 2026-06)
+## Facts that older references get wrong
+
+The app originally used Claude for segmenting and furigana; both were replaced.
+Old commits, PR descriptions, and any doc predating mid-2026 may still describe
+the Claude version:
 
 - **Segmenting does not use Claude by default.** `TRANSCRIPT_SEGMENTATION_STRATEGY`
   is `'deterministic'` (`src/lib/constants.ts`): pure sentence-splitting, no API call.
 - **Furigana does not use Claude by default.** `FURIGANA_STRATEGY` is
   `'tokenizer'` (kuromoji). The Claude prompts in `src/lib/api/claude.ts` are a
   dormant fallback.
-- **`docs/kiku-app-plan.md` does not exist** (`docs/` is empty). The real
+- **`docs/kiku-app-plan.md` no longer exists** (`docs/` is empty). The real
   prompts live in `src/lib/api/claude.ts` and `src/lib/api/study-guide-provider.ts`.
 - Playback is a Web Audio `AudioEngine`, not a single `<audio>` element
   (see the `player-state-model` skill).

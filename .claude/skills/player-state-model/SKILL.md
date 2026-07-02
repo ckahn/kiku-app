@@ -45,10 +45,10 @@ type LoopRange = { firstSegmentId: number; lastSegmentId: number };
 - Stale ranges are dropped, not repaired: an effect runs
   `validateRange(segments, range)` when segments change and nulls the range if
   endpoints vanished or the range is non-contiguous.
-- Note: CLAUDE.md says the range-loop UI was removed pending revamp — **that is
-  stale.** PR #36 added the gutter range UI: `loopRange.ts` exports
-  `makeAnchor`, `validateRange`, `isInRange`, `setEndpoint`, and `usePlayer`
-  exposes `toggleLoop`, `seekToSegment`, `setLoopEndpoint`,
+- The range-loop UI exists (added in PR #36 after an earlier version was
+  removed — ignore older references saying it's deferred): `loopRange.ts`
+  exports `makeAnchor`, `validateRange`, `isInRange`, `setEndpoint`, and
+  `usePlayer` exposes `toggleLoop`, `seekToSegment`, `setLoopEndpoint`,
   `shiftLoopEndpoint` (drag handling in `GutterCell.tsx` / `useLoopDrag.ts`).
 
 ## Two loop contexts — intentionally isolated
