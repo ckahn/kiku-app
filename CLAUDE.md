@@ -163,6 +163,8 @@ The service worker is built with [Serwist](https://serwist.pages.dev/) (`@serwis
 
 The built worker script and its sourcemap are generated at build time, not committed (gitignored, along with the alternate `swe-worker` output name), and excluded from both `tsconfig.json` and ESLint (`eslint.config.mjs` ignores the generated `sw*`/`swe-worker*` scripts under `public` — they're minified generated output, not source). `tsconfig.json` includes `"webworker"` in `lib` (alongside `dom`) and `"types": ["@serwist/next/typings"]` so `src/app/sw.ts` type-checks as a service worker; `sw.ts` declares `self` as `ServiceWorkerGlobalScope` locally to resolve the `dom`/`webworker` overlap.
 
+**Manifest and icons:** `src/app/manifest.ts` is a Next metadata route (`MetadataRoute.Manifest`) served at `/manifest.webmanifest`; name/short_name "KIKU", `start_url: '/'`, `display: 'standalone'`, and `background_color`/`theme_color` matching the design tokens in `src/app/globals.css`. `public/icon-192.png`, `public/icon-512.png`, and a maskable `public/icon-512-maskable.png` (content scaled to 70% and centered, so it survives circular/squircle OS masking) are rasterized from `src/app/icon.svg`, the source of truth for the mark — regenerate with any SVG-to-PNG tool (e.g. `sharp-cli`) if the icon changes; there is no npm script for it since it's a one-off. `src/app/layout.tsx` sets `appleWebApp` metadata and a light/dark `viewport.themeColor`.
+
 ## Key Design Decisions
 
 - Drizzle ORM (not Prisma) — lightweight, type-safe, good Vercel Postgres support
