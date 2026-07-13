@@ -78,6 +78,7 @@ GET                   /api/episodes/[id]/audio               — serve/redirect 
 POST                  /api/episodes/[id]/transcribe          — call ElevenLabs, store raw transcript
 POST                  /api/episodes/[id]/segment             — run segmenting + furigana
 PATCH                 /api/episodes/[id]/study               — cascade study status to all segments
+GET                   /api/episodes/[id]/offline-snapshot    — episode + podcast + segments, for offline download
 GET                   /api/segments/[id]/study-guide         — lazy-generates if missing
 POST                  /api/segments/[id]/study-guide/regenerate
 PATCH                 /api/segments/[id]/study               — update single segment study status
