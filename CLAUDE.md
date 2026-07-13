@@ -165,6 +165,11 @@ The built worker script and its sourcemap are generated at build time, not commi
 
 **Manifest and icons:** `src/app/manifest.ts` is a Next metadata route (`MetadataRoute.Manifest`) served at `/manifest.webmanifest`; name/short_name "KIKU", `start_url: '/'`, `display: 'standalone'`, and `background_color`/`theme_color` matching the design tokens in `src/app/globals.css`. `public/icon-192.png`, `public/icon-512.png`, and a maskable `public/icon-512-maskable.png` (content scaled to 70% and centered, so it survives circular/squircle OS masking) are rasterized from `src/app/icon.svg`, the source of truth for the mark — regenerate with any SVG-to-PNG tool (e.g. `sharp-cli`) if the icon changes; there is no npm script for it since it's a one-off. `src/app/layout.tsx` sets `appleWebApp` metadata and a light/dark `viewport.themeColor`.
 
+**Runtime caching:** `src/app/sw.ts`'s `runtimeCaching` array (route-matching predicates factored out into `src/lib/sw-routes.ts` for unit testing, since instantiating Serwist itself needs a real service worker global scope):
+- Audio (`GET /api/episodes/<id>/audio`) — `CacheFirst`, cache name `kiku-audio`, restricted to full (200) responses via `CacheableResponsePlugin` (the route can also return 206 for byte-range requests; caching a partial response would corrupt offline playback since the Web Audio engine decodes the whole file once). Deliberately has **no** `ExpirationPlugin` — the cache is unbounded on purpose; M2's download registry will own eviction, and an LRU cap here would silently evict episodes a user explicitly downloaded.
+- Study guides (`GET /api/segments/<id>/study-guide`, exact — does not match its own `/regenerate` sub-route) — `NetworkFirst` with a ~4s `networkTimeoutSeconds`, cache name `kiku-study-guides`.
+- `public/soundtouch-processor.js` is precached automatically by Serwist's default public-folder globbing — confirmed by inspecting the built `sw.js`; no `additionalPrecacheEntries` config was needed.
+
 ## Key Design Decisions
 
 - Drizzle ORM (not Prisma) — lightweight, type-safe, good Vercel Postgres support
