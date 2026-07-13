@@ -27,6 +27,7 @@ export default function EpisodeList({ episodes, podcastSlug }: EpisodeListProps)
                   episodeTitle={ep.title}
                   episodeNumber={ep.episodeNumber}
                   studyStatus={ep.studyStatus}
+                  podcastSlug={podcastSlug}
                 />
               </>
             )}

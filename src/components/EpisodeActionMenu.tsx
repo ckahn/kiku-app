@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { BookOpen, BookOpenCheck, Pencil } from 'lucide-react';
 import ActionMenu from '@/components/ActionMenu';
 import { DeleteMenuItem } from '@/components/DeleteActionMenu';
+import EpisodeDownloadMenuItem from '@/components/EpisodeDownloadMenuItem';
 import { Button, Input, Modal } from '@/components/ui';
 import { getErrorMessage } from '@/lib/utils';
 
@@ -168,6 +169,15 @@ export default function EpisodeActionMenu({
               <Pencil size={16} aria-hidden="true" />
               <span>Edit episode</span>
             </button>
+            {podcastSlug && (
+              <EpisodeDownloadMenuItem
+                episodeId={episodeId}
+                episodeTitle={episodeTitle}
+                episodeNumber={episodeNumber}
+                podcastSlug={podcastSlug}
+                closeMenu={closeMenu}
+              />
+            )}
             <DeleteMenuItem
               deleteUrl={`/api/episodes/${episodeId}`}
               confirmMessage={`Delete episode "${episodeTitle}" permanently? This will delete its audio, transcript, and study data.`}

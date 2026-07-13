@@ -175,6 +175,27 @@ describe('ensureInitialized', () => {
     await ensureInitialized();
     expect(getSnapshot(31)).toBeUndefined();
   });
+
+  it('is a silent no-op when IndexedDB is unavailable', async () => {
+    vi.stubGlobal('indexedDB', undefined);
+
+    await expect(ensureInitialized()).resolves.toBeUndefined();
+    expect(getSnapshot(999)).toBeUndefined();
+  });
+
+  it('logs and leaves the registry empty when the load fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await resetOfflineDbForTests();
+    vi.stubGlobal('indexedDB', {
+      open: () => {
+        throw new Error('storage unavailable');
+      },
+    });
+
+    await expect(ensureInitialized()).resolves.toBeUndefined();
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
 });
 
 describe('cross-tab BroadcastChannel notify', () => {

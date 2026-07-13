@@ -61,12 +61,20 @@ export async function refresh(): Promise<void> {
 /**
  * Lazily loads the registry from IndexedDB exactly once per page load. Safe
  * to call from every consumer's mount effect — later calls are no-ops once
- * the first has resolved.
+ * the first has resolved. A missing IndexedDB (jsdom tests, SSR-adjacent
+ * contexts) is a silent no-op; a real load failure is logged and leaves the
+ * registry empty rather than crashing consumers.
  */
 export async function ensureInitialized(): Promise<void> {
   if (initialized) return;
   initialized = true;
-  await refresh();
+  if (typeof indexedDB === 'undefined') return;
+
+  try {
+    await refresh();
+  } catch (error: unknown) {
+    console.error('[downloadStore] failed to load download records', error);
+  }
 }
 
 async function persist(record: DownloadRecord): Promise<DownloadRecord> {
