@@ -155,6 +155,14 @@ The Claude prompts live **in the code**, not in docs (`docs/` is empty; the old 
 
 Study status lives on individual segments (`new | studying | learned`). Episode-level status is derived at query time from segment counts (all new → new, all learned → learned, otherwise → studying). `nextReview` is stored on segments but not yet computed — the SRS interval logic (e.g. 3d → 1w → 2w → 1mo → 3mo) is planned but not implemented.
 
+## Service worker / PWA (offline groundwork)
+
+The service worker is built with [Serwist](https://serwist.pages.dev/) (`@serwist/next` + `serwist`, pinned to matching `9.5.11` versions). Source lives at `src/app/sw.ts`; `next.config.ts` wraps the Next config in `withSerwistInit(...)` with `swSrc: "src/app/sw.ts"`, pointing the built output at the `public` folder as `sw.js`, and `disable: process.env.NODE_ENV === "development"`, so the worker is inert in `next dev` and only built for production. Registration is auto-injected by `@serwist/next` — there is no manual register component.
+
+**Turbopack incompatibility (empirical, Next 16.2.6):** Serwist's manifest injection is a webpack plugin. The default Turbopack builder refuses to build once this webpack config is present ("This build is using Turbopack, with a `webpack` config and no `turbopack` config"). `package.json`'s `build` script is therefore `next build --webpack`, not the Turbopack default. If the Vercel project's build command is set explicitly (rather than delegating to `npm run build`), it needs the same `--webpack` flag.
+
+The built worker script and its sourcemap are generated at build time, not committed (gitignored, along with the alternate `swe-worker` output name), and excluded from both `tsconfig.json` and ESLint (`eslint.config.mjs` ignores the generated `sw*`/`swe-worker*` scripts under `public` — they're minified generated output, not source). `tsconfig.json` includes `"webworker"` in `lib` (alongside `dom`) and `"types": ["@serwist/next/typings"]` so `src/app/sw.ts` type-checks as a service worker; `sw.ts` declares `self` as `ServiceWorkerGlobalScope` locally to resolve the `dom`/`webworker` overlap.
+
 ## Key Design Decisions
 
 - Drizzle ORM (not Prisma) — lightweight, type-safe, good Vercel Postgres support
