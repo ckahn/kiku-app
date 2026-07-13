@@ -16,7 +16,10 @@ const runtimeCaching: RuntimeCaching[] = [
   {
     // Audio blobs, served once per episode and replayed many times via the Web Audio engine
     // (see src/lib/audio/audioEngine.ts) — CacheFirst so repeat visits never re-fetch.
-    matcher: ({ url }) => isAudioRoute(url.pathname),
+    // sameOrigin guard: the router runs matchers against every fetch from a controlled
+    // client, cross-origin included — without it a request to any host whose path looks
+    // like ours would be cached here.
+    matcher: ({ url, sameOrigin }) => sameOrigin && isAudioRoute(url.pathname),
     method: "GET",
     handler: new CacheFirst({
       cacheName: "kiku-audio",
@@ -34,7 +37,7 @@ const runtimeCaching: RuntimeCaching[] = [
   {
     // Study guides are lazy-generated and can change server-side (regeneration), so prefer
     // the network, but fall back to cache quickly when offline/slow rather than hanging.
-    matcher: ({ url }) => isStudyGuideRoute(url.pathname),
+    matcher: ({ url, sameOrigin }) => sameOrigin && isStudyGuideRoute(url.pathname),
     method: "GET",
     handler: new NetworkFirst({
       cacheName: "kiku-study-guides",

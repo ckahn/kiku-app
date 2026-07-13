@@ -19,13 +19,17 @@ const nextConfig: NextConfig = {
 // fails outright once this webpack-based plugin is wired in ("This build is using Turbopack,
 // with a `webpack` config and no `turbopack` config"). The `build` script in package.json was
 // changed to `next build --webpack` to force the webpack builder so the manifest actually gets
-// injected into public/sw.js. The Vercel project's build command will need the same
-// `--webpack` flag (or an updated `build` script, which is what we rely on here) — do not
-// change Vercel settings from this repo; that's an operator action.
+// injected into public/sw.js. vercel.json pins Vercel's buildCommand to `npm run build` so
+// deploys use the same flag instead of the framework preset's bare `next build`.
 const withSerwist = withSerwistInit({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
   disable: process.env.NODE_ENV === "development",
+  // Serwist's default (true) force-reloads the page on every `online` event. On mobile,
+  // wifi/cellular handoffs fire that event constantly, and a reload destroys in-memory
+  // player state (current position, loop range) mid-playback. Offline UX handles
+  // reconnection explicitly in M3/M4 instead.
+  reloadOnOnline: false,
 });
 
 export default withSerwist(nextConfig);
