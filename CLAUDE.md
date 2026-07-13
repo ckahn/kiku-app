@@ -170,6 +170,8 @@ The built worker script and its sourcemap are generated at build time, not commi
 - Study guides (`GET /api/segments/<id>/study-guide`, exact — does not match its own `/regenerate` sub-route) — `NetworkFirst` with a ~4s `networkTimeoutSeconds`, cache name `kiku-study-guides`.
 - `public/soundtouch-processor.js` is precached automatically by Serwist's default public-folder globbing — confirmed by inspecting the built `sw.js`; no `additionalPrecacheEntries` config was needed.
 
+**Client-side primitives:** `useOnlineStatus` (`src/hooks/useOnlineStatus.ts`) and `OfflineBanner` (`src/components/OfflineBanner.tsx`) exist but are not yet wired into any page — that lands in M3 alongside the download registry.
+
 ## Key Design Decisions
 
 - Drizzle ORM (not Prisma) — lightweight, type-safe, good Vercel Postgres support
