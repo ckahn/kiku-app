@@ -9,6 +9,7 @@ import { getSegmentsByEpisodeId } from '@/db/segments';
 import { getEpisodeStudyStatusMap } from '@/db/episodes';
 import LocalDateTime from '@/components/LocalDateTime';
 import EpisodeActionMenu from '@/components/EpisodeActionMenu';
+import EpisodeOfflineBadge from '@/components/EpisodeOfflineBadge';
 import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
 import { formatMs } from '@/components/player/segmentUtils';
 
@@ -44,7 +45,10 @@ export default async function EpisodePage({
           <h1 className="text-2xl font-bold text-ink">{episode.title}</h1>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <EpisodeStatusBadge status={episode.status} studyStatus={studyStatus} className="mt-1 shrink-0" />
+          <div className="mt-1 flex shrink-0 items-center gap-2">
+            <EpisodeOfflineBadge episodeId={episode.id} />
+            <EpisodeStatusBadge status={episode.status} studyStatus={studyStatus} />
+          </div>
           <EpisodeActionMenu
             episodeId={episode.id}
             episodeTitle={episode.title}
