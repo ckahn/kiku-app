@@ -32,8 +32,10 @@ export default function EpisodeStatusPoller({
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [stalled, setStalled] = useState(false);
+  const [waitingForConnection, setWaitingForConnection] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const segmentTriggeredRef = useRef(false);
+  const transcribeTriggeredRef = useRef(false);
   const currentStatusRef = useRef(initialStatus);
   const lastStatusChangeAtRef = useRef(Date.now());
 
@@ -42,15 +44,40 @@ export default function EpisodeStatusPoller({
 
     let cleanedUp = false;
 
-    async function startProcessing() {
-      if (status === 'uploaded') {
-        await fetch(`/api/episodes/${episodeId}/transcribe`, { method: 'POST' });
+    function stopInterval(): void {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    async function startProcessing(): Promise<void> {
+      // Never spin against a dead network, and never run two loops at once.
+      if (cleanedUp || intervalRef.current || !navigator.onLine) return;
+      setWaitingForConnection(false);
+
+      if (currentStatusRef.current === 'uploaded' && !transcribeTriggeredRef.current) {
+        transcribeTriggeredRef.current = true;
+        try {
+          await fetch(`/api/episodes/${episodeId}/transcribe`, { method: 'POST' });
+        } catch {
+          // Kicked offline mid-request — the `online` listener resumes later.
+          transcribeTriggeredRef.current = false;
+          return;
+        }
       }
 
-      if (cleanedUp) return;
+      if (cleanedUp || intervalRef.current || !navigator.onLine) return;
 
       intervalRef.current = setInterval(async () => {
-        const res = await fetch(`/api/episodes/${episodeId}`);
+        let res: Response;
+        try {
+          res = await fetch(`/api/episodes/${episodeId}`);
+        } catch {
+          // Transient failure (e.g. dropped connection). The `offline` event
+          // handler stops the loop for a genuine disconnect; skip this tick.
+          return;
+        }
         if (!res.ok) return;
 
         const json = (await res.json()) as {
@@ -66,8 +93,7 @@ export default function EpisodeStatusPoller({
         setStatus(newStatus);
 
         if (Date.now() - lastStatusChangeAtRef.current > stallTimeoutMs) {
-          clearInterval(intervalRef.current!);
-          intervalRef.current = null;
+          stopInterval();
           setStalled(true);
           return;
         }
@@ -78,21 +104,37 @@ export default function EpisodeStatusPoller({
         }
 
         if (TERMINAL_STATUSES.has(newStatus)) {
-          clearInterval(intervalRef.current!);
-          intervalRef.current = null;
+          stopInterval();
           router.refresh();
         }
       }, pollIntervalMs);
     }
 
-    startProcessing();
+    function handleOnline(): void {
+      if (!cleanedUp) void startProcessing();
+    }
+
+    function handleOffline(): void {
+      stopInterval();
+      if (!cleanedUp && !TERMINAL_STATUSES.has(currentStatusRef.current)) {
+        setWaitingForConnection(true);
+      }
+    }
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    if (navigator.onLine) {
+      void startProcessing();
+    } else {
+      setWaitingForConnection(true);
+    }
 
     return () => {
       cleanedUp = true;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      stopInterval();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — runs once on mount
@@ -101,6 +143,14 @@ export default function EpisodeStatusPoller({
     return (
       <div role="alert" className="text-sm text-red-600">
         {stalledMessage(status)}
+      </div>
+    );
+  }
+
+  if (waitingForConnection) {
+    return (
+      <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted">
+        Offline — processing will resume when you reconnect.
       </div>
     );
   }

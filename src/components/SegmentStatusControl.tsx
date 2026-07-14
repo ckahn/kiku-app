@@ -8,6 +8,7 @@ import {
   type StudyStatus,
 } from '@/lib/episodeStudyStatus';
 import SegmentStatusIcon from '@/components/SegmentStatusIcon';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { getErrorMessage } from '@/lib/utils';
 
 interface SegmentStatusControlProps {
@@ -24,6 +25,7 @@ export default function SegmentStatusControl({
   initialStatus,
 }: SegmentStatusControlProps) {
   const router = useRouter();
+  const isOnline = useOnlineStatus();
   const [status, setStatus] = useState<StudyStatus>(initialStatus);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,9 +67,10 @@ export default function SegmentStatusControl({
         <select
           id={`segment-status-${segmentId}`}
           value={status}
-          disabled={saving}
+          disabled={saving || !isOnline}
+          title={!isOnline ? 'Unavailable offline' : undefined}
           onChange={(event) => void handleChange(event.target.value as StudyStatus)}
-          className="min-h-11 cursor-pointer rounded-md border border-border bg-surface px-2 py-1 text-sm text-ink transition-colors hover:border-primary/40 disabled:opacity-50"
+          className="min-h-11 cursor-pointer rounded-md border border-border bg-surface px-2 py-1 text-sm text-ink transition-colors hover:border-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {STUDY_STATUS_VALUES.map((value) => (
             <option key={value} value={value}>
@@ -76,6 +79,9 @@ export default function SegmentStatusControl({
           ))}
         </select>
       </div>
+      {!isOnline && (
+        <span className="text-xs text-muted">Unavailable offline</span>
+      )}
       {error && (
         <span role="alert" className="text-xs text-error-on-subtle">
           {error}

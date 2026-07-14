@@ -44,4 +44,11 @@ describe('AddEpisodeButton', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  it('disables the trigger while offline', () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    render(<AddEpisodeButton podcastId="1" podcastSlug="my-show" />);
+    expect(screen.getByRole('button', { name: '+ New episode' })).toBeDisabled();
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+  });
 });

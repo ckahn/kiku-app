@@ -28,14 +28,20 @@ function makeTranscribeResponse() {
   );
 }
 
+function setOnline(value: boolean): void {
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value });
+}
+
 describe('EpisodeStatusPoller', () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockRefresh.mockReset();
+    setOnline(true);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    setOnline(true);
   });
 
   it('shows a processing indicator while status is uploaded', () => {
@@ -267,6 +273,43 @@ describe('EpisodeStatusPoller', () => {
     // Wait several more poll intervals — no additional fetches should fire
     await new Promise((r) => setTimeout(r, FAST_POLL * 5));
     expect(mockFetch.mock.calls.length).toBe(callCountAtReady);
+  });
+
+  it('does not fetch while offline and shows a reconnect message', async () => {
+    setOnline(false);
+    mockFetch.mockResolvedValue(makeEpisodeResponse('ready'));
+
+    render(
+      <EpisodeStatusPoller episodeId={1} initialStatus="uploaded" pollIntervalMs={FAST_POLL} />
+    );
+
+    expect(screen.getByText(/reconnect/i)).toBeInTheDocument();
+    // Give the loop several intervals worth of time — nothing should fire.
+    await new Promise((r) => setTimeout(r, FAST_POLL * 5));
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('resumes processing when the connection is restored', async () => {
+    setOnline(false);
+    mockFetch
+      .mockResolvedValueOnce(makeTranscribeResponse())
+      .mockResolvedValue(makeEpisodeResponse('ready'));
+
+    render(
+      <EpisodeStatusPoller episodeId={1} initialStatus="uploaded" pollIntervalMs={FAST_POLL} />
+    );
+
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    setOnline(true);
+    window.dispatchEvent(new Event('online'));
+
+    await waitFor(() => {
+      const postCall = mockFetch.mock.calls.find(
+        ([url, init]) => url === '/api/episodes/1/transcribe' && (init as RequestInit)?.method === 'POST'
+      );
+      expect(postCall).toBeDefined();
+    }, { timeout: 2000 });
   });
 
   it('does not start polling if unmounted before transcribe fetch resolves', async () => {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EpisodeActionMenu from '../EpisodeActionMenu';
@@ -11,11 +11,20 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }));
 
+function setOnline(value: boolean): void {
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value });
+}
+
 describe('EpisodeActionMenu', () => {
   beforeEach(() => {
     mockPush.mockReset();
     mockRefresh.mockReset();
     vi.restoreAllMocks();
+    setOnline(true);
+  });
+
+  afterEach(() => {
+    setOnline(true);
   });
 
   it('opens an edit modal from the actions menu with current metadata', async () => {
@@ -235,6 +244,42 @@ describe('EpisodeActionMenu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
 
     expect(screen.queryByRole('menuitem', { name: /make available offline/i })).not.toBeInTheDocument();
+  });
+
+  it('disables edit, study, and delete actions while offline', async () => {
+    setOnline(false);
+
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="new"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+
+    expect(screen.getByRole('menuitem', { name: /edit episode/i })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: /start studying/i })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: /delete episode/i })).toBeDisabled();
+  });
+
+  it('keeps edit, study, and delete actions enabled while online', async () => {
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="new"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+
+    expect(screen.getByRole('menuitem', { name: /edit episode/i })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: /start studying/i })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: /delete episode/i })).toBeEnabled();
   });
 
   it('shows API errors in the edit modal without closing it', async () => {
