@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { Check, Copy, Play, Repeat, Square } from 'lucide-react';
 import type { Segment } from '@/db/schema';
-import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
+import { loadStudyGuideContent } from '@/lib/offline/studyGuideLoader';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
 import SegmentStatusControl from '@/components/SegmentStatusControl';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
@@ -65,17 +66,6 @@ function StudySection({ title, isOpen, onToggle, children }: StudySectionProps) 
   );
 }
 
-async function loadStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent> {
-  const response = await fetch(studyGuideUrl);
-  const payload = await response.json() as ApiResponse<StudyGuideContent>;
-
-  if (!response.ok || !payload.success || !payload.data) {
-    throw new Error(payload.error ?? 'Could not load the study guide.');
-  }
-
-  return payload.data;
-}
-
 type PlaybackRate = 0.5 | 0.75 | 1;
 const PLAYBACK_RATES: PlaybackRate[] = [1, 0.75, 0.5];
 const SEGMENT_ACTION_BUTTON_CLASS = 'h-11 w-11 shrink-0 cursor-pointer inline-flex items-center justify-center transition-colors';
@@ -91,6 +81,7 @@ export default function StudyScreen({
 }: StudyScreenProps) {
   const router = useRouter();
   const engine = useAudioEngine(audioUrl);
+  const isOnline = useOnlineStatus();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<PlaybackRate>(1);
@@ -128,7 +119,7 @@ export default function StudyScreen({
       try {
         setIsLoading(true);
         setErrorMessage(null);
-        const nextStudyGuide = await loadStudyGuide(studyGuideUrl);
+        const nextStudyGuide = await loadStudyGuideContent(segment.id, studyGuideUrl, { isOnline });
 
         if (!isCancelled) {
           setStudyGuide(nextStudyGuide);
@@ -149,7 +140,7 @@ export default function StudyScreen({
     return () => {
       isCancelled = true;
     };
-  }, [studyGuideUrl]);
+  }, [segment.id, studyGuideUrl, isOnline]);
 
   // Sync engine errors to error message
   useEffect(() => {
