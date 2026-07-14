@@ -172,9 +172,10 @@ The built worker script and its sourcemap are generated at build time, not commi
 **Runtime caching:** `src/app/sw.ts`'s `runtimeCaching` array (route-matching predicates factored out into `src/lib/sw-routes.ts` for unit testing, since instantiating Serwist itself needs a real service worker global scope):
 - Audio (`GET /api/episodes/<id>/audio`) — `CacheFirst`, cache name `kiku-audio`, restricted to full (200) responses via `CacheableResponsePlugin` (the route can also return 206 for byte-range requests; caching a partial response would corrupt offline playback since the Web Audio engine decodes the whole file once). Deliberately has **no** `ExpirationPlugin` — the cache is unbounded on purpose; M2's download registry will own eviction, and an LRU cap here would silently evict episodes a user explicitly downloaded.
 - Study guides (`GET /api/segments/<id>/study-guide`, exact — does not match its own `/regenerate` sub-route) — `NetworkFirst` with a ~4s `networkTimeoutSeconds`, cache name `kiku-study-guides`.
-- `public/soundtouch-processor.js` is precached automatically by Serwist's default public-folder globbing — confirmed by inspecting the built `sw.js`; no `additionalPrecacheEntries` config was needed.
+- Navigations (same-origin, `request.mode === 'navigate'` via `isNavigationRequest` in `src/lib/sw-routes.ts`) — `NetworkOnly`. Online this is a plain pass-through (RSC/SSR unaffected); offline it errors and the Serwist `fallbacks` PrecacheFallbackPlugin serves the precached `/offline` shell (M3, below).
+- `public/soundtouch-processor.js` and the other `public/` assets are precached via `next.config.ts`'s `additionalPrecacheEntries` (M3). That option **replaces** @serwist/next's default public-folder scan, so `next.config.ts` replicates the scan (glob `public/**`, md5 revision per file, minus the generated `sw*`/`swe-worker*` outputs) and appends the `/offline` shell entry — dropping the scan would evict the soundtouch worklet and break offline speed control.
 
-**Client-side primitives:** `useOnlineStatus` (`src/hooks/useOnlineStatus.ts`) and `OfflineBanner` (`src/components/OfflineBanner.tsx`) exist; the banner is not yet wired into any page (M3), but `useOnlineStatus` is consumed by the M2 download controls below.
+**Client-side primitives:** `useOnlineStatus` (`src/hooks/useOnlineStatus.ts`) and `OfflineBanner` (`src/components/OfflineBanner.tsx`); M3 wires `OfflineBanner` into `src/app/layout.tsx` (shown app-wide while offline) and gates network-only controls on `useOnlineStatus` (below).
 
 ### Offline data layer (M2)
 
@@ -186,6 +187,16 @@ Explicit episode downloads on top of the M1 service worker. Everything lives in 
 - **Endpoint**: `GET /api/episodes/[id]/offline-snapshot` — episode + podcast slug/name (server-resolved) + segments in one call; 409 unless `ready`.
 - **UI**: `useEpisodeDownload` → `EpisodeDownloadMenuItem` in `EpisodeActionMenu` (start/progress/retry/remove; start disabled offline) and `EpisodeOfflineBadge` on episode lists + episode header (progress chip → "Offline" chip; SSR-safe, renders nothing on the server).
 - **Testing**: unit tests use `fake-indexeddb/auto`; the SW is production-only, so the fetch→SW-cache audio capture can't be exercised in dev/unit tests.
+
+### Offline rendering + playback (M3)
+
+Downloaded episodes are usable with no network; online pages stay fully RSC and unchanged (offline is a separate client path, so zero regression surface). Playback needs **zero** audio-engine changes — the engine's full-file `fetch` is served from the SW `kiku-audio` cache. See the `offline-support` skill for the full design; summary:
+
+- **Offline app-shell** (`src/app/offline/page.tsx`): a `'use client'`, `dynamic = 'force-static'` document with no server imports, served by the SW for offline navigations. It reads `window.location.pathname` in an effect, resolves the route (`resolveOfflineRoute` in `src/lib/offline/resolveOfflineRoute.ts`), looks up the episode (`findEpisodeBySlugAndNumber` in `store.ts`, then `getEpisodeSnapshot`), and renders the same `EpisodePlayer` / `StudyScreen` the online pages use. Honest empty states for not-downloaded / off-pattern routes — never a crash or spinner.
+- **Prop adapters** (`src/lib/offline/offlineEpisode.ts`): pure `EpisodeSnapshot` → player/study props. `EpisodePlayer` accepts a narrowed `PlayerSegment` (`src/components/player/types.ts`) so IDB rows satisfy it without fake `episodeId/createdAt` columns.
+- **Study-guide reads** (`src/lib/offline/studyGuideLoader.ts`): IndexedDB is authoritative for downloaded episodes. Online = network-first then IDB fallback; offline = IDB-first (skips the doomed fetch). `StudyScreen` passes `useOnlineStatus()` in.
+- **Degraded affordances** (gate = `useOnlineStatus()`): `EpisodeActionMenu` (studying/edit/delete), `SegmentStatusControl`, and `AddEpisodeButton` disable offline with a hint; `EpisodeStatusPoller` stops polling offline (uses `navigator.onLine` + `online`/`offline` events) and resumes on reconnect.
+- **SW navigation fallback**: `OFFLINE_SHELL_URL = '/offline'` (`src/lib/offline/constants.ts`) is imported by `src/app/sw.ts` (NetworkOnly navigation route + Serwist `fallbacks`) and `next.config.ts` (`additionalPrecacheEntries`). SW end-to-end is production-only — verify in the browser under airplane mode (protocol in the `offline-support` skill).
 
 ## Key Design Decisions
 

@@ -1,6 +1,6 @@
 ---
 name: offline-support
-description: Use when working on offline downloads, the IndexedDB data layer, the download registry/orchestrator, the offline-snapshot endpoint, purging cached audio, or the offline badge/menu UI — "make episodes available offline", "why is a download stuck", changing the offline schemas, or testing against fake-indexeddb.
+description: Use when working on offline downloads, the IndexedDB data layer, the download registry/orchestrator, the offline-snapshot endpoint, purging cached audio, the offline badge/menu UI, or offline rendering/playback — "make episodes available offline", "why is a download stuck", the offline app-shell / `/offline` route, the SW navigation fallback, degrading actions offline, changing the offline schemas, or testing against fake-indexeddb.
 ---
 
 # Offline support (M2 data layer + download flow)
@@ -167,3 +167,93 @@ the `add-api-route` skill.
 - `AUDIO_CACHE_NAME` in `src/lib/offline/constants.ts` is the single source
   of truth; `src/app/sw.ts` imports it (verified the Serwist webpack build
   inlines it cleanly).
+
+# M3 — offline rendering + playback
+
+Makes the two study surfaces usable offline for **downloaded** episodes: the
+episode page (transcript + range-loop playback) and the per-segment study page
+(study guide + single-segment playback), all served from IndexedDB + the SW
+audio cache. Online pages stay fully server-rendered and unchanged — offline is
+a separate **client-only** path. Playback needs **zero** audio-engine changes:
+the engine's plain full-file `fetch` is served from the SW's `kiku-audio`
+CacheFirst cache transparently.
+
+## The offline app-shell (`src/app/offline/page.tsx`)
+
+A `'use client'` document with `export const dynamic = 'force-static'` and **no
+server imports** (`@/db`, etc.). Its precached HTML + build-hashed chunks are
+precached together and refreshed each deploy, so it can never reference purged
+chunks (deploy-proof). It reads `window.location.pathname` **only in an
+effect** (SSR/first render stays the loading state → hydration-safe), resolves
+the route, loads from IndexedDB, and renders the same `EpisodePlayer` /
+`StudyScreen` the online RSC pages use. On a matched route with no stored
+episode/segment it shows an honest "not downloaded" empty state; off-pattern
+routes get a generic "not available offline" state — never a crash or spinner.
+
+Data path (all pure/typed, no offline-specific rendering):
+- `resolveOfflineRoute(pathname)` (`src/lib/offline/resolveOfflineRoute.ts`) —
+  parses the two route patterns (`/podcasts/:slug/episodes/:number` and
+  `…/segments/:segmentIndex/study`), validating episode number (positive int)
+  and segment index (non-negative int); everything else is `'unsupported'`.
+- `findEpisodeBySlugAndNumber(slug, number)` (`store.ts`) — linear scan of the
+  `episodes` store (no new index; the count is tiny). Returns the parsed
+  `StoredEpisodeMeta`, which carries **`id`** (== the `episodeId` keyPath, so
+  the shell looks the snapshot up by `meta.id`).
+- adapters in `src/lib/offline/offlineEpisode.ts` — `toPlayerSegments`,
+  `buildEpisodePlayerProps`, `buildStudyScreenProps` turn an `EpisodeSnapshot`
+  into the player/study props (audio + study-guide URLs, prev/next hrefs,
+  durationMs-null → player's max-endMs fallback).
+- `PlayerSegment` (`src/components/player/types.ts`) — the narrowed prop shape
+  both the RSC page (full `Segment[]`) and the shell (IDB rows lacking
+  `episodeId/createdAt/…`) satisfy without synthesizing fake columns.
+
+## Study-guide offline reads (`src/lib/offline/studyGuideLoader.ts`)
+
+`loadStudyGuideContent(segmentId, url, { isOnline })` — **IndexedDB is
+authoritative for downloaded episodes.** Online: network-first (fresh
+regenerations win) then IDB fallback (byte-identical to the old inline
+`StudyScreen` behavior). Offline: **IDB-first**, skipping the doomed network
+attempt so we never eat the SW's 4s NetworkFirst timeout. `StudyScreen` passes
+`useOnlineStatus()` in and surfaces the both-sources-miss throw as its error.
+
+## Degraded affordances offline (gate = `useOnlineStatus()`)
+
+Network-only controls disable with an "Unavailable offline" hint:
+`EpisodeActionMenu` (start/stop studying, edit, delete — delete via the new
+`disabled`/`disabledHint` props on `DeleteMenuItem`), `SegmentStatusControl`
+(status `<select>`; M4 adds outbox queueing), `AddEpisodeButton`.
+`EpisodeStatusPoller` doesn't spin against a dead network — it uses
+`navigator.onLine` + `online`/`offline` listeners (not the hook, since its
+polling effect has an empty dep array), shows a reconnect message while
+offline, and resumes on `online`. `OfflineBanner` is wired into
+`src/app/layout.tsx` so it shows app-wide while offline.
+
+## SW navigation fallback (D1)
+
+`OFFLINE_SHELL_URL = '/offline'` in `src/lib/offline/constants.ts` is the single
+source of truth, imported by both `src/app/sw.ts` and `next.config.ts`.
+- `src/app/sw.ts` adds a **NetworkOnly** runtime-caching route for same-origin
+  navigations (`isNavigationRequest` from `src/lib/sw-routes.ts`: `request.mode
+  === 'navigate'`). Online it's a plain pass-through (RSC/SSR unaffected);
+  offline it errors, and the `fallbacks: { entries: [{ url: OFFLINE_SHELL_URL,
+  matcher }] }` PrecacheFallbackPlugin serves the precached shell.
+- `next.config.ts` precaches the shell via `additionalPrecacheEntries` with a
+  build-scoped revision (`VERCEL_GIT_COMMIT_SHA ?? Date.now()`).
+  **Gotcha:** `additionalPrecacheEntries` **replaces** @serwist/next's default
+  public-folder scan, so `next.config.ts` replicates that scan (glob `public/**`,
+  md5 revision per file, minus the generated `sw*`/`swe-worker*` outputs) —
+  otherwise `public/soundtouch-processor.js` drops out of the precache and
+  offline speed control breaks.
+- In-app `<Link>` navigations offline fail their `?_rsc=` fetch; Next hard-nav's
+  on failure → the SW catches the resulting document navigation → shell.
+
+## Browser-only verification (SW is production-only)
+
+The navigation fallback **cannot be unit-tested** (the SW only exists in a
+production build). Verify against `npm run build && npm run start`: download an
+episode online, go airplane-mode, reload the episode page → transcript renders
+and play/seek/loop/range-loop/speed all work; open a segment study page (hard
+nav) → guide (from IDB) + playback; confirm edit/delete/status/upload are
+disabled and the poller isn't spinning; navigate to a non-downloaded episode →
+honest empty state. Deploy-staleness: redeploy so chunk hashes change, go
+offline, reload → still renders (shell + chunks re-precached together).
