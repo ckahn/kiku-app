@@ -131,6 +131,7 @@ State management: React `useState`/`useReducer` only — no external state libra
 /podcasts/[slug]                                           — podcast detail + episode list + upload form
 /podcasts/[slug]/episodes/[number]                         — transcript/study page (main UI)
 /podcasts/[slug]/episodes/[number]/segments/[index]/study  — per-segment drilldown study page
+/offline                                                   — client-only app-shell served by the SW for offline navigations (M3)
 ```
 
 ## Development Mocks
