@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAudioRoute, isStudyGuideRoute } from '../sw-routes';
+import { isAudioRoute, isNavigationRequest, isStudyGuideRoute } from '../sw-routes';
 
 describe('isAudioRoute', () => {
   it('matches the episode audio route', () => {
@@ -24,5 +24,17 @@ describe('isStudyGuideRoute', () => {
 
   it('does not match unrelated routes', () => {
     expect(isStudyGuideRoute('/api/segments/7/study')).toBe(false);
+  });
+});
+
+describe('isNavigationRequest', () => {
+  it('matches a document navigation', () => {
+    expect(isNavigationRequest({ mode: 'navigate' })).toBe(true);
+  });
+
+  it('does not match RSC/data or asset requests', () => {
+    expect(isNavigationRequest({ mode: 'cors' })).toBe(false);
+    expect(isNavigationRequest({ mode: 'no-cors' })).toBe(false);
+    expect(isNavigationRequest({ mode: 'same-origin' })).toBe(false);
   });
 });

@@ -19,3 +19,12 @@ export function isAudioRoute(pathname: string): boolean {
 export function isStudyGuideRoute(pathname: string): boolean {
   return STUDY_GUIDE_ROUTE_RE.test(pathname);
 }
+
+// A document navigation (the browser fetching a full HTML page), as opposed to
+// an RSC/data fetch or an asset request. The SW serves the precached /offline
+// shell as a fallback only for these — offline, in-app <Link> RSC fetches fail
+// and Next hard-navigates, which produces a navigation the SW then catches.
+// Factored out of sw.ts so it can be unit-tested without a ServiceWorker scope.
+export function isNavigationRequest(request: { readonly mode: string }): boolean {
+  return request.mode === 'navigate';
+}
