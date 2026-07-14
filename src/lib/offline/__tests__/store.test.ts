@@ -4,6 +4,7 @@ import studyGuideFixture from '@fixtures/study-guide.json';
 import { openOfflineDb, resetOfflineDbForTests } from '../db';
 import {
   deleteEpisodeData,
+  findEpisodeBySlugAndNumber,
   getAllDownloadRecords,
   getDownloadRecord,
   getEpisodeSnapshot,
@@ -289,5 +290,29 @@ describe('deleteEpisodeData', () => {
     expect(await getEpisodeSnapshot(1)).toBeNull();
     expect(await getEpisodeSnapshot(2)).not.toBeNull();
     expect(await getDownloadRecord(2)).not.toBeNull();
+  });
+});
+
+describe('findEpisodeBySlugAndNumber', () => {
+  it('resolves a stored episode by slug and number', async () => {
+    await putEpisodeSnapshot(makeSnapshot());
+
+    const found = await findEpisodeBySlugAndNumber('my-podcast', 1);
+
+    expect(found).not.toBeNull();
+    expect(found?.id).toBe(1);
+    expect(found?.podcastSlug).toBe('my-podcast');
+    expect(found?.episodeNumber).toBe(1);
+  });
+
+  it('returns null when slug or number do not match', async () => {
+    await putEpisodeSnapshot(makeSnapshot());
+
+    expect(await findEpisodeBySlugAndNumber('other-podcast', 1)).toBeNull();
+    expect(await findEpisodeBySlugAndNumber('my-podcast', 2)).toBeNull();
+  });
+
+  it('returns null on an empty store', async () => {
+    expect(await findEpisodeBySlugAndNumber('my-podcast', 1)).toBeNull();
   });
 });
