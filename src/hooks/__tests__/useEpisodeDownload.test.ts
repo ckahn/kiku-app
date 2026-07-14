@@ -19,7 +19,10 @@ vi.mock('@/lib/offline/download', () => ({
   downloadEpisode: mockDownloadEpisode,
 }));
 
-vi.mock('@/lib/offline/downloadStore', () => ({
+// Keep the real isStale so stale-record derivation is exercised for real;
+// only the side-effectful removeDownload is mocked.
+vi.mock('@/lib/offline/downloadStore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/offline/downloadStore')>()),
   removeDownload: mockRemoveDownload,
 }));
 
@@ -74,17 +77,26 @@ describe('useEpisodeDownload', () => {
     expect(mockDownloadEpisode).not.toHaveBeenCalled();
   });
 
-  it('isBusy is true while a record is downloading', async () => {
-    mockUseDownloadRecord.mockReturnValue({ episodeId: 5, status: 'downloading' });
+  it('isBusy is true while a record is downloading and fresh', async () => {
+    mockUseDownloadRecord.mockReturnValue({
+      episodeId: 5,
+      status: 'downloading',
+      updatedAt: Date.now(),
+    });
 
     const { useEpisodeDownload } = await import('../useEpisodeDownload');
     const { result } = renderHook(() => useEpisodeDownload(INPUT));
 
     expect(result.current.isBusy).toBe(true);
+    expect(result.current.canStart).toBe(false);
   });
 
   it('start() is a no-op while a download is already in flight', async () => {
-    mockUseDownloadRecord.mockReturnValue({ episodeId: 5, status: 'downloading' });
+    mockUseDownloadRecord.mockReturnValue({
+      episodeId: 5,
+      status: 'downloading',
+      updatedAt: Date.now(),
+    });
 
     const { useEpisodeDownload } = await import('../useEpisodeDownload');
     const { result } = renderHook(() => useEpisodeDownload(INPUT));
@@ -94,6 +106,27 @@ describe('useEpisodeDownload', () => {
     });
 
     expect(mockDownloadEpisode).not.toHaveBeenCalled();
+  });
+
+  it('treats a stale downloading record as not busy and restartable', async () => {
+    const { STALE_DOWNLOAD_MS } = await import('@/lib/offline/constants');
+    mockUseDownloadRecord.mockReturnValue({
+      episodeId: 5,
+      status: 'downloading',
+      updatedAt: Date.now() - STALE_DOWNLOAD_MS - 1,
+    });
+
+    const { useEpisodeDownload } = await import('../useEpisodeDownload');
+    const { result } = renderHook(() => useEpisodeDownload(INPUT));
+
+    expect(result.current.isBusy).toBe(false);
+    expect(result.current.canStart).toBe(true);
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    expect(mockDownloadEpisode).toHaveBeenCalledWith(INPUT);
   });
 
   it('remove() invokes removeDownload with the episode id', async () => {

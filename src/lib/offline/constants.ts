@@ -21,3 +21,11 @@ export const AUDIO_CACHE_NAME = 'kiku-audio';
 
 /** Max concurrent study-guide fetches during an episode download. */
 export const STUDY_GUIDE_DOWNLOAD_CONCURRENCY = 3;
+
+/**
+ * How long a 'downloading' record may go without a progress write before it
+ * is considered stale (tab closed mid-download; nothing is advancing it).
+ * `updatedAt` is written on every progress tick, so a healthy download stays
+ * far inside this window even on slow connections.
+ */
+export const STALE_DOWNLOAD_MS = 60_000;

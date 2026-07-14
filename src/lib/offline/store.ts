@@ -21,16 +21,24 @@ import {
 
 export async function putEpisodeSnapshot(snapshot: EpisodeSnapshot): Promise<void> {
   const parsed = episodeSnapshotSchema.parse(snapshot);
+  const episodeId = parsed.episode.id;
   const db = await openOfflineDb();
   const tx = db.transaction(['episodes', 'segments'], 'readwrite');
   const episodeStore = tx.objectStore('episodes');
   const segmentStore = tx.objectStore('segments');
 
+  // A snapshot fully replaces the episode's stored segments. Delete rows
+  // whose segmentIndex is absent from the incoming set (e.g. re-segmentation
+  // shrank the episode) so getEpisodeSnapshot can never return phantom
+  // segments left over from an earlier, longer version.
+  const existingRows = await segmentStore.index('by-episode').getAll(episodeId);
+  const incomingIndices = new Set(parsed.segments.map((segment) => segment.segmentIndex));
+  const staleRows = existingRows.filter((row) => !incomingIndices.has(row.segmentIndex));
+
   await Promise.all([
-    episodeStore.put({ ...parsed.episode, episodeId: parsed.episode.id }),
-    ...parsed.segments.map((segment) =>
-      segmentStore.put({ ...segment, episodeId: parsed.episode.id })
-    ),
+    episodeStore.put({ ...parsed.episode, episodeId }),
+    ...staleRows.map((row) => segmentStore.delete([episodeId, row.segmentIndex])),
+    ...parsed.segments.map((segment) => segmentStore.put({ ...segment, episodeId })),
   ]);
 
   await tx.done;

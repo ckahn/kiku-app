@@ -135,6 +135,35 @@ describe('EpisodeDownloadMenuItem', () => {
     expect(screen.getByRole('menuitem', { name: /downloading audio/i })).toBeDisabled();
   });
 
+  it('offers a retry when a downloading record has gone stale', async () => {
+    // A stale 'downloading' record (tab closed mid-download) is surfaced by
+    // the hook as not busy + startable; the menu must not show the disabled
+    // progress chip, or the episode could never be downloaded again.
+    const controls = makeControls({
+      isBusy: false,
+      canStart: true,
+      record: {
+        episodeId: 5,
+        status: 'downloading',
+        step: 'guides',
+        guidesCompleted: 2,
+        guidesTotal: 7,
+        audioBytes: 0,
+        audioTotalBytes: null,
+      },
+    });
+    mockUseEpisodeDownload.mockReturnValue(controls);
+
+    render(<EpisodeDownloadMenuItem {...PROPS} />);
+
+    const item = screen.getByRole('menuitem', { name: /retry download/i });
+    expect(item).toBeEnabled();
+    expect(screen.getByText(/interrupted/i)).toBeInTheDocument();
+
+    await userEvent.click(item);
+    expect(controls.start).toHaveBeenCalled();
+  });
+
   it('shows "Retry download" with the error message when the record errored', async () => {
     const controls = makeControls({
       record: { episodeId: 5, status: 'error', step: 'guides', error: 'network gone' },

@@ -70,7 +70,11 @@ export default function EpisodeDownloadMenuItem({
     );
   }
 
-  if (record?.status === 'downloading') {
+  // Only a live download (isBusy) gets the disabled progress chip. A stale
+  // 'downloading' record — tab closed mid-download, surfaced by the hook as
+  // not busy — falls through to the retry affordance below; a permanently
+  // disabled chip would make the episode impossible to download again.
+  if (record?.status === 'downloading' && isBusy) {
     return (
       <button type="button" role="menuitem" disabled className={MENU_ITEM_CLASS}>
         <Download size={16} aria-hidden="true" />
@@ -79,21 +83,25 @@ export default function EpisodeDownloadMenuItem({
     );
   }
 
-  const isRetry = record?.status === 'error';
+  const isFailed = record?.status === 'error';
+  const isInterrupted = record?.status === 'downloading';
   return (
     <>
       <button
         type="button"
         role="menuitem"
         onClick={handleStart}
-        disabled={!canStart || isBusy}
+        disabled={!canStart}
         className={MENU_ITEM_CLASS}
       >
         <Download size={16} aria-hidden="true" />
-        <span>{isRetry ? 'Retry download' : 'Make available offline'}</span>
+        <span>{isFailed || isInterrupted ? 'Retry download' : 'Make available offline'}</span>
       </button>
-      {isRetry && record.error && (
+      {isFailed && record.error && (
         <p className="px-3 pb-2 pt-1 text-xs text-error-on-subtle">{record.error}</p>
+      )}
+      {isInterrupted && (
+        <p className="px-3 pb-2 pt-1 text-xs text-error-on-subtle">Download interrupted.</p>
       )}
     </>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { AUDIO_CACHE_NAME } from './constants';
+import { AUDIO_CACHE_NAME, STALE_DOWNLOAD_MS } from './constants';
 import { deleteEpisodeData, getAllDownloadRecords, putDownloadRecord } from './store';
 import type { DownloadRecord, DownloadStep } from './types';
 
@@ -48,6 +48,18 @@ export function subscribe(listener: Listener): () => void {
 
 export function getSnapshot(episodeId: number): DownloadRecord | undefined {
   return records.get(episodeId);
+}
+
+/**
+ * A 'downloading' record whose last progress write is older than
+ * STALE_DOWNLOAD_MS is stale: the tab that was driving it is gone (closed or
+ * crashed mid-download) and nothing will ever advance it. Consumers must
+ * treat a stale record as restartable, not busy — otherwise the episode
+ * could never be downloaded again. `updatedAt` is written on every progress
+ * tick, so a live download never trips this.
+ */
+export function isStale(record: DownloadRecord, now: number = Date.now()): boolean {
+  return record.status === 'downloading' && now - record.updatedAt > STALE_DOWNLOAD_MS;
 }
 
 /** Reload every download record from IndexedDB, replacing the in-memory cache. */

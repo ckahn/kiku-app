@@ -151,6 +151,50 @@ describe('downloadEpisode happy path', () => {
   });
 });
 
+describe('downloadEpisode re-entrancy guard', () => {
+  it('ignores a second call for the same episode while one is in flight', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      await delay(5);
+      if (url.endsWith('/offline-snapshot')) return jsonResponse({ success: true, data: SNAPSHOT });
+      if (url.includes('/study-guide')) return jsonResponse({ success: true, data: studyGuideFixture });
+      if (url.endsWith('/audio')) return audioResponse(1000);
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('caches', undefined);
+
+    const [first, second] = await Promise.all([
+      downloadEpisode(DOWNLOAD_INPUT),
+      downloadEpisode(DOWNLOAD_INPUT),
+    ]);
+
+    expect(first?.status).toBe('complete');
+    expect(second).toBeUndefined();
+    // Single run = 1 snapshot + 2 guides + 1 audio; a concurrent duplicate
+    // must not add any fetches (no double Claude cost, no double egress).
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('allows a fresh download for the same episode after the first settles', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/offline-snapshot')) return jsonResponse({ success: true, data: SNAPSHOT });
+      if (url.includes('/study-guide')) return jsonResponse({ success: true, data: studyGuideFixture });
+      if (url.endsWith('/audio')) return audioResponse(1000);
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('caches', undefined);
+
+    const first = await downloadEpisode(DOWNLOAD_INPUT);
+    const second = await downloadEpisode(DOWNLOAD_INPUT);
+
+    expect(first?.status).toBe('complete');
+    expect(second?.status).toBe('complete');
+  });
+});
+
 describe('downloadEpisode snapshot fetch failure', () => {
   it('fails at step guides when the offline-snapshot request itself fails', async () => {
     vi.stubGlobal(

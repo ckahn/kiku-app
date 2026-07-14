@@ -107,6 +107,34 @@ describe('episode snapshot round-trip', () => {
     expect(result?.segments).toHaveLength(2);
   });
 
+  it('deletes segments absent from a re-downloaded, shorter snapshot', async () => {
+    await putEpisodeSnapshot(makeSnapshot());
+
+    const shrunk: EpisodeSnapshot = {
+      ...makeSnapshot(),
+      segments: [makeSnapshot().segments[0]],
+    };
+    await putEpisodeSnapshot(shrunk);
+
+    const result = await getEpisodeSnapshot(1);
+    expect(result?.segments).toHaveLength(1);
+    expect(result?.segments[0].segmentIndex).toBe(0);
+  });
+
+  it('does not delete another episode segments when replacing a snapshot', async () => {
+    await putEpisodeSnapshot(makeSnapshot());
+    await putEpisodeSnapshot(makeSnapshot({ id: 2, title: 'Episode Two' }));
+
+    const shrunk: EpisodeSnapshot = {
+      ...makeSnapshot(),
+      segments: [makeSnapshot().segments[0]],
+    };
+    await putEpisodeSnapshot(shrunk);
+
+    const other = await getEpisodeSnapshot(2);
+    expect(other?.segments).toHaveLength(2);
+  });
+
   it('rejects an invalid write', async () => {
     const invalid = {
       ...makeSnapshot(),

@@ -93,6 +93,14 @@ async function downloadGuides(
   });
 }
 
+// Episodes with a downloadEpisode call currently running in this tab.
+// Guards against double-starts from rapid re-clicks: a duplicate run would
+// re-pay Claude study-guide generation and double the audio egress. Checked
+// and updated synchronously before the first await, so two back-to-back
+// calls in the same tick cannot both pass. Cross-tab duplicates are handled
+// (a tick later) by the registry's BroadcastChannel sync.
+const inFlight = new Set<number>();
+
 /**
  * Downloads and stores everything needed to use an episode offline: its
  * segments + study guides in IndexedDB, and its audio in the service
@@ -101,6 +109,9 @@ async function downloadGuides(
  * failure skips segments whose study guide is already stored and skips the
  * audio fetch entirely if it's already cached.
  *
+ * Returns undefined (and does nothing) when a download for the same episode
+ * is already in flight in this tab.
+ *
  * On any phase's failure the download record is marked 'error' at that
  * step, with whatever progress had already committed left in place — see
  * the `offline-support` skill.
@@ -108,6 +119,20 @@ async function downloadGuides(
 export async function downloadEpisode(
   input: DownloadEpisodeInput,
   options: DownloadEpisodeOptions = {}
+): Promise<DownloadRecord | undefined> {
+  if (inFlight.has(input.episodeId)) return undefined;
+  inFlight.add(input.episodeId);
+
+  try {
+    return await runDownload(input, options);
+  } finally {
+    inFlight.delete(input.episodeId);
+  }
+}
+
+async function runDownload(
+  input: DownloadEpisodeInput,
+  options: DownloadEpisodeOptions
 ): Promise<DownloadRecord> {
   const { episodeId, title, podcastSlug, episodeNumber } = input;
   const emit = (record: DownloadRecord): DownloadRecord => {

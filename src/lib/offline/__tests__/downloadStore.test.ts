@@ -10,6 +10,7 @@ import {
   failDownload,
   finishDownload,
   getSnapshot,
+  isStale,
   refresh,
   removeDownload,
   resetDownloadStoreForTests,
@@ -17,6 +18,8 @@ import {
   subscribe,
   updateProgress,
 } from '../downloadStore';
+import { STALE_DOWNLOAD_MS } from '../constants';
+import type { DownloadRecord } from '../types';
 
 beforeEach(async () => {
   resetDownloadStoreForTests();
@@ -114,6 +117,47 @@ describe('mutators persist to IndexedDB and update the in-memory snapshot', () =
     expect(failed.error).toBe('network error');
     expect(failed.guidesCompleted).toBe(2);
     expect(await readDownloadRecordFromIdb(6)).toEqual(failed);
+  });
+});
+
+describe('isStale', () => {
+  function downloadingRecord(updatedAt: number): DownloadRecord {
+    return {
+      episodeId: 1,
+      status: 'downloading',
+      step: 'guides',
+      guidesCompleted: 0,
+      guidesTotal: 3,
+      audioBytes: 0,
+      audioTotalBytes: null,
+      bytesTotal: null,
+      title: 'Episode 1',
+      podcastSlug: 'my-podcast',
+      episodeNumber: 1,
+      updatedAt,
+    };
+  }
+
+  it('is false for a downloading record updated exactly at the threshold', () => {
+    const now = 1_000_000_000;
+    expect(isStale(downloadingRecord(now - STALE_DOWNLOAD_MS), now)).toBe(false);
+  });
+
+  it('is true for a downloading record updated just past the threshold', () => {
+    const now = 1_000_000_000;
+    expect(isStale(downloadingRecord(now - STALE_DOWNLOAD_MS - 1), now)).toBe(true);
+  });
+
+  it('is false for a fresh downloading record', () => {
+    const now = Date.now();
+    expect(isStale(downloadingRecord(now))).toBe(false);
+  });
+
+  it('is false for non-downloading records regardless of age', () => {
+    const now = 1_000_000_000;
+    const old = now - STALE_DOWNLOAD_MS * 10;
+    expect(isStale({ ...downloadingRecord(old), status: 'complete' }, now)).toBe(false);
+    expect(isStale({ ...downloadingRecord(old), status: 'error' }, now)).toBe(false);
   });
 });
 

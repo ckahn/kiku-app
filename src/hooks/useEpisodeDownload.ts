@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { useDownloadRecord } from '@/hooks/useDownloadRecord';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { downloadEpisode, type DownloadEpisodeInput } from '@/lib/offline/download';
-import { removeDownload } from '@/lib/offline/downloadStore';
+import { isStale, removeDownload } from '@/lib/offline/downloadStore';
 import type { DownloadRecord } from '@/lib/offline/types';
 
 export interface EpisodeDownloadControls {
@@ -33,7 +33,11 @@ export function useEpisodeDownload(input: DownloadEpisodeInput): EpisodeDownload
   const record = useDownloadRecord(input.episodeId);
   const isOnline = useOnlineStatus();
 
-  const isBusy = record?.status === 'downloading';
+  // A stale 'downloading' record (tab closed mid-download; no progress
+  // writes for STALE_DOWNLOAD_MS) is not busy — treating it as busy would
+  // make the episode permanently un-downloadable. Stale records are
+  // restartable; downloadEpisode resumes from whatever already committed.
+  const isBusy = record?.status === 'downloading' && !isStale(record);
   const canStart = isOnline && !isBusy;
 
   const { episodeId, title, podcastSlug, episodeNumber } = input;

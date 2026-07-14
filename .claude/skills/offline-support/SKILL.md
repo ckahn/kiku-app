@@ -41,6 +41,12 @@ from `src/lib/api/study-guide.ts`). The rule in `store.ts`:
   versions) is treated as **absent**, never thrown. The caller just
   re-downloads. Don't "fix" this by surfacing read errors.
 
+`putEpisodeSnapshot` **fully replaces** the episode's stored segments: rows
+whose `segmentIndex` is absent from the incoming snapshot are deleted in the
+same transaction (re-segmentation can shrink an episode; without this,
+`getEpisodeSnapshot` would return phantom tail segments from the earlier,
+longer version).
+
 `deleteEpisodeData(episodeId)` cascades across all four stores in one
 transaction. It does **not** touch Cache Storage — use
 `removeDownload` (below) for a full purge.
@@ -61,6 +67,16 @@ updateProgress       → downloading/guides   (guidesCompleted/guidesTotal)
 finishDownload       → complete             (bytesTotal, completedAt stamped)
 failDownload(step)   → error                (step + message; prior progress retained)
 ```
+
+**Why is a download "stuck"? — stale records.** If the tab closes mid-download,
+the record stays `'downloading'` forever (nothing advances it). `isStale(record)`
+detects this: status `'downloading'` and no progress write (`updatedAt`) for
+more than `STALE_DOWNLOAD_MS` (60s, `constants.ts`; every progress tick writes
+`updatedAt`, so a live download never trips it). Consumers must treat stale as
+**restartable, not busy**: `useEpisodeDownload` derives
+`isBusy = downloading && !isStale`, the menu shows "Retry download" ("Download
+interrupted.") instead of the disabled progress chip, and the badge renders
+nothing. Retrying resumes — stored guides and cached audio are skipped.
 
 - `ensureInitialized()` — lazy one-time IndexedDB load per page; safe to call
   from every mount effect. No-ops silently without IndexedDB (jsdom/SSR) and
@@ -98,6 +114,13 @@ failDownload(step)   → error                (step + message; prior progress re
 Per-phase try/catch → `failDownload(step, message)`; partial data is
 retained. **Idempotent/resumable**: re-running skips stored guides and cached
 audio, so "Retry download" after a failure only fetches what's missing.
+
+**Re-entrancy guard:** a module-level in-flight set makes `downloadEpisode`
+return `undefined` (doing nothing) when a download for the same episode is
+already running in this tab — checked synchronously before the first await,
+so rapid double-clicks can't start duplicate runs (which would re-pay Claude
+guide generation and double the audio egress). Cross-tab duplicates are
+handled a tick later by the registry's BroadcastChannel sync.
 
 ## Offline-snapshot endpoint
 
