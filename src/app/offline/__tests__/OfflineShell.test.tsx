@@ -4,8 +4,8 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import studyGuideFixture from '@fixtures/study-guide.json';
 import { resetOfflineDbForTests } from '@/lib/offline/db';
-import { putEpisodeSnapshot, putStudyGuide } from '@/lib/offline/store';
-import type { EpisodeSnapshot } from '@/lib/offline/types';
+import { putDownloadRecord, putEpisodeSnapshot, putStudyGuide } from '@/lib/offline/store';
+import type { DownloadRecord, EpisodeSnapshot } from '@/lib/offline/types';
 import type { StudyGuideContent } from '@/lib/api/types';
 import OfflineShell from '../page';
 
@@ -65,6 +65,25 @@ function makeSnapshot(): EpisodeSnapshot {
   };
 }
 
+
+function makeDownloadRecord(overrides: Partial<DownloadRecord> = {}): DownloadRecord {
+  return {
+    episodeId: 1,
+    status: 'complete',
+    step: 'audio',
+    guidesCompleted: 2,
+    guidesTotal: 2,
+    audioBytes: 1000,
+    audioTotalBytes: 1000,
+    title: 'Episode One',
+    podcastSlug: 'my-podcast',
+    episodeNumber: 1,
+    updatedAt: 1000,
+    completedAt: 2000,
+    ...overrides,
+  };
+}
+
 function setPathname(pathname: string): void {
   window.history.replaceState({}, '', pathname);
 }
@@ -76,6 +95,7 @@ function setOnline(value: boolean): void {
 describe('OfflineShell', () => {
   beforeEach(async () => {
     await resetOfflineDbForTests();
+    indexedDB.deleteDatabase('kiku-offline');
     setOnline(true);
     vi.stubGlobal('requestAnimationFrame', () => 0);
     vi.stubGlobal('cancelAnimationFrame', () => {});
@@ -85,6 +105,52 @@ describe('OfflineShell', () => {
     setOnline(true);
     vi.unstubAllGlobals();
     setPathname('/');
+  });
+
+
+  it('renders the downloaded-episodes list at the home route, newest first', async () => {
+    await putDownloadRecord(makeDownloadRecord());
+    await putDownloadRecord(
+      makeDownloadRecord({ episodeId: 2, title: 'Episode Two', episodeNumber: 2, completedAt: 5000 }),
+    );
+    await putDownloadRecord(
+      makeDownloadRecord({ episodeId: 3, title: 'Still Downloading', episodeNumber: 3, status: 'downloading', completedAt: undefined }),
+    );
+    setPathname('/');
+
+    render(<OfflineShell />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Downloaded episodes' })).toBeInTheDocument();
+    });
+    const links = screen.getAllByRole('link').filter((el) => el.getAttribute('href')?.includes('/episodes/'));
+    expect(links.map((el) => el.getAttribute('href'))).toEqual([
+      '/podcasts/my-podcast/episodes/2',
+      '/podcasts/my-podcast/episodes/1',
+    ]);
+    expect(screen.queryByText('Still Downloading')).not.toBeInTheDocument();
+  });
+
+  it('shows the offline home empty state when nothing is downloaded', async () => {
+    setOnline(false);
+    setPathname('/');
+
+    render(<OfflineShell />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/no episodes have been downloaded yet/i)).toBeInTheDocument();
+    });
+  });
+
+  it('shows online-appropriate home empty copy when reached while online', async () => {
+    setPathname('/');
+
+    render(<OfflineShell />);
+
+    await waitFor(() => {
+      expect(screen.getByText('No downloaded episodes')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/you're offline/i)).not.toBeInTheDocument();
   });
 
   it('renders the transcript for a downloaded episode', async () => {
@@ -140,7 +206,7 @@ describe('OfflineShell', () => {
 
   it('shows the offline unsupported empty state for an off-pattern route', async () => {
     setOnline(false);
-    setPathname('/');
+    setPathname('/podcasts/my-podcast');
 
     render(<OfflineShell />);
 
@@ -151,7 +217,7 @@ describe('OfflineShell', () => {
   });
 
   it('shows online-appropriate unsupported copy when reached while online', async () => {
-    setPathname('/');
+    setPathname('/podcasts/my-podcast');
 
     render(<OfflineShell />);
 

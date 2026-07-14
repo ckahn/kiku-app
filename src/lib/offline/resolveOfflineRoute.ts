@@ -20,6 +20,7 @@ export type OfflineRoute =
       readonly episodeNumber: number;
       readonly segmentIndex: number;
     }
+  | { readonly kind: 'home' }
   | { readonly kind: 'unsupported' };
 
 const UNSUPPORTED: OfflineRoute = { kind: 'unsupported' };
@@ -32,6 +33,11 @@ function parseIndex(value: string): number | null {
 
 export function resolveOfflineRoute(pathname: string): OfflineRoute {
   const parts = pathname.split('/').filter((part) => part.length > 0);
+
+  // / — downloaded-episodes home
+  if (parts.length === 0) {
+    return { kind: 'home' };
+  }
 
   // /podcasts/:slug/episodes/:number
   if (

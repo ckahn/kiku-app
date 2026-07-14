@@ -69,8 +69,8 @@ describe('resolveOfflineRoute', () => {
     });
   });
 
-  it('treats the home page as unsupported', () => {
-    expect(resolveOfflineRoute('/')).toEqual({ kind: 'unsupported' });
+  it('resolves the home page to the downloaded-episodes list', () => {
+    expect(resolveOfflineRoute('/')).toEqual({ kind: 'home' });
   });
 
   it('treats the podcast detail page as unsupported', () => {

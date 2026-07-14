@@ -6,7 +6,12 @@ import { PageShell } from '@/components/layout';
 import EpisodePlayer from '@/components/player/EpisodePlayer';
 import StudyScreen from '@/components/study/StudyScreen';
 import { resolveOfflineRoute } from '@/lib/offline/resolveOfflineRoute';
-import { findEpisodeBySlugAndNumber, getEpisodeSnapshot } from '@/lib/offline/store';
+import {
+  findEpisodeBySlugAndNumber,
+  getAllDownloadRecords,
+  getEpisodeSnapshot,
+} from '@/lib/offline/store';
+import type { DownloadRecord } from '@/lib/offline/types';
 import {
   buildEpisodePlayerProps,
   buildStudyScreenProps,
@@ -33,12 +38,22 @@ type ShellContent =
       readonly player: OfflineEpisodePlayerProps;
     }
   | { readonly kind: 'study'; readonly study: OfflineStudyScreenProps }
+  | { readonly kind: 'home'; readonly downloads: readonly DownloadRecord[] }
   | { readonly kind: 'not-downloaded' }
   | { readonly kind: 'unsupported' };
+
+async function loadDownloadedEpisodes(): Promise<ShellContent> {
+  const records = await getAllDownloadRecords();
+  const downloads = records
+    .filter((record) => record.status === 'complete')
+    .sort((a, b) => (b.completedAt ?? b.updatedAt) - (a.completedAt ?? a.updatedAt));
+  return { kind: 'home', downloads };
+}
 
 async function loadOfflineContent(pathname: string): Promise<ShellContent> {
   const route = resolveOfflineRoute(pathname);
   if (route.kind === 'unsupported') return { kind: 'unsupported' };
+  if (route.kind === 'home') return loadDownloadedEpisodes();
 
   const meta = await findEpisodeBySlugAndNumber(route.slug, route.episodeNumber);
   if (!meta) return { kind: 'not-downloaded' };
@@ -85,10 +100,49 @@ function OfflineEmptyState({ title, body }: { readonly title: string; readonly b
   );
 }
 
+function DownloadedEpisodesList({ downloads }: { readonly downloads: readonly DownloadRecord[] }) {
+  return (
+    <PageShell>
+      <h1 className="mb-4 text-2xl font-bold text-ink">Downloaded episodes</h1>
+      <ul className="space-y-2">
+        {downloads.map((record) => (
+          <li key={record.episodeId}>
+            {/* Plain <a>, not next/link: a hard navigation is exactly what we
+                want here — online it reaches the real RSC page, offline it
+                fails and the SW serves this shell again for the episode URL. */}
+            <a
+              href={`/podcasts/${record.podcastSlug}/episodes/${record.episodeNumber}`}
+              className="block min-h-11 cursor-pointer rounded-lg border border-border bg-surface px-4 py-3 transition-colors hover:border-primary"
+            >
+              <span className="block font-medium text-ink">{record.title}</span>
+              <span className="block text-sm text-muted">Episode {record.episodeNumber}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </PageShell>
+  );
+}
+
 function renderContent(content: ShellContent, isOnline: boolean) {
   switch (content.kind) {
     case 'loading':
       return <LoadingState />;
+    case 'home':
+      if (content.downloads.length === 0) {
+        return isOnline ? (
+          <OfflineEmptyState
+            title="No downloaded episodes"
+            body="Episodes you make available offline will show up here."
+          />
+        ) : (
+          <OfflineEmptyState
+            title="You're offline"
+            body="No episodes have been downloaded yet. Reconnect and use “Make available offline” on an episode to study it here."
+          />
+        );
+      }
+      return <DownloadedEpisodesList downloads={content.downloads} />;
     case 'episode':
       return (
         <PageShell backHref={`/podcasts/${content.slug}`} backLabel="Podcast">

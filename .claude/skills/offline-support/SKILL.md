@@ -269,3 +269,7 @@ nav) → guide (from IDB) + playback; confirm edit/delete/status/upload are
 disabled and the poller isn't spinning; navigate to a non-downloaded episode →
 honest empty state. Deploy-staleness: redeploy so chunk hashes change, go
 offline, reload → still renders (shell + chunks re-precached together).
+
+## Offline home list (added to M3 during on-device testing)
+
+Navigating to `/` offline resolves to `{ kind: 'home' }` in `resolveOfflineRoute` and the shell renders a "Downloaded episodes" list from `getAllDownloadRecords()` (status `complete` only, newest `completedAt` first). List items are plain `<a>` links (hard navigation → re-enters the shell offline). Empty list renders an online/offline-aware empty state.
