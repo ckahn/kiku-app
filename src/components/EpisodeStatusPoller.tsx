@@ -34,6 +34,10 @@ export default function EpisodeStatusPoller({
   const [stalled, setStalled] = useState(false);
   const [waitingForConnection, setWaitingForConnection] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Mirrors `stalled` for the mount-scoped effect: its closures only ever see
+  // the initial state value, so the online handler must read this ref — else a
+  // connectivity blip would silently restart a poller the UI declared dead.
+  const stalledRef = useRef(false);
   const segmentTriggeredRef = useRef(false);
   const transcribeTriggeredRef = useRef(false);
   const currentStatusRef = useRef(initialStatus);
@@ -52,8 +56,9 @@ export default function EpisodeStatusPoller({
     }
 
     async function startProcessing(): Promise<void> {
-      // Never spin against a dead network, and never run two loops at once.
-      if (cleanedUp || intervalRef.current || !navigator.onLine) return;
+      // Never spin against a dead network, never run two loops at once, and
+      // never resurrect a stalled poller (the stall UI says it's dead).
+      if (cleanedUp || stalledRef.current || intervalRef.current || !navigator.onLine) return;
       setWaitingForConnection(false);
 
       if (currentStatusRef.current === 'uploaded' && !transcribeTriggeredRef.current) {
@@ -94,6 +99,7 @@ export default function EpisodeStatusPoller({
 
         if (Date.now() - lastStatusChangeAtRef.current > stallTimeoutMs) {
           stopInterval();
+          stalledRef.current = true;
           setStalled(true);
           return;
         }
@@ -116,7 +122,7 @@ export default function EpisodeStatusPoller({
 
     function handleOffline(): void {
       stopInterval();
-      if (!cleanedUp && !TERMINAL_STATUSES.has(currentStatusRef.current)) {
+      if (!cleanedUp && !stalledRef.current && !TERMINAL_STATUSES.has(currentStatusRef.current)) {
         setWaitingForConnection(true);
       }
     }

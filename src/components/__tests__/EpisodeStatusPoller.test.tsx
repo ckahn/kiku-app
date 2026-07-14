@@ -289,6 +289,35 @@ describe('EpisodeStatusPoller', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it('does not resume polling after a stall when connectivity blips', async () => {
+    mockFetch.mockResolvedValue(makeEpisodeResponse('transcribing'));
+
+    render(
+      <EpisodeStatusPoller
+        episodeId={1}
+        initialStatus="transcribing"
+        pollIntervalMs={FAST_POLL}
+        stallTimeoutMs={FAST_STALL}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument(), { timeout: 2000 });
+
+    const callCountAtStall = mockFetch.mock.calls.length;
+
+    // A wifi/cellular handoff fires offline then online. A stalled poller must
+    // stay dead — the UI says processing stalled, so silently resuming would
+    // contradict it.
+    setOnline(false);
+    window.dispatchEvent(new Event('offline'));
+    setOnline(true);
+    window.dispatchEvent(new Event('online'));
+
+    await new Promise((r) => setTimeout(r, FAST_POLL * 5));
+    expect(mockFetch.mock.calls.length).toBe(callCountAtStall);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+
   it('resumes processing when the connection is restored', async () => {
     setOnline(false);
     mockFetch
