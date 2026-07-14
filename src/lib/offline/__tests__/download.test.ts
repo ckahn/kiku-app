@@ -100,12 +100,11 @@ describe('downloadEpisode happy path', () => {
     const onProgress = vi.fn();
     const record = await downloadEpisode(DOWNLOAD_INPUT, { onProgress });
 
-    expect(record.status).toBe('complete');
-    expect(record.guidesCompleted).toBe(2);
-    expect(record.guidesTotal).toBe(2);
-    expect(record.audioBytes).toBe(1000);
-    expect(record.bytesTotal).toBe(1000);
-    expect(record.completedAt).toBeTypeOf('number');
+    expect(record?.status).toBe('complete');
+    expect(record?.guidesCompleted).toBe(2);
+    expect(record?.guidesTotal).toBe(2);
+    expect(record?.audioBytes).toBe(1000);
+    expect(record?.completedAt).toBeTypeOf('number');
     expect(await hasStudyGuide(201)).toBe(true);
     expect(await hasStudyGuide(202)).toBe(true);
     expect(persistMock).toHaveBeenCalledTimes(1);
@@ -147,7 +146,7 @@ describe('downloadEpisode happy path', () => {
 
     const record = await downloadEpisode(DOWNLOAD_INPUT);
 
-    expect(record.status).toBe('complete');
+    expect(record?.status).toBe('complete');
   });
 });
 
@@ -210,9 +209,9 @@ describe('downloadEpisode snapshot fetch failure', () => {
 
     const record = await downloadEpisode(DOWNLOAD_INPUT);
 
-    expect(record.status).toBe('error');
-    expect(record.step).toBe('guides');
-    expect(record.error).toMatch(/segmenting/i);
+    expect(record?.status).toBe('error');
+    expect(record?.step).toBe('guides');
+    expect(record?.error).toMatch(/segmenting/i);
   });
 
   it('falls back to a generic message when the error envelope has none', async () => {
@@ -227,8 +226,8 @@ describe('downloadEpisode snapshot fetch failure', () => {
 
     const record = await downloadEpisode(DOWNLOAD_INPUT);
 
-    expect(record.status).toBe('error');
-    expect(record.error).toMatch(/request failed \(500\)/i);
+    expect(record?.status).toBe('error');
+    expect(record?.error).toMatch(/request failed \(500\)/i);
   });
 });
 
@@ -252,10 +251,10 @@ describe('downloadEpisode guide failure', () => {
 
     const record = await downloadEpisode(DOWNLOAD_INPUT);
 
-    expect(record.status).toBe('error');
-    expect(record.step).toBe('guides');
-    expect(record.error).toBeTruthy();
-    expect(record.guidesCompleted).toBe(1);
+    expect(record?.status).toBe('error');
+    expect(record?.step).toBe('guides');
+    expect(record?.error).toBeTruthy();
+    expect(record?.guidesCompleted).toBe(1);
     expect(await hasStudyGuide(201)).toBe(true);
     expect(await hasStudyGuide(202)).toBe(false);
   });
@@ -276,9 +275,9 @@ describe('downloadEpisode audio failure', () => {
 
     const record = await downloadEpisode(DOWNLOAD_INPUT);
 
-    expect(record.status).toBe('error');
-    expect(record.step).toBe('audio');
-    expect(record.guidesCompleted).toBe(2);
+    expect(record?.status).toBe('error');
+    expect(record?.step).toBe('audio');
+    expect(record?.guidesCompleted).toBe(2);
     expect(await hasStudyGuide(201)).toBe(true);
     expect(await hasStudyGuide(202)).toBe(true);
   });
@@ -313,7 +312,7 @@ describe('downloadEpisode resume', () => {
 
     const record = await downloadEpisode(DOWNLOAD_INPUT);
 
-    expect(record.status).toBe('complete');
+    expect(record?.status).toBe('complete');
     const studyGuideCalls = fetchMock.mock.calls.filter(([input]) =>
       String(input).includes('/study-guide')
     );

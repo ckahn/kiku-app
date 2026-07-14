@@ -37,8 +37,11 @@ function notify(): void {
   for (const listener of listeners) listener();
 }
 
+// The message is a pure "something changed" ping — the receiving side
+// deliberately ignores event.data and just reloads from IndexedDB (the
+// source of truth), so no payload is carried.
 function notifyOtherTabs(): void {
-  getBroadcastChannel()?.postMessage({ type: 'download-updated' });
+  getBroadcastChannel()?.postMessage(null);
 }
 
 export function subscribe(listener: Listener): () => void {
@@ -122,7 +125,6 @@ export async function startDownload(input: StartDownloadInput): Promise<Download
     guidesTotal: input.guidesTotal,
     audioBytes: 0,
     audioTotalBytes: null,
-    bytesTotal: null,
     title: input.title,
     podcastSlug: input.podcastSlug,
     episodeNumber: input.episodeNumber,
@@ -140,16 +142,17 @@ export async function updateProgress(episodeId: number, patch: ProgressPatch): P
   return persist({ ...current, ...patch, updatedAt: Date.now() });
 }
 
-export async function finishDownload(
-  episodeId: number,
-  bytesTotal: number | null
-): Promise<DownloadRecord> {
+/**
+ * Marks the download complete. The record's final audio size is its
+ * `audioBytes` field (written by the audio-phase progress ticks) — there is
+ * no separate total field to stamp.
+ */
+export async function finishDownload(episodeId: number): Promise<DownloadRecord> {
   const current = requireCurrent(episodeId);
   const now = Date.now();
   return persist({
     ...current,
     status: 'complete',
-    bytesTotal,
     error: undefined,
     updatedAt: now,
     completedAt: now,

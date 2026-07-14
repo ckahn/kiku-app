@@ -2,7 +2,7 @@
 
 import { Download, Trash2 } from 'lucide-react';
 import { useEpisodeDownload } from '@/hooks/useEpisodeDownload';
-import type { DownloadRecord } from '@/lib/offline/types';
+import { downloadProgressLabel } from '@/lib/offline/progress';
 
 interface EpisodeDownloadMenuItemProps {
   episodeId: number;
@@ -15,16 +15,10 @@ interface EpisodeDownloadMenuItemProps {
 const MENU_ITEM_CLASS =
   'flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-canvas-subtle disabled:cursor-not-allowed disabled:opacity-50';
 
-function downloadingLabel(record: DownloadRecord): string {
-  if (record.step === 'guides') {
-    return `Study guides ${record.guidesCompleted}/${record.guidesTotal}`;
-  }
-  if (record.audioTotalBytes) {
-    const percent = Math.min(100, Math.round((record.audioBytes / record.audioTotalBytes) * 100));
-    return `Audio ${percent}%`;
-  }
-  return 'Downloading audio…';
-}
+const PROGRESS_LABEL_OPTIONS = {
+  guidesPrefix: 'Study guides',
+  audioIndeterminateLabel: 'Downloading audio…',
+} as const;
 
 /**
  * Offline-download actions for the episode action menu: start ("Make
@@ -78,7 +72,7 @@ export default function EpisodeDownloadMenuItem({
     return (
       <button type="button" role="menuitem" disabled className={MENU_ITEM_CLASS}>
         <Download size={16} aria-hidden="true" />
-        <span>{downloadingLabel(record)}</span>
+        <span>{downloadProgressLabel(record, PROGRESS_LABEL_OPTIONS)}</span>
       </button>
     );
   }

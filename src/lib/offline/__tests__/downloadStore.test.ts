@@ -97,12 +97,15 @@ describe('mutators persist to IndexedDB and update the in-memory snapshot', () =
     await expect(updateProgress(999, { guidesCompleted: 1 })).rejects.toThrow(/no in-progress/i);
   });
 
-  it('finishDownload marks complete and stamps bytesTotal/completedAt', async () => {
+  it('finishDownload marks complete and stamps completedAt', async () => {
     await startDownload(startInput(5));
-    const finished = await finishDownload(5, 12_345);
+    await updateProgress(5, { step: 'audio', audioBytes: 12_345, audioTotalBytes: 12_345 });
+    const finished = await finishDownload(5);
 
     expect(finished.status).toBe('complete');
-    expect(finished.bytesTotal).toBe(12_345);
+    // A complete record's final size is its audioBytes (written by the
+    // audio-phase progress ticks) — there is no separate total field.
+    expect(finished.audioBytes).toBe(12_345);
     expect(finished.completedAt).toBeTypeOf('number');
     expect(await readDownloadRecordFromIdb(5)).toEqual(finished);
   });
@@ -130,7 +133,6 @@ describe('isStale', () => {
       guidesTotal: 3,
       audioBytes: 0,
       audioTotalBytes: null,
-      bytesTotal: null,
       title: 'Episode 1',
       podcastSlug: 'my-podcast',
       episodeNumber: 1,
@@ -183,7 +185,6 @@ describe('ensureInitialized', () => {
       guidesTotal: 3,
       audioBytes: 100,
       audioTotalBytes: 100,
-      bytesTotal: 100,
       title: 'Episode 30',
       podcastSlug: 'my-podcast',
       episodeNumber: 30,
@@ -206,7 +207,6 @@ describe('ensureInitialized', () => {
       guidesTotal: 1,
       audioBytes: 10,
       audioTotalBytes: 10,
-      bytesTotal: 10,
       title: 'Episode 31',
       podcastSlug: 'my-podcast',
       episodeNumber: 31,
@@ -257,7 +257,6 @@ describe('cross-tab BroadcastChannel notify', () => {
       guidesTotal: 2,
       audioBytes: 50,
       audioTotalBytes: 50,
-      bytesTotal: 50,
       title: 'Episode 41',
       podcastSlug: 'my-podcast',
       episodeNumber: 41,

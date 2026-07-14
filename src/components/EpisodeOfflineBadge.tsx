@@ -4,23 +4,17 @@ import { CloudDownload, HardDriveDownload } from 'lucide-react';
 import { Badge } from '@/components/ui';
 import { useDownloadRecord } from '@/hooks/useDownloadRecord';
 import { isStale } from '@/lib/offline/downloadStore';
-import type { DownloadRecord } from '@/lib/offline/types';
+import { downloadProgressLabel } from '@/lib/offline/progress';
 
 interface EpisodeOfflineBadgeProps {
   episodeId: number;
   className?: string;
 }
 
-function progressLabel(record: DownloadRecord): string {
-  if (record.step === 'guides') {
-    return `Guides ${record.guidesCompleted}/${record.guidesTotal}`;
-  }
-  if (record.audioTotalBytes) {
-    const percent = Math.min(100, Math.round((record.audioBytes / record.audioTotalBytes) * 100));
-    return `Audio ${percent}%`;
-  }
-  return 'Audio…';
-}
+const PROGRESS_LABEL_OPTIONS = {
+  guidesPrefix: 'Guides',
+  audioIndeterminateLabel: 'Audio…',
+} as const;
 
 /**
  * Small status chip reflecting an episode's offline-download state:
@@ -41,7 +35,7 @@ export default function EpisodeOfflineBadge({ episodeId, className }: EpisodeOff
     return (
       <Badge variant="info" className={className}>
         <CloudDownload size={12} aria-hidden="true" className="mr-1" />
-        {progressLabel(record)}
+        {downloadProgressLabel(record, PROGRESS_LABEL_OPTIONS)}
       </Badge>
     );
   }

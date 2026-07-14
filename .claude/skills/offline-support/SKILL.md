@@ -64,9 +64,13 @@ Record state machine (`status` × `step`):
 startDownload        → downloading/guides   (progress counters zeroed)
 updateProgress       → downloading/guides   (guidesCompleted/guidesTotal)
                      → downloading/audio    (audioBytes vs audioTotalBytes; total null = indeterminate)
-finishDownload       → complete             (bytesTotal, completedAt stamped)
+finishDownload       → complete             (completedAt stamped; final size = audioBytes)
 failDownload(step)   → error                (step + message; prior progress retained)
 ```
+
+Progress-to-label derivation (percent math, "Guides n/m" / "Audio N%" /
+indeterminate) is shared by the menu item and badge via
+`src/lib/offline/progress.ts` — don't reimplement it per component.
 
 **Why is a download "stuck"? — stale records.** If the tab closes mid-download,
 the record stays `'downloading'` forever (nothing advances it). `isStale(record)`

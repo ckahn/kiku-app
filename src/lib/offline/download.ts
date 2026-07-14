@@ -160,10 +160,12 @@ async function runDownload(
   }
 
   try {
-    const { audioBytes } = await downloadAudio(episodeId, async (progress) => {
+    // The audio-phase progress ticks write audioBytes onto the record, so
+    // finishDownload has nothing extra to stamp beyond completion itself.
+    await downloadAudio(episodeId, async (progress) => {
       emit(await updateProgress(episodeId, { step: 'audio', ...progress }));
     });
-    return emit(await finishDownload(episodeId, audioBytes));
+    return emit(await finishDownload(episodeId));
   } catch (error: unknown) {
     return emit(await failDownload(episodeId, 'audio', getErrorMessage(error)));
   }

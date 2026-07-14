@@ -61,11 +61,10 @@ export const downloadRecordSchema = z.object({
   step: downloadStepSchema,
   guidesCompleted: z.number().int().nonnegative(),
   guidesTotal: z.number().int().nonnegative(),
+  // For a 'complete' record, audioBytes is the final downloaded audio size.
   audioBytes: z.number().int().nonnegative(),
   // null when the audio response has no Content-Length (indeterminate progress).
   audioTotalBytes: z.number().int().nonnegative().nullable(),
-  // Final downloaded size, set once the download completes; null/absent until then.
-  bytesTotal: z.number().int().nonnegative().nullable().optional(),
   error: z.string().optional(),
   title: z.string(),
   podcastSlug: z.string(),

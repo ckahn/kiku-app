@@ -64,7 +64,6 @@ function makeDownloadRecord(overrides: Partial<DownloadRecord> = {}): DownloadRe
     guidesTotal: 2,
     audioBytes: 0,
     audioTotalBytes: null,
-    bytesTotal: null,
     title: 'Episode One',
     podcastSlug: 'my-podcast',
     episodeNumber: 1,
