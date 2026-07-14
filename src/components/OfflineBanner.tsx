@@ -5,8 +5,8 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 /**
  * Shows a persistent banner while the browser is offline; renders nothing otherwise.
  *
- * Not yet wired into any page — this is the M1 (offline-groundwork) primitive; M3 hooks it
- * up alongside the download registry and offline-aware navigation.
+ * Wired into the root layout (src/app/layout.tsx) since M3, so it appears app-wide —
+ * including on the offline app-shell.
  */
 export default function OfflineBanner() {
   const isOnline = useOnlineStatus();

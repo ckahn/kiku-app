@@ -91,7 +91,10 @@ nothing. Retrying resumes — stored guides and cached audio are skipped.
   — Cache Storage is accessible from page scope, not just the SW, so eviction
   is owned here (this is why the SW cache deliberately has no
   ExpirationPlugin). Guarded by `'caches' in globalThis`; a Cache Storage
-  failure never blocks the IndexedDB cleanup.
+  failure never blocks the IndexedDB cleanup. **Intentional drift:** it does
+  *not* purge the SW's `kiku-study-guides` NetworkFirst cache — that cache is
+  an opportunistic bonus, IndexedDB is the authoritative guide store, and its
+  entries are refreshed/overwritten by normal online reads. Don't "fix" this.
 
 ## Download orchestrator (`download.ts`, `downloadAudio.ts`, `concurrency.ts`)
 
@@ -189,6 +192,10 @@ the route, loads from IndexedDB, and renders the same `EpisodePlayer` /
 `StudyScreen` the online RSC pages use. On a matched route with no stored
 episode/segment it shows an honest "not downloaded" empty state; off-pattern
 routes get a generic "not available offline" state — never a crash or spinner.
+The shell is also directly reachable **online** (bookmark/typed URL), so both
+empty states read `useOnlineStatus()` and swap to online-appropriate copy
+("Nothing to show here / … isn't part of the offline experience") instead of
+falsely claiming the user is offline.
 
 Data path (all pure/typed, no offline-specific rendering):
 - `resolveOfflineRoute(pathname)` (`src/lib/offline/resolveOfflineRoute.ts`) —
@@ -211,10 +218,15 @@ Data path (all pure/typed, no offline-specific rendering):
 
 `loadStudyGuideContent(segmentId, url, { isOnline })` — **IndexedDB is
 authoritative for downloaded episodes.** Online: network-first (fresh
-regenerations win) then IDB fallback (byte-identical to the old inline
-`StudyScreen` behavior). Offline: **IDB-first**, skipping the doomed network
-attempt so we never eat the SW's 4s NetworkFirst timeout. `StudyScreen` passes
-`useOnlineStatus()` in and surfaces the both-sources-miss throw as its error.
+regenerations win) then IDB fallback. Offline: **IDB-first**, skipping the
+doomed network attempt so we never eat the SW's 4s NetworkFirst timeout.
+Returns `{ content, source: 'network' | 'cache' }`: a `'cache'` read *while
+online* means a transient network failure served a possibly-stale saved copy
+(the resilience tradeoff — prefer a saved guide over an error), and
+`StudyScreen` shows a muted "Showing a saved copy — check your connection."
+hint; a `'cache'` read while offline is expected and gets no hint.
+`StudyScreen` passes `useOnlineStatus()` in and surfaces the
+both-sources-miss throw as its error.
 
 ## Degraded affordances offline (gate = `useOnlineStatus()`)
 

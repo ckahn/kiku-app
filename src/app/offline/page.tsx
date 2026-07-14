@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { PageShell } from '@/components/layout';
 import EpisodePlayer from '@/components/player/EpisodePlayer';
 import StudyScreen from '@/components/study/StudyScreen';
@@ -84,7 +85,7 @@ function OfflineEmptyState({ title, body }: { readonly title: string; readonly b
   );
 }
 
-function renderContent(content: ShellContent) {
+function renderContent(content: ShellContent, isOnline: boolean) {
   switch (content.kind) {
     case 'loading':
       return <LoadingState />;
@@ -108,14 +109,26 @@ function renderContent(content: ShellContent) {
         </PageShell>
       );
     case 'not-downloaded':
-      return (
+      // The shell is also directly reachable online (bookmark, typed URL), so
+      // "You're offline" would be a lie there — pick copy by connectivity.
+      return isOnline ? (
+        <OfflineEmptyState
+          title="Nothing to show here"
+          body="This episode hasn't been downloaded for offline use. Head back to browse your podcasts."
+        />
+      ) : (
         <OfflineEmptyState
           title="You're offline"
           body="This episode hasn't been downloaded. Reconnect, or make it available offline while online, then try again."
         />
       );
     case 'unsupported':
-      return (
+      return isOnline ? (
+        <OfflineEmptyState
+          title="Nothing to show here"
+          body="This page isn't part of the offline experience. Head back to browse your podcasts."
+        />
+      ) : (
         <OfflineEmptyState
           title="You're offline"
           body="This page isn't available offline. Reconnect to continue, or open a downloaded episode."
@@ -126,6 +139,7 @@ function renderContent(content: ShellContent) {
 
 export default function OfflineShell() {
   const [content, setContent] = useState<ShellContent>({ kind: 'loading' });
+  const isOnline = useOnlineStatus();
 
   // Read the requested URL and load from IndexedDB in an effect so first
   // render (which also runs at build time with no `window`) stays the loading
@@ -150,5 +164,5 @@ export default function OfflineShell() {
     };
   }, []);
 
-  return renderContent(content);
+  return renderContent(content, isOnline);
 }

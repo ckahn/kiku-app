@@ -112,17 +112,34 @@ describe('OfflineShell', () => {
     );
   });
 
-  it('shows the not-downloaded empty state for an episode absent from IndexedDB', async () => {
+  it('shows the offline not-downloaded empty state for an episode absent from IndexedDB', async () => {
+    setOnline(false);
     setPathname('/podcasts/my-podcast/episodes/9');
 
     render(<OfflineShell />);
 
     await waitFor(() =>
-      expect(screen.getByText(/hasn't been downloaded/i)).toBeInTheDocument(),
+      expect(screen.getByText(/hasn't been downloaded\. reconnect/i)).toBeInTheDocument(),
     );
+    expect(screen.getByText(/you're offline/i)).toBeInTheDocument();
   });
 
-  it('shows the unsupported empty state for an off-pattern route', async () => {
+  it('shows online-appropriate not-downloaded copy when reached while online', async () => {
+    // The shell is directly reachable online (bookmark/typed URL); it must not
+    // claim the user is offline.
+    setPathname('/podcasts/my-podcast/episodes/9');
+
+    render(<OfflineShell />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/hasn't been downloaded for offline use/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/nothing to show here/i)).toBeInTheDocument();
+    expect(screen.queryByText(/you're offline/i)).toBeNull();
+  });
+
+  it('shows the offline unsupported empty state for an off-pattern route', async () => {
+    setOnline(false);
     setPathname('/');
 
     render(<OfflineShell />);
@@ -130,6 +147,19 @@ describe('OfflineShell', () => {
     await waitFor(() =>
       expect(screen.getByText(/isn't available offline/i)).toBeInTheDocument(),
     );
+    expect(screen.getByText(/you're offline/i)).toBeInTheDocument();
+  });
+
+  it('shows online-appropriate unsupported copy when reached while online', async () => {
+    setPathname('/');
+
+    render(<OfflineShell />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/isn't part of the offline experience/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/nothing to show here/i)).toBeInTheDocument();
+    expect(screen.queryByText(/you're offline/i)).toBeNull();
   });
 
   it('shows the not-downloaded state for a segment index beyond the episode', async () => {

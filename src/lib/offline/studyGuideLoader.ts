@@ -7,7 +7,21 @@ import { getStudyGuide } from './store';
  * store is authoritative for downloaded episodes, the network is authoritative
  * otherwise. Online we go network-first (fresh regenerations win) and fall
  * back to the stored copy; offline we read only the store — no fetch attempt.
+ *
+ * Resilience tradeoff: an *online* transient network failure silently serves
+ * the stored copy, which may be stale (e.g. the guide was regenerated
+ * server-side after the download). We prefer a saved guide over an error, but
+ * the caller must be able to tell the user — so the result carries a `source`
+ * tag. `'cache'` while online means "saved copy, possibly stale; check your
+ * connection"; `'cache'` while offline is expected behavior and needs no hint.
  */
+
+export type StudyGuideSource = 'network' | 'cache';
+
+export interface LoadedStudyGuide {
+  readonly content: StudyGuideContent;
+  readonly source: StudyGuideSource;
+}
 
 interface LoadStudyGuideOptions {
   readonly isOnline: boolean;
@@ -40,20 +54,20 @@ export async function loadStudyGuideContent(
   segmentId: number,
   studyGuideUrl: string,
   { isOnline }: LoadStudyGuideOptions,
-): Promise<StudyGuideContent> {
+): Promise<LoadedStudyGuide> {
   if (!isOnline) {
     const stored = await readStoredStudyGuide(segmentId);
-    if (stored) return stored;
+    if (stored) return { content: stored, source: 'cache' };
     throw new Error(
       'This study guide is not available offline. Make the episode available offline to study it without a connection.',
     );
   }
 
   try {
-    return await fetchStudyGuideFromNetwork(studyGuideUrl);
+    return { content: await fetchStudyGuideFromNetwork(studyGuideUrl), source: 'network' };
   } catch (networkError: unknown) {
     const stored = await readStoredStudyGuide(segmentId);
-    if (stored) return stored;
+    if (stored) return { content: stored, source: 'cache' };
     throw networkError instanceof Error
       ? networkError
       : new Error('Could not load the study guide.');

@@ -15,8 +15,13 @@ function publicFolderPrecacheEntries(): { url: string; revision: string }[] {
   const publicDir = path.join(process.cwd(), "public");
   const isGeneratedWorker = (url: string) =>
     /^\/sw\.js(\.map)?$/.test(url) || /^\/swe-worker-.*\.js$/.test(url);
+  // glob's `**/*` skips dot-entries by default; readdirSync does not, so filter
+  // them (any path segment starting with ".", e.g. .DS_Store) to match Serwist.
+  const hasDotSegment = (rel: string) =>
+    rel.split(path.sep).some((segment) => segment.startsWith("."));
 
   return (readdirSync(publicDir, { recursive: true }) as string[])
+    .filter((rel) => !hasDotSegment(rel))
     .map((rel) => ({ rel, abs: path.join(publicDir, rel) }))
     .filter(({ abs }) => statSync(abs).isFile())
     .map(({ rel, abs }) => ({ url: `/${rel.split(path.sep).join("/")}`, abs }))

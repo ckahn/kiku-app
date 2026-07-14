@@ -92,6 +92,10 @@ export default function StudyScreen({
     translation: false,
   });
   const [studyGuide, setStudyGuide] = useState<StudyGuideContent | null>(null);
+  // True when we're online but the guide came from the local store (transient
+  // network failure) — it may be stale, so the user gets a subtle hint.
+  // Offline cache reads are expected behavior and set this false.
+  const [showingSavedCopy, setShowingSavedCopy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -119,10 +123,15 @@ export default function StudyScreen({
       try {
         setIsLoading(true);
         setErrorMessage(null);
-        const nextStudyGuide = await loadStudyGuideContent(segment.id, studyGuideUrl, { isOnline });
+        const { content, source } = await loadStudyGuideContent(segment.id, studyGuideUrl, {
+          isOnline,
+        });
 
         if (!isCancelled) {
-          setStudyGuide(nextStudyGuide);
+          setStudyGuide(content);
+          // A cache read while online means the network failed and this copy
+          // may be stale; a cache read while offline is just how offline works.
+          setShowingSavedCopy(source === 'cache' && isOnline);
         }
       } catch (error: unknown) {
         if (!isCancelled) {
@@ -328,6 +337,11 @@ export default function StudyScreen({
         </div>
       ) : (
         <div className="space-y-3">
+          {showingSavedCopy && (
+            <p className="text-xs text-muted">
+              Showing a saved copy — check your connection.
+            </p>
+          )}
           <StudySection
             title="Vocabulary"
             isOpen={openSections.vocabulary}

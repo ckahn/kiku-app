@@ -28,32 +28,32 @@ afterEach(() => {
 });
 
 describe('loadStudyGuideContent — online', () => {
-  it('returns the network response when the fetch succeeds', async () => {
+  it('returns the network response tagged source network when the fetch succeeds', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(content));
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await loadStudyGuideContent(SEGMENT_ID, URL, { isOnline: true });
 
-    expect(result).toEqual(content);
+    expect(result).toEqual({ content, source: 'network' });
     expect(fetchMock).toHaveBeenCalledWith(URL);
   });
 
-  it('falls back to IndexedDB when the network fails', async () => {
+  it('falls back to IndexedDB, tagged source cache, when the network fails', async () => {
     await putStudyGuide({ segmentId: SEGMENT_ID, content });
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
 
     const result = await loadStudyGuideContent(SEGMENT_ID, URL, { isOnline: true });
 
-    expect(result).toEqual(content);
+    expect(result).toEqual({ content, source: 'cache' });
   });
 
-  it('falls back to IndexedDB on an error envelope', async () => {
+  it('falls back to IndexedDB, tagged source cache, on an error envelope', async () => {
     await putStudyGuide({ segmentId: SEGMENT_ID, content });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(500, 'boom')));
 
     const result = await loadStudyGuideContent(SEGMENT_ID, URL, { isOnline: true });
 
-    expect(result).toEqual(content);
+    expect(result).toEqual({ content, source: 'cache' });
   });
 
   it('rethrows the network error when IndexedDB has no copy either', async () => {
@@ -64,14 +64,14 @@ describe('loadStudyGuideContent — online', () => {
 });
 
 describe('loadStudyGuideContent — offline', () => {
-  it('reads from IndexedDB without attempting a fetch', async () => {
+  it('reads from IndexedDB, tagged source cache, without attempting a fetch', async () => {
     await putStudyGuide({ segmentId: SEGMENT_ID, content });
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await loadStudyGuideContent(SEGMENT_ID, URL, { isOnline: false });
 
-    expect(result).toEqual(content);
+    expect(result).toEqual({ content, source: 'cache' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
