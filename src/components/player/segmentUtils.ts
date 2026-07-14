@@ -1,4 +1,4 @@
-import type { Segment } from '@/db/schema';
+import type { PlayerSegment } from './types';
 import { SEGMENT_PLAYBACK_OFFSET_SEC } from '@/lib/constants';
 
 /**
@@ -19,7 +19,7 @@ export function segmentStartSec(segment: { startMs: number }): number {
  * offset applied during playback, keeping windows non-overlapping.
  */
 export function findActiveSegmentId(
-  segments: readonly Segment[],
+  segments: readonly PlayerSegment[],
   currentTimeSec: number,
 ): number | null {
   const sorted = [...segments].sort((a, b) => a.startMs - b.startMs);

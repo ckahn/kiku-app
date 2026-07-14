@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { Segment } from '@/db/schema';
+import type { PlayerSegment } from './types';
 import { usePlayer } from './usePlayer';
 import { useEpisodeKeyboardShortcuts } from './useEpisodeKeyboardShortcuts';
 import AudioPlayer from './AudioPlayer';
@@ -12,7 +12,7 @@ import { findActiveSegmentId } from './segmentUtils';
 import { useManualScrollRestoration } from './useManualScrollRestoration';
 
 interface EpisodePlayerProps {
-  readonly segments: readonly Segment[];
+  readonly segments: readonly PlayerSegment[];
   readonly audioUrl: string;
   readonly durationMs: number;
   readonly podcastSlug?: string;
@@ -20,7 +20,7 @@ interface EpisodePlayerProps {
   readonly episodeHref?: string;
 }
 
-function getDurationMs(durationMs: number, segments: readonly Segment[]): number {
+function getDurationMs(durationMs: number, segments: readonly PlayerSegment[]): number {
   if (durationMs > 0) {
     return durationMs;
   }
