@@ -20,6 +20,22 @@ npm install
 npm run dev
 ```
 
+`npm run dev` uses Next 16's default Turbopack dev server. The PWA service
+worker is not generated or registered in dev, so normal local development stays
+fast and avoids service-worker cache surprises.
+
+To test the production PWA path locally, build and start the production server:
+
+```bash
+npm run build
+npm run start
+```
+
+Then open `http://localhost:3000` and inspect the service worker, manifest, and
+Cache Storage in browser DevTools. This path uses webpack for the production
+build because Serwist injects the generated precache manifest through a webpack
+plugin.
+
 ### Environment variables
 
 ```
