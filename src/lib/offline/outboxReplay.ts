@@ -1,4 +1,4 @@
-import type { OutboxEntry } from './types';
+import type { OutboxEntry, OutboxKind } from './types';
 
 const PERMANENT_MIN_STATUS = 400;
 const PERMANENT_MAX_STATUS = 500;
@@ -11,21 +11,35 @@ export interface ReplayRequest {
   readonly body: { readonly studyStatus: OutboxEntry['status'] };
 }
 
-/**
- * Derives the fetch request for a queued outbox entry. The url/method/body
- * are intentionally NOT stored on the entry itself (see `types.ts`) --
- * deriving them here at replay time means a future route rename can't
- * strand already-queued entries with a stale URL. Both target routes are
- * PATCH (see the `offline-support` skill), so the method is a caller-side
- * constant rather than part of this mapper's output.
- */
-export function toReplayRequest(entry: OutboxEntry): ReplayRequest {
-  const url =
-    entry.kind === 'segment-status'
-      ? `/api/segments/${entry.targetId}/study`
-      : `/api/episodes/${entry.targetId}/study`;
+/** The subset of an outbox entry needed to derive its replay request. */
+export type ReplayTarget = Pick<OutboxEntry, 'kind' | 'targetId' | 'status'>;
 
-  return { url, body: { studyStatus: entry.status } };
+/**
+ * The coalescing key for a queued entry -- enqueuing another entry for the
+ * same (kind, targetId) overwrites this one (last-write-wins), and it's also
+ * the key `mutateWithOutbox` uses to clear a stale queued entry after a
+ * fresh online success.
+ */
+export function outboxEntryId(kind: OutboxKind, targetId: number): string {
+  return `${kind}:${targetId}`;
+}
+
+/**
+ * Derives the fetch request for a queued outbox entry (or an in-flight
+ * mutation about to be queued). The url/method/body are intentionally NOT
+ * stored on the entry itself (see `types.ts`) -- deriving them here at
+ * replay time means a future route rename can't strand already-queued
+ * entries with a stale URL. Both target routes are PATCH (see the
+ * `offline-support` skill), so the method is a caller-side constant rather
+ * than part of this mapper's output.
+ */
+export function toReplayRequest(target: ReplayTarget): ReplayRequest {
+  const url =
+    target.kind === 'segment-status'
+      ? `/api/segments/${target.targetId}/study`
+      : `/api/episodes/${target.targetId}/study`;
+
+  return { url, body: { studyStatus: target.status } };
 }
 
 /**
