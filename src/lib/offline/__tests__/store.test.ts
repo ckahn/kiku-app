@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { openDB } from 'idb';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import studyGuideFixture from '@fixtures/study-guide.json';
 import { OFFLINE_DB_NAME } from '../constants';
 import { openOfflineDb, resetOfflineDbForTests } from '../db';
@@ -269,7 +269,7 @@ describe('download record round-trip', () => {
 });
 
 describe('deleteEpisodeData', () => {
-  it('cascades across all four stores', async () => {
+  it('cascades across all five stores', async () => {
     await putEpisodeSnapshot(makeSnapshot());
     await putStudyGuide({ segmentId: 101, content: studyGuideFixture as never });
     await putStudyGuide({ segmentId: 102, content: studyGuideFixture as never });
@@ -281,6 +281,37 @@ describe('deleteEpisodeData', () => {
     expect(await getStudyGuide(101)).toBeNull();
     expect(await getStudyGuide(102)).toBeNull();
     expect(await getDownloadRecord(1)).toBeNull();
+  });
+
+  it('cascades queued outbox entries for the episode, keeping other episodes entries', async () => {
+    await putEpisodeSnapshot(makeSnapshot());
+    await putOutboxEntry({
+      id: 'episode-status:1',
+      kind: 'episode-status',
+      targetId: 1,
+      status: 'studying',
+      clientTimestamp: 1000,
+    });
+    await putOutboxEntry({
+      id: 'segment-status:101',
+      kind: 'segment-status',
+      targetId: 101,
+      status: 'learned',
+      clientTimestamp: 2000,
+    });
+    // A queued entry for a segment of a different episode must survive.
+    await putOutboxEntry({
+      id: 'segment-status:999',
+      kind: 'segment-status',
+      targetId: 999,
+      status: 'studying',
+      clientTimestamp: 3000,
+    });
+
+    await deleteEpisodeData(1);
+
+    const remaining = await getAllOutboxEntries();
+    expect(remaining.map((entry) => entry.id)).toEqual(['segment-status:999']);
   });
 
   it('is a no-op for an episode with no stored data', async () => {
@@ -460,5 +491,46 @@ describe('setStoredEpisodeSegmentsStudyStatus', () => {
   it('returns 0 when the episode has no stored segments', async () => {
     const count = await setStoredEpisodeSegmentsStudyStatus(999, 'learned');
     expect(count).toBe(0);
+  });
+});
+
+describe('connection version-change handlers', () => {
+  it('closes its connection when a newer version wants to upgrade (blocking handler)', async () => {
+    await openOfflineDb(); // holds a v2 connection
+
+    // Without the blocking handler, this open would hang forever waiting
+    // for the v2 connection to close (the test would time out).
+    const v3 = await openDB(OFFLINE_DB_NAME, 3, { upgrade() {} });
+
+    expect(v3.version).toBe(3);
+    v3.close();
+  });
+
+  it('logs a diagnostic when its own open is blocked by an older connection', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // An "older tab": a v1 connection with no versionchange handling, so it
+    // never yields to the v2 upgrade until explicitly closed. Creates the
+    // full v1 store set so the later v2 upgrade block finds `segments`.
+    const v1 = await openDB(OFFLINE_DB_NAME, 1, {
+      upgrade(db) {
+        db.createObjectStore('episodes', { keyPath: 'episodeId' });
+        const segmentStore = db.createObjectStore('segments', {
+          keyPath: ['episodeId', 'segmentIndex'],
+        });
+        segmentStore.createIndex('by-episode', 'episodeId');
+        db.createObjectStore('studyGuides', { keyPath: 'segmentId' });
+        db.createObjectStore('downloads', { keyPath: 'episodeId' });
+      },
+    });
+
+    const opening = openOfflineDb();
+    await vi.waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('blocked'));
+    });
+
+    v1.close();
+    await opening;
+    consoleSpy.mockRestore();
   });
 });

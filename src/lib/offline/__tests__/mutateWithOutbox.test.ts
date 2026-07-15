@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetOfflineDbForTests } from '../db';
 import { getAllOutboxEntries, getEpisodeSnapshot, putEpisodeSnapshot, putOutboxEntry } from '../store';
-import { resetOutboxStoreForTests } from '../outboxStore';
+import { enqueue, replay, resetOutboxStoreForTests } from '../outboxStore';
 import { mutateWithOutbox } from '../mutateWithOutbox';
 import type { EpisodeSnapshot } from '../types';
 
@@ -212,5 +212,61 @@ describe('mutateWithOutbox — offline', () => {
     ).rejects.toThrow();
 
     expect(await getAllOutboxEntries()).toEqual([]);
+  });
+});
+
+describe('mutateWithOutbox — replay coordination (same-tab race)', () => {
+  it('a fresh online write for a target mid-replay waits for the replay, so the fresh value lands last', async () => {
+    await putEpisodeSnapshot(makeSnapshot());
+
+    const bodies: string[] = [];
+    let resolveReplayFetch: (() => void) | null = null;
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      bodies.push(String(init?.body));
+      if (bodies.length === 1) {
+        // The replay's PATCH (old queued value) -- held open.
+        return new Promise<Response>((resolve) => {
+          resolveReplayFetch = () => resolve(okResponse());
+        });
+      }
+      return Promise.resolve(okResponse());
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    // An old value queued from an earlier offline session.
+    await enqueue({
+      id: 'segment-status:101',
+      kind: 'segment-status',
+      targetId: 101,
+      status: 'studying',
+      clientTimestamp: 1000,
+    });
+
+    const drain = replay(); // issues the first fetch (old value) synchronously
+
+    // The user makes a fresh change while the replay is still in flight.
+    const mutatePromise = mutateWithOutbox({
+      kind: 'segment-status',
+      targetId: 101,
+      status: 'learned',
+      isOnline: true,
+    });
+
+    // The fresh PATCH must be parked behind the in-flight replay.
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    resolveReplayFetch?.();
+    await drain;
+    const result = await mutatePromise;
+
+    expect(result).toEqual({ outcome: 'synced' });
+    expect(bodies).toEqual([
+      JSON.stringify({ studyStatus: 'studying' }),
+      JSON.stringify({ studyStatus: 'learned' }),
+    ]);
+    expect(await getAllOutboxEntries()).toEqual([]);
+    const snapshot = await getEpisodeSnapshot(1);
+    expect(snapshot?.segments.find((s) => s.id === 101)?.studyStatus).toBe('learned');
   });
 });

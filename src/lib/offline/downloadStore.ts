@@ -1,6 +1,7 @@
 'use client';
 
 import { AUDIO_CACHE_NAME, STALE_DOWNLOAD_MS } from './constants';
+import { syncAfterExternalChange as syncOutboxAfterExternalChange } from './outboxStore';
 import { deleteEpisodeData, getAllDownloadRecords, putDownloadRecord } from './store';
 import type { DownloadRecord, DownloadStep } from './types';
 
@@ -170,19 +171,22 @@ export async function failDownload(
 
 /**
  * Removes an episode's offline data entirely: its IndexedDB rows (snapshot,
- * study guides, download record — cascaded in one transaction by
- * `deleteEpisodeData`) and its cached audio response in Cache Storage, so a
- * removed download doesn't silently keep occupying space via the service
- * worker's audio cache. Cache Storage cleanup is best-effort and
- * feature-guarded — it's unavailable in some test/SSR contexts, and a
- * failure there shouldn't block the IndexedDB cleanup that already
- * succeeded.
+ * study guides, download record, queued outbox entries — cascaded in one
+ * transaction by `deleteEpisodeData`) and its cached audio response in
+ * Cache Storage, so a removed download doesn't silently keep occupying
+ * space via the service worker's audio cache. The outbox singleton is
+ * re-synced from IndexedDB afterwards so its in-memory mirror (and the
+ * pending-changes indicator) drops the purged entries immediately. Cache
+ * Storage cleanup is best-effort and feature-guarded — it's unavailable in
+ * some test/SSR contexts, and a failure there shouldn't block the IndexedDB
+ * cleanup that already succeeded.
  */
 export async function removeDownload(episodeId: number): Promise<void> {
   await deleteEpisodeData(episodeId);
   records.delete(episodeId);
   notify();
   notifyOtherTabs();
+  await syncOutboxAfterExternalChange();
 
   if (!('caches' in globalThis)) return;
 

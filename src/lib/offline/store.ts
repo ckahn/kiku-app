@@ -1,4 +1,5 @@
 import { openOfflineDb } from './db';
+import { outboxEntryId } from './outboxReplay';
 import {
   downloadRecordSchema,
   episodeSnapshotSchema,
@@ -204,25 +205,34 @@ export async function setStoredEpisodeSegmentsStudyStatus(
 }
 
 /**
- * Delete every record for an episode across all four stores in one
+ * Delete every record for an episode across all five stores in one
  * transaction: its snapshot (episode meta + segments), any cached study
- * guides for its segments, and its download record. Does not touch Cache
- * Storage — callers that also want to purge cached audio should use
- * `removeDownload` in `downloadStore.ts`, which wraps this and the Cache
- * Storage delete together.
+ * guides for its segments, its download record, and any queued outbox
+ * entries targeting it (the episode-status entry plus a segment-status
+ * entry per segment) — otherwise a removed download's queued study-status
+ * changes would still PATCH the server on the next reconnect. Does not
+ * touch Cache Storage — callers that also want to purge cached audio should
+ * use `removeDownload` in `downloadStore.ts`, which wraps this, the Cache
+ * Storage delete, and the in-memory outbox re-sync together.
  */
 export async function deleteEpisodeData(episodeId: number): Promise<void> {
   const db = await openOfflineDb();
-  const tx = db.transaction(['episodes', 'segments', 'studyGuides', 'downloads'], 'readwrite');
+  const tx = db.transaction(
+    ['episodes', 'segments', 'studyGuides', 'downloads', 'outbox'],
+    'readwrite'
+  );
   const segmentStore = tx.objectStore('segments');
+  const outboxStore = tx.objectStore('outbox');
   const segmentRows = await segmentStore.index('by-episode').getAll(episodeId);
 
   await Promise.all([
     tx.objectStore('episodes').delete(episodeId),
     tx.objectStore('downloads').delete(episodeId),
+    outboxStore.delete(outboxEntryId('episode-status', episodeId)),
     ...segmentRows.flatMap((row) => [
       segmentStore.delete([row.episodeId, row.segmentIndex]),
       tx.objectStore('studyGuides').delete(row.id),
+      outboxStore.delete(outboxEntryId('segment-status', row.id)),
     ]),
   ]);
 

@@ -85,6 +85,23 @@ export function openOfflineDb(): Promise<OfflineDb> {
           db.createObjectStore('outbox', { keyPath: 'id' });
         }
       },
+      // An older tab still holds a connection at a lower schema version, so
+      // this open (which needs a version upgrade) cannot proceed until that
+      // tab closes or releases it. Surface it instead of hanging silently.
+      blocked(currentVersion, blockedVersion) {
+        console.error(
+          `[offline-db] open blocked: another tab holds version ${currentVersion}, ` +
+            `waiting to upgrade to ${blockedVersion ?? 'a newer version'}`
+        );
+      },
+      // A newer tab (newer deploy, higher schema version) wants to upgrade
+      // and this connection is in its way. Close it so the newer tab can
+      // proceed, and drop the cached promise so a later call here reopens.
+      blocking() {
+        const current = dbPromise;
+        dbPromise = null;
+        void current?.then((db) => db.close());
+      },
     });
   }
 

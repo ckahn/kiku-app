@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetOfflineDbForTests } from '../db';
-import { getAllOutboxEntries } from '../store';
+import { getAllOutboxEntries, putOutboxEntry } from '../store';
 import {
   discard,
   ensureOutboxInitialized,
@@ -12,6 +12,8 @@ import {
   replay,
   resetOutboxStoreForTests,
   subscribe,
+  syncAfterExternalChange,
+  withTargetWriteLock,
 } from '../outboxStore';
 import type { OutboxEntry } from '../types';
 
@@ -161,7 +163,7 @@ describe('replay', () => {
     expect(getStateSnapshot().count).toBe(1);
   });
 
-  it('the replaying guard prevents a concurrent double-drain', async () => {
+  it('concurrent replay calls share a single in-flight drain', async () => {
     let resolveFirst: (() => void) | null = null;
     const fetchMock = vi.fn(
       () =>
@@ -174,14 +176,72 @@ describe('replay', () => {
     await enqueue(makeEntry());
 
     const first = replay();
-    const second = replay(); // should return immediately (replaying === true)
+    const second = replay(); // must join the in-flight drain, not start another
 
-    await second;
+    expect(second).toBe(first);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     resolveFirst?.();
     await first;
     expect(getStateSnapshot().count).toBe(0);
+  });
+
+  it('skips a target currently being written by mutateWithOutbox and keeps its entry', async () => {
+    const fetchMock = vi.fn(async () => okResponse());
+    vi.stubGlobal('fetch', fetchMock);
+    await enqueue(makeEntry());
+
+    let releaseWrite: (() => void) | null = null;
+    const writeDone = withTargetWriteLock(
+      makeEntry().id,
+      () =>
+        new Promise<void>((resolve) => {
+          releaseWrite = () => resolve();
+        })
+    );
+
+    await replay();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getStateSnapshot().count).toBe(1);
+
+    releaseWrite?.();
+    await writeDone;
+  });
+});
+
+describe('withTargetWriteLock', () => {
+  it('waits for an in-flight replay of the same target before running the write', async () => {
+    let resolveReplayFetch: (() => void) | null = null;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveReplayFetch = () => resolve(okResponse());
+        })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await enqueue(makeEntry());
+
+    const drain = replay(); // first fetch (the queued value) issued and pending
+
+    const writeOrder: string[] = [];
+    const write = withTargetWriteLock(makeEntry().id, async () => {
+      writeOrder.push('write');
+    });
+
+    // The write must be parked behind the drain, not run immediately.
+    await Promise.resolve();
+    expect(writeOrder).toEqual([]);
+
+    resolveReplayFetch?.();
+    await drain;
+    await write;
+    expect(writeOrder).toEqual(['write']);
+  });
+
+  it('runs immediately when no replay is in flight for the target', async () => {
+    const result = await withTargetWriteLock('segment-status:5', async () => 'ran');
+    expect(result).toBe('ran');
   });
 });
 
@@ -195,8 +255,10 @@ describe('online-triggered replay', () => {
     resetOutboxStoreForTests(); // simulate a fresh page load with the entry already in IDB
 
     await ensureOutboxInitialized();
-    // Allow the fire-and-forget replay() kicked off inside init to settle.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Init kicks the drain fire-and-forget, but replay() retains the
+    // in-flight promise, so awaiting replay() joins it deterministically
+    // (and is a fast no-op drain if it already finished).
+    await replay();
 
     expect(getStateSnapshot().count).toBe(0);
   });
@@ -208,9 +270,28 @@ describe('online-triggered replay', () => {
     await enqueue(makeEntry());
 
     window.dispatchEvent(new Event('online'));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The listener starts the drain synchronously; join the retained promise.
+    await replay();
 
     expect(getStateSnapshot().count).toBe(0);
+  });
+});
+
+describe('cross-tab sync', () => {
+  it('initialization opens the BroadcastChannel eagerly so a passive tab hears external changes', async () => {
+    await ensureOutboxInitialized();
+
+    // Simulate another tab writing directly to IndexedDB and pinging --
+    // this tab has performed no local writes, so without the eager channel
+    // it would never hear about the change.
+    await putOutboxEntry(makeEntry());
+    const otherTabChannel = new BroadcastChannel('kiku-outbox');
+    otherTabChannel.postMessage(null);
+    otherTabChannel.close();
+
+    await vi.waitFor(() => {
+      expect(getStateSnapshot().count).toBe(1);
+    });
   });
 });
 
@@ -222,5 +303,17 @@ describe('refresh', () => {
     expect(getStateSnapshot().count).toBe(0);
     await refresh();
     expect(getStateSnapshot().count).toBe(1);
+  });
+
+  it('syncAfterExternalChange reloads the mirror after an external IDB change', async () => {
+    await enqueue(makeEntry());
+    // Simulate deleteEpisodeData's cascade removing the row behind the store's back.
+    const { deleteOutboxEntry } = await import('../store');
+    await deleteOutboxEntry(makeEntry().id);
+    expect(getStateSnapshot().count).toBe(1); // mirror is stale
+
+    await syncAfterExternalChange();
+
+    expect(getStateSnapshot().count).toBe(0);
   });
 });

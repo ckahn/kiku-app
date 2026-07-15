@@ -1,7 +1,7 @@
 'use client';
 
 import type { StudyStatus } from '@/lib/episodeStudyStatus';
-import { discard, enqueue } from './outboxStore';
+import { discard, enqueue, withTargetWriteLock } from './outboxStore';
 import { isPermanentReplayFailure, outboxEntryId, toReplayRequest } from './outboxReplay';
 import { setStoredEpisodeSegmentsStudyStatus, updateStoredSegmentStudyStatus } from './store';
 import type { OutboxKind } from './types';
@@ -62,21 +62,17 @@ async function queueOffline(input: MutateInput): Promise<MutateResult> {
 }
 
 /**
- * Shared decision point for both study-status controls (`SegmentStatusControl`,
- * `EpisodeActionMenu`'s study toggle) -- see the M4 section of the
- * `offline-support` skill for the full picture. Online success writes
- * through to the server, best-effort refreshes the stored row(s) so a
- * downloaded episode's snapshot doesn't drift stale, and clears any
- * previously-queued entry for the same target (an edge case: a stale queued
- * change must not later revert a fresh online write). An online *permanent*
- * failure (4xx) is a real validation error and is surfaced by throwing, not
- * queued. Everything else -- offline, or a transient failure while online --
- * falls back to `queueOffline`.
+ * Online branch: PATCH through, holding the outbox write lock for this
+ * target so a queued older value mid-replay can't land after this fresh
+ * one (see `withTargetWriteLock` in `outboxStore.ts`). Returns a result on
+ * success, throws on a permanent (4xx) failure, and returns `null` on a
+ * transient failure so the caller falls back to queueing.
  */
-export async function mutateWithOutbox(input: MutateInput): Promise<MutateResult> {
-  const { kind, targetId, status, isOnline } = input;
+async function attemptOnlineWrite(input: MutateInput): Promise<MutateResult | null> {
+  const { kind, targetId, status } = input;
+  const entryId = outboxEntryId(kind, targetId);
 
-  if (isOnline) {
+  return withTargetWriteLock(entryId, async () => {
     const { url, body } = toReplayRequest({ kind, targetId, status });
     let response: Response | null = null;
     try {
@@ -90,14 +86,42 @@ export async function mutateWithOutbox(input: MutateInput): Promise<MutateResult
     }
 
     if (response?.ok) {
-      await applyOptimisticWrite(kind, targetId, status).catch(() => {});
-      await discard(outboxEntryId(kind, targetId));
-      return { outcome: 'synced' };
+      // Best-effort snapshot refresh: the server already accepted the write,
+      // so a local refresh failure is logged, not surfaced.
+      await applyOptimisticWrite(kind, targetId, status).catch((error: unknown) => {
+        console.error(
+          `[mutateWithOutbox] failed to refresh stored snapshot after online write (${entryId})`,
+          error
+        );
+      });
+      await discard(entryId);
+      return { outcome: 'synced' as const };
     }
 
     if (response && isPermanentReplayFailure(response.status)) {
       throw await parseResponseError(response);
     }
+
+    return null;
+  });
+}
+
+/**
+ * Shared decision point for both study-status controls (`SegmentStatusControl`,
+ * `EpisodeActionMenu`'s study toggle) -- see the M4 section of the
+ * `offline-support` skill for the full picture. Online success writes
+ * through to the server, best-effort refreshes the stored row(s) so a
+ * downloaded episode's snapshot doesn't drift stale, and clears any
+ * previously-queued entry for the same target (an edge case: a stale queued
+ * change must not later revert a fresh online write). An online *permanent*
+ * failure (4xx) is a real validation error and is surfaced by throwing, not
+ * queued. Everything else -- offline, or a transient failure while online --
+ * falls back to `queueOffline`.
+ */
+export async function mutateWithOutbox(input: MutateInput): Promise<MutateResult> {
+  if (input.isOnline) {
+    const result = await attemptOnlineWrite(input);
+    if (result) return result;
   }
 
   return queueOffline(input);

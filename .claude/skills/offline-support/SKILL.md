@@ -32,6 +32,14 @@ callback in `src/lib/offline/db.ts`, guarded by `oldVersion` so it's correct
 for both a fresh install and an upgrade from an earlier version (see M4's
 migration below for the pattern).
 
+`openOfflineDb` also wires the idb `blocked`/`blocking` handlers: `blocked`
+(an older tab's connection is preventing this open's upgrade) logs a
+diagnostic instead of hanging silently, and `blocking` (a newer tab wants to
+upgrade past this connection's version) closes this connection and nulls the
+cached promise so the newer tab can proceed and a later call here reopens.
+Without `blocking`, a v(N) connection held open in one tab would make every
+other tab's v(N+1) upgrade hang forever.
+
 ## Zod boundary (`types.ts`, `store.ts`)
 
 Every persisted shape has a Zod schema in `src/lib/offline/types.ts`
@@ -50,9 +58,15 @@ same transaction (re-segmentation can shrink an episode; without this,
 `getEpisodeSnapshot` would return phantom tail segments from the earlier,
 longer version).
 
-`deleteEpisodeData(episodeId)` cascades across all four stores in one
-transaction. It does **not** touch Cache Storage — use
-`removeDownload` (below) for a full purge.
+`deleteEpisodeData(episodeId)` cascades across all five stores in one
+transaction — including the episode's queued `outbox` entries (the
+episode-status entry plus one segment-status entry per segment row), so a
+removed download's pending study-status changes can't replay against the
+server after the data they came from is gone (M4). It does **not** touch
+Cache Storage — use `removeDownload` (below) for a full purge;
+`removeDownload` also re-syncs the outbox singleton's in-memory mirror
+(`syncAfterExternalChange`) so the pending-changes indicator drops the
+purged entries immediately.
 
 ## Download registry (`downloadStore.ts`, `useDownloadRecord`)
 
@@ -346,10 +360,18 @@ Modeled directly on `downloadStore.ts`: an in-memory `Map<id, OutboxEntry>`
 mirroring the `outbox` store, `subscribe`/`notify` for `useSyncExternalStore`
 (`src/hooks/useOutbox.ts`), `BroadcastChannel('kiku-outbox')` cross-tab sync,
 and `ensureOutboxInitialized()` — a lazy one-time load that also **installs
-the single `window.addEventListener('online', …)` listener** and, if the
-queue is non-empty and the browser is already online at init time, kicks one
-replay immediately (drains a queue left behind by a session that closed
-before reconnecting).
+the single `window.addEventListener('online', …)` listener**, **opens the
+BroadcastChannel eagerly** (a passive tab that never writes locally must
+still hear other tabs' outbox changes, or it would hold a stale mirror), and,
+if the queue is non-empty and the browser is already online at init time,
+kicks one replay immediately (drains a queue left behind by a session that
+closed before reconnecting).
+
+`syncAfterExternalChange()` re-syncs the mirror after another module changed
+the outbox IDB store directly (currently: `removeDownload` after
+`deleteEpisodeData`'s cascade) and pings other tabs. Plain `refresh()`
+deliberately does not broadcast — the channel receiver calls it, so
+broadcasting from inside it would ping-pong between tabs.
 
 **`getStateSnapshot()` returns a memoized `{ count, error }` object**,
 rebuilt only inside `notify()` — never fresh on every call. This is required
@@ -369,9 +391,22 @@ entry's derived request:
   FIFO ordering (and therefore last-write-wins) holds for the next attempt;
   skipping ahead would let a later entry replay out of order.
 
-A module-level `replaying` flag makes overlapping `online` events a no-op
-double-drain guard, not a queued second run — mirrors the download
-orchestrator's re-entrancy guard.
+The in-flight drain is retained as a module-level **promise** (not a boolean
+flag): overlapping `online` events join the single in-flight drain,
+`ensureOutboxInitialized`'s fire-and-forget kick can be awaited
+deterministically in tests via `replay()`, and the write-lock coordination
+below can wait on it.
+
+**Same-tab replay/write coordination** (`withTargetWriteLock`): a fresh
+online write from `mutateWithOutbox` and a replay of that target's queued
+(older) value can otherwise race — two PATCHes for the same target in
+flight, with the older value able to land last. `withTargetWriteLock(id, fn)`
+waits for an in-flight drain that still holds the target before running the
+write, and registers the target as being written so a drain that starts
+mid-write **skips** that entry (the write supersedes it and clears it on
+success). This is deliberately same-tab only: cross-tab duplication is not
+coordinated, and its worst case — the same idempotent status-set PATCH sent
+twice — is accepted-safe.
 
 ## `mutateWithOutbox` — the shared decision point (`mutateWithOutbox.ts`)
 
@@ -382,13 +417,15 @@ interface MutateInput {
 type MutateResult = { outcome: 'synced' } | { outcome: 'queued' };
 ```
 
-1. **Online**: PATCH the derived request.
+1. **Online**: PATCH the derived request, inside `withTargetWriteLock` (see
+   the replay/write coordination above).
    - success → best-effort refresh the stored snapshot row(s) (D4: a
      downloaded episode's IDB copy shouldn't drift stale after an online
-     edit — refresh failures are swallowed, since the mutation already
-     succeeded server-side), clear any stale coalesced outbox entry for this
-     target (edge case: a queued change made offline earlier must not later
-     revert a fresh online write), return `synced`.
+     edit — a refresh failure is logged via `console.error`, not surfaced,
+     since the mutation already succeeded server-side), clear any stale
+     coalesced outbox entry for this target (edge case: a queued change made
+     offline earlier must not later revert a fresh online write), return
+     `synced`.
    - **permanent** failure → throw the parsed response error (a real
      validation error — surface it, don't queue).
    - **transient** failure or a network throw → fall through to step 2.
@@ -456,7 +493,9 @@ fully closed ever becomes a requirement.
   table (399/400/404/408/429/499/500/503).
 - `outboxStore.test.ts` (jsdom, `fake-indexeddb`, stubbed `fetch`) —
   coalescing, snapshot referential stability, FIFO replay ordering, all three
-  failure modes, the `replaying` guard, and `online`-event-triggered drain.
+  failure modes, the shared in-flight drain, `withTargetWriteLock`
+  coordination (both directions), the eager BroadcastChannel, and
+  `online`-event-triggered drain.
 - `mutateWithOutbox.test.ts` (jsdom, `fake-indexeddb`, stubbed `fetch`) — all
   six branches (synced / stale-entry-cleared / offline-queued /
   offline-not-downloaded-throws / online-transient-queued /
