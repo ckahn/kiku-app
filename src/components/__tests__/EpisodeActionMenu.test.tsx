@@ -232,6 +232,66 @@ describe('EpisodeActionMenu', () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
+  it('a queued offline toggle flips the menu label optimistically', async () => {
+    setOnline(false);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockMutateWithOutbox.mockResolvedValue({ outcome: 'queued' });
+    vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="new"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
+
+    // The prop is server-derived and there was no refresh -- the component's
+    // local optimistic state must carry the flip, or the label (and the next
+    // toggle's direction) go stale.
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    expect(screen.getByRole('menuitem', { name: /stop studying/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /start studying/i })).not.toBeInTheDocument();
+  });
+
+  it('a second offline toggle sends the reversed status, not the same direction again', async () => {
+    setOnline(false);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockMutateWithOutbox.mockResolvedValue({ outcome: 'queued' });
+    vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="new"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
+    await waitFor(() =>
+      expect(mockMutateWithOutbox).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'studying' })
+      )
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /stop studying/i }));
+
+    await waitFor(() =>
+      expect(mockMutateWithOutbox).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'new' })
+      )
+    );
+    expect(mockMutateWithOutbox).toHaveBeenCalledTimes(2);
+  });
+
   it('the study toggle stays enabled while offline and routes isOnline through to mutateWithOutbox', async () => {
     setOnline(false);
     vi.spyOn(window, 'confirm').mockReturnValue(true);

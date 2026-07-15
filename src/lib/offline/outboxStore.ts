@@ -259,6 +259,27 @@ export function replay(): Promise<void> {
   return replayPromise;
 }
 
+/**
+ * Manual drain, exposed to the pending-changes indicator's "Retry now"
+ * action. A transient failure hit while the browser is genuinely online
+ * never gets an `online` event to retry it -- without this, such an entry
+ * would sit queued until the next real connectivity blip.
+ */
+export function retry(): Promise<void> {
+  return replay();
+}
+
+/**
+ * Clears the sticky permanent-failure error (the user dismissed it). The
+ * error otherwise only clears on a later successful replay, which may never
+ * come if the queue is empty.
+ */
+export function acknowledgeError(): void {
+  if (lastError === null) return;
+  lastError = null;
+  notify();
+}
+
 /** Test-only escape hatch: clears in-memory state, the init flag, and the online listener. */
 export function resetOutboxStoreForTests(): void {
   entries.clear();

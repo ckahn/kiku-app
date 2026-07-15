@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetOfflineDbForTests } from '../db';
 import { getAllOutboxEntries, putOutboxEntry } from '../store';
 import {
+  acknowledgeError,
   discard,
   ensureOutboxInitialized,
   enqueue,
@@ -11,6 +12,7 @@ import {
   refresh,
   replay,
   resetOutboxStoreForTests,
+  retry,
   subscribe,
   syncAfterExternalChange,
   withTargetWriteLock,
@@ -292,6 +294,47 @@ describe('cross-tab sync', () => {
     await vi.waitFor(() => {
       expect(getStateSnapshot().count).toBe(1);
     });
+  });
+});
+
+describe('manual retry and error acknowledgement', () => {
+  it('retry() drains the queue on demand (e.g. after a transient failure while online)', async () => {
+    // First attempt fails transiently while online -- no `online` event will
+    // ever fire to retry it, so the entry would otherwise sit forever.
+    vi.stubGlobal('fetch', vi.fn(async () => statusResponse(503)));
+    await enqueue(makeEntry());
+    await replay();
+    expect(getStateSnapshot().count).toBe(1);
+
+    vi.stubGlobal('fetch', vi.fn(async () => okResponse()));
+    await retry();
+
+    expect(getStateSnapshot().count).toBe(0);
+  });
+
+  it('acknowledgeError() clears the sticky error and notifies subscribers', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => statusResponse(404)));
+    await enqueue(makeEntry());
+    await replay();
+    expect(getStateSnapshot().error).not.toBeNull();
+
+    const listener = vi.fn();
+    const unsubscribe = subscribe(listener);
+    acknowledgeError();
+
+    expect(getStateSnapshot().error).toBeNull();
+    expect(listener).toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it('acknowledgeError() is a silent no-op when there is no error', () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribe(listener);
+
+    acknowledgeError();
+
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
   });
 });
 

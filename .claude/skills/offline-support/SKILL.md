@@ -458,6 +458,14 @@ hint; `EpisodeActionMenu` gives brief feedback via its existing
 previous value through their existing error paths (`role="alert"` /
 `alert(...)`).
 
+Both components keep a **local optimistic mirror** of the study status
+(`useState` initialized from the prop, `useEffect` resync on prop change).
+For `EpisodeActionMenu` this is load-bearing, not cosmetic: its
+`studyStatus` prop is server-derived, so after a queued offline toggle (no
+refresh) the prop goes stale — without the mirror, the menu label wouldn't
+flip and a second offline tap would re-send the SAME direction instead of
+reversing it.
+
 ## `PendingChangesIndicator` (`src/components/PendingChangesIndicator.tsx`)
 
 A dedicated component (not folded into `OfflineBanner` — connectivity and
@@ -471,6 +479,14 @@ so it appears app-wide, including on the offline shell. Mounting the hook is
 what triggers `ensureOutboxInitialized()` — the `online` listener and initial
 drain — so the indicator being mounted app-wide is also what keeps the
 replay engine armed.
+
+Two actions (both 44px touch targets with pointer cursor): **"Retry now"**
+(shown while `count > 0`) calls `outboxStore.retry()` — a manual drain,
+because a transient failure hit while genuinely online never gets an
+`online` event to retry it; and a **dismiss** control (shown with an error)
+calls `outboxStore.acknowledgeError()` — the sticky permanent-failure error
+otherwise only clears on a later successful replay, which may never come if
+the queue is already empty.
 
 ## No Background Sync API (deliberate scope cut)
 
