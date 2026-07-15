@@ -11,6 +11,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }));
 
+const mockMutateWithOutbox = vi.fn();
+vi.mock('@/lib/offline/mutateWithOutbox', () => ({
+  mutateWithOutbox: (...args: unknown[]) => mockMutateWithOutbox(...args),
+}));
+
 function setOnline(value: boolean): void {
   Object.defineProperty(navigator, 'onLine', { configurable: true, value });
 }
@@ -19,6 +24,7 @@ describe('EpisodeActionMenu', () => {
   beforeEach(() => {
     mockPush.mockReset();
     mockRefresh.mockReset();
+    mockMutateWithOutbox.mockReset();
     vi.restoreAllMocks();
     setOnline(true);
   });
@@ -110,12 +116,9 @@ describe('EpisodeActionMenu', () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it('toggles study status from new to studying and refreshes', async () => {
+  it('toggles study status from new to studying and refreshes on a synced result', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    } as Response);
+    mockMutateWithOutbox.mockResolvedValue({ outcome: 'synced' });
 
     render(
       <EpisodeActionMenu
@@ -130,23 +133,19 @@ describe('EpisodeActionMenu', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
 
     await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/episodes/5/study',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: JSON.stringify({ studyStatus: 'studying' }),
-        })
-      )
+      expect(mockMutateWithOutbox).toHaveBeenCalledWith({
+        kind: 'episode-status',
+        targetId: 5,
+        status: 'studying',
+        isOnline: true,
+      })
     );
     expect(mockRefresh).toHaveBeenCalledOnce();
   });
 
-  it('toggles study status from studying to new and refreshes', async () => {
+  it('toggles study status from studying to new and refreshes on a synced result', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    } as Response);
+    mockMutateWithOutbox.mockResolvedValue({ outcome: 'synced' });
 
     render(
       <EpisodeActionMenu
@@ -161,23 +160,40 @@ describe('EpisodeActionMenu', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /stop studying/i }));
 
     await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/episodes/5/study',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: JSON.stringify({ studyStatus: 'new' }),
-        })
-      )
+      expect(mockMutateWithOutbox).toHaveBeenCalledWith({
+        kind: 'episode-status',
+        targetId: 5,
+        status: 'new',
+        isOnline: true,
+      })
     );
     expect(mockRefresh).toHaveBeenCalledOnce();
   });
 
-  it('alerts on study toggle network failure', async () => {
+  it('alerts a will-sync message on a queued study toggle and does not refresh', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: 'Server error' }),
-    } as Response);
+    mockMutateWithOutbox.mockResolvedValue({ outcome: 'queued' });
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="new"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(expect.stringMatching(/will sync when online/i)));
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it('alerts on a study toggle mutation failure', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockMutateWithOutbox.mockRejectedValue(new Error('Server error'));
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
     render(
@@ -198,7 +214,6 @@ describe('EpisodeActionMenu', () => {
 
   it('does not cascade when the study-toggle confirmation is cancelled', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const fetchSpy = vi.spyOn(global, 'fetch');
 
     render(
       <EpisodeActionMenu
@@ -213,8 +228,35 @@ describe('EpisodeActionMenu', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
 
     expect(window.confirm).toHaveBeenCalledOnce();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mockMutateWithOutbox).not.toHaveBeenCalled();
     expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it('the study toggle stays enabled while offline and routes isOnline through to mutateWithOutbox', async () => {
+    setOnline(false);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockMutateWithOutbox.mockResolvedValue({ outcome: 'queued' });
+    vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        studyStatus="new"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+    expect(screen.getByRole('menuitem', { name: /start studying/i })).toBeEnabled();
+
+    await userEvent.click(screen.getByRole('menuitem', { name: /start studying/i }));
+
+    await waitFor(() =>
+      expect(mockMutateWithOutbox).toHaveBeenCalledWith(
+        expect.objectContaining({ isOnline: false })
+      )
+    );
   });
 
   it('shows the offline download item when podcastSlug is provided', async () => {
@@ -246,7 +288,7 @@ describe('EpisodeActionMenu', () => {
     expect(screen.queryByRole('menuitem', { name: /make available offline/i })).not.toBeInTheDocument();
   });
 
-  it('disables edit, study, and delete actions while offline', async () => {
+  it('disables edit and delete (but not study toggle) while offline', async () => {
     setOnline(false);
 
     render(
@@ -261,7 +303,7 @@ describe('EpisodeActionMenu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
 
     expect(screen.getByRole('menuitem', { name: /edit episode/i })).toBeDisabled();
-    expect(screen.getByRole('menuitem', { name: /start studying/i })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: /start studying/i })).toBeEnabled();
     expect(screen.getByRole('menuitem', { name: /delete episode/i })).toBeDisabled();
   });
 

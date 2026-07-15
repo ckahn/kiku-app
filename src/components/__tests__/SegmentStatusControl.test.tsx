@@ -8,6 +8,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: mockRefresh }),
 }));
 
+const mockMutateWithOutbox = vi.fn();
+vi.mock('@/lib/offline/mutateWithOutbox', () => ({
+  mutateWithOutbox: (...args: unknown[]) => mockMutateWithOutbox(...args),
+}));
+
 function setOnline(value: boolean): void {
   Object.defineProperty(navigator, 'onLine', { configurable: true, value });
 }
@@ -15,7 +20,7 @@ function setOnline(value: boolean): void {
 describe('SegmentStatusControl', () => {
   beforeEach(() => {
     mockRefresh.mockReset();
-    vi.restoreAllMocks();
+    mockMutateWithOutbox.mockReset();
     setOnline(true);
   });
 
@@ -29,9 +34,8 @@ describe('SegmentStatusControl', () => {
     expect(select.value).toBe('studying');
   });
 
-  it('PATCHes the new status and refreshes on change', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
-    vi.stubGlobal('fetch', fetchMock);
+  it('calls mutateWithOutbox with the new status and refreshes on a synced result', async () => {
+    mockMutateWithOutbox.mockResolvedValue({ outcome: 'synced' });
 
     render(<SegmentStatusControl segmentId={7} initialStatus="new" />);
     const select = screen.getByLabelText('Study status') as HTMLSelectElement;
@@ -39,27 +43,37 @@ describe('SegmentStatusControl', () => {
 
     expect(select.value).toBe('learned'); // optimistic
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/segments/7/study', expect.objectContaining({
-        method: 'PATCH',
-        body: JSON.stringify({ studyStatus: 'learned' }),
-      }));
+      expect(mockMutateWithOutbox).toHaveBeenCalledWith({
+        kind: 'segment-status',
+        targetId: 7,
+        status: 'learned',
+        isOnline: true,
+      });
     });
     await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
   });
 
-  it('disables the status select while offline', () => {
+  it('is enabled while offline', () => {
     setOnline(false);
     render(<SegmentStatusControl segmentId={7} initialStatus="new" />);
-    expect(screen.getByLabelText('Study status')).toBeDisabled();
+    expect(screen.getByLabelText('Study status')).not.toBeDisabled();
   });
 
-  it('rolls back and shows an error when the request fails', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: 'boom' }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+  it('an offline change on a downloaded episode keeps the value and shows the will-sync hint', async () => {
+    setOnline(false);
+    mockMutateWithOutbox.mockResolvedValue({ outcome: 'queued' });
+
+    render(<SegmentStatusControl segmentId={7} initialStatus="new" />);
+    const select = screen.getByLabelText('Study status') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'studying' } });
+
+    await waitFor(() => expect(screen.getByText(/will sync when online/i)).toBeInTheDocument());
+    expect(select.value).toBe('studying');
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it('rolls back and shows an error when mutateWithOutbox throws', async () => {
+    mockMutateWithOutbox.mockRejectedValue(new Error('boom'));
 
     render(<SegmentStatusControl segmentId={7} initialStatus="new" />);
     const select = screen.getByLabelText('Study status') as HTMLSelectElement;
