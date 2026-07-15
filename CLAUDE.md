@@ -155,6 +155,25 @@ The Claude prompts live **in the code**, not in docs (`docs/` is empty; the old 
 
 Study status lives on individual segments (`new | studying | learned`). Episode-level status is derived at query time from segment counts (all new → new, all learned → learned, otherwise → studying). `nextReview` is stored on segments but not yet computed — the SRS interval logic (e.g. 3d → 1w → 2w → 1mo → 3mo) is planned but not implemented.
 
+## Service worker / PWA (offline groundwork)
+
+The service worker is built with [Serwist](https://serwist.pages.dev/) (`@serwist/next` + `serwist`, pinned to matching `9.5.11` versions). Source lives at `src/app/sw.ts`; for non-development builds, `next.config.ts` wraps the Next config in `withSerwistInit(...)` with `swSrc: "src/app/sw.ts"`, pointing the built output at the `public` folder as `sw.js`. Registration is auto-injected by `@serwist/next` — there is no manual register component.
+
+**Turbopack incompatibility (empirical, Next 16.2.6):** Serwist's manifest injection is a webpack plugin. The default Turbopack builder refuses to build once this webpack config is present ("This build is using Turbopack, with a `webpack` config and no `turbopack` config"). `package.json`'s `build` script is therefore `next build --webpack`, not the Turbopack default. `vercel.json` pins Vercel's `buildCommand` to `npm run build` so deploys pick up the flag instead of the framework preset's bare `next build`.
+
+**Local development vs local PWA testing:** `npm run dev` intentionally skips the Serwist wrapper entirely, so local app development stays on Next 16's default Turbopack dev server and no service worker is generated or registered. To exercise the production PWA path locally, run `npm run build` followed by `npm run start`, then test `http://localhost:3000` in the browser. That path uses webpack, emits the generated service worker under `public/`, injects the generated precache manifest, and allows the browser to register the service worker on localhost.
+
+The built worker script and its sourcemap are generated at build time, not committed (gitignored, along with the alternate `swe-worker` output name), and excluded from both `tsconfig.json` and ESLint (`eslint.config.mjs` ignores the generated `sw*`/`swe-worker*` scripts under `public` — they're minified generated output, not source). `tsconfig.json` includes `"webworker"` in `lib` (alongside `dom`) and `"types": ["@serwist/next/typings"]` so `src/app/sw.ts` type-checks as a service worker; `sw.ts` declares `self` as `ServiceWorkerGlobalScope` locally to resolve the `dom`/`webworker` overlap.
+
+**Manifest and icons:** `src/app/manifest.ts` is a Next metadata route (`MetadataRoute.Manifest`) served at `/manifest.webmanifest`; name/short_name "KIKU", `start_url: '/'`, `display: 'standalone'`, and `background_color`/`theme_color` matching the design tokens in `src/app/globals.css`. `public/icon-192.png`, `public/icon-512.png`, and a maskable `public/icon-512-maskable.png` (content scaled to 70% and centered, so it survives circular/squircle OS masking) are rasterized from `src/app/icon.svg`, the source of truth for the mark — regenerate with any SVG-to-PNG tool (e.g. `sharp-cli`) if the icon changes; there is no npm script for it since it's a one-off. `src/app/apple-icon.png` (180×180, flattened onto the manifest background color since iOS composites transparency on black) is a Next metadata file, auto-served with its `apple-touch-icon` link. `src/app/layout.tsx` sets `appleWebApp` metadata and a light/dark `viewport.themeColor`.
+
+**Runtime caching:** `src/app/sw.ts`'s `runtimeCaching` array (route-matching predicates factored out into `src/lib/sw-routes.ts` for unit testing, since instantiating Serwist itself needs a real service worker global scope):
+- Audio (`GET /api/episodes/<id>/audio`) — `CacheFirst`, cache name `kiku-audio`, restricted to full (200) responses via `CacheableResponsePlugin` (the route can also return 206 for byte-range requests; caching a partial response would corrupt offline playback since the Web Audio engine decodes the whole file once). Deliberately has **no** `ExpirationPlugin` — the cache is unbounded on purpose; M2's download registry will own eviction, and an LRU cap here would silently evict episodes a user explicitly downloaded.
+- Study guides (`GET /api/segments/<id>/study-guide`, exact — does not match its own `/regenerate` sub-route) — `NetworkFirst` with a ~4s `networkTimeoutSeconds`, cache name `kiku-study-guides`.
+- `public/soundtouch-processor.js` is precached automatically by Serwist's default public-folder globbing — confirmed by inspecting the built `sw.js`; no `additionalPrecacheEntries` config was needed.
+
+**Client-side primitives:** `useOnlineStatus` (`src/hooks/useOnlineStatus.ts`) and `OfflineBanner` (`src/components/OfflineBanner.tsx`) exist but are not yet wired into any page — that lands in M3 alongside the download registry.
+
 ## Key Design Decisions
 
 - Drizzle ORM (not Prisma) — lightweight, type-safe, good Vercel Postgres support

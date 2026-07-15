@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_JP } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
@@ -20,6 +20,20 @@ const notoSansJP = Noto_Sans_JP({
 export const metadata: Metadata = {
   title: "KIKU",
   description: "Japanese podcast study app",
+  appleWebApp: {
+    capable: true,
+    title: "KIKU",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+// Washi paper canvas / torii vermillion — matches the design tokens in src/app/globals.css and
+// the background_color/theme_color in src/app/manifest.ts.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f0e8" },
+    { media: "(prefers-color-scheme: dark)", color: "#161412" },
+  ],
 };
 
 export default function RootLayout({

@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Generated directories:
     "coverage/**",
+    // Generated service worker output (@serwist/next build artifact):
+    "public/sw.js",
+    "public/swe-worker-*.js",
   ]),
   {
     rules: {
