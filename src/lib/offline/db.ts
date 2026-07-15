@@ -1,6 +1,12 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { OFFLINE_DB_NAME, OFFLINE_DB_VERSION } from './constants';
-import type { DownloadRecord, EpisodeSnapshot, StoredSegment, StoredStudyGuide } from './types';
+import type {
+  DownloadRecord,
+  EpisodeSnapshot,
+  OutboxEntry,
+  StoredSegment,
+  StoredStudyGuide,
+} from './types';
 
 /**
  * Episode metadata as stored in the `episodes` object store — the
@@ -23,7 +29,12 @@ interface OfflineDBSchema extends DBSchema {
   segments: {
     key: [number, number];
     value: StoredSegmentRow;
-    indexes: { 'by-episode': number };
+    // `by-id` is deliberately NON-unique: segment.id is a DB primary key and
+    // unique in practice, but a `{ unique: true }` index build during the
+    // versionchange transaction would abort the *entire* migration (bricking
+    // offline data) if a duplicate ever existed. A non-unique index can't
+    // abort; lookups just take the first matching key. See db.ts `upgrade`.
+    indexes: { 'by-episode': number; 'by-id': number };
   };
   studyGuides: {
     key: number;
@@ -32,6 +43,10 @@ interface OfflineDBSchema extends DBSchema {
   downloads: {
     key: number;
     value: DownloadRecord;
+  };
+  outbox: {
+    key: string;
+    value: OutboxEntry;
   };
 }
 
@@ -46,16 +61,29 @@ let dbPromise: Promise<OfflineDb> | null = null;
 export function openOfflineDb(): Promise<OfflineDb> {
   if (!dbPromise) {
     dbPromise = openDB<OfflineDBSchema>(OFFLINE_DB_NAME, OFFLINE_DB_VERSION, {
-      upgrade(db) {
-        db.createObjectStore('episodes', { keyPath: 'episodeId' });
+      // Guarded by `oldVersion` so this is correct both for a fresh install
+      // (oldVersion 0 runs every block) and for a v1 -> v2 upgrade (only the
+      // `< 2` block runs, leaving existing v1 rows untouched). `tx` is the
+      // versionchange transaction; `createIndex` inside it re-indexes rows
+      // already present in a store, so pre-existing segment rows get
+      // indexed by `by-id` for free.
+      upgrade(db, oldVersion, _newVersion, tx) {
+        if (oldVersion < 1) {
+          db.createObjectStore('episodes', { keyPath: 'episodeId' });
 
-        const segmentStore = db.createObjectStore('segments', {
-          keyPath: ['episodeId', 'segmentIndex'],
-        });
-        segmentStore.createIndex('by-episode', 'episodeId');
+          const segmentStore = db.createObjectStore('segments', {
+            keyPath: ['episodeId', 'segmentIndex'],
+          });
+          segmentStore.createIndex('by-episode', 'episodeId');
 
-        db.createObjectStore('studyGuides', { keyPath: 'segmentId' });
-        db.createObjectStore('downloads', { keyPath: 'episodeId' });
+          db.createObjectStore('studyGuides', { keyPath: 'segmentId' });
+          db.createObjectStore('downloads', { keyPath: 'episodeId' });
+        }
+
+        if (oldVersion < 2) {
+          tx.objectStore('segments').createIndex('by-id', 'id');
+          db.createObjectStore('outbox', { keyPath: 'id' });
+        }
       },
     });
   }
