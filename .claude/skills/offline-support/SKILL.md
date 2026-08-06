@@ -16,18 +16,29 @@ here runs on the server except the snapshot endpoint.
 
 ## IndexedDB schema (`db.ts`, version in `constants.ts`)
 
-Database `kiku-offline`, version `OFFLINE_DB_VERSION = 1`, opened via `idb`
-with a typed schema. Four object stores:
+Database `kiku-offline`, version `OFFLINE_DB_VERSION = 2` (bumped in M4 — see
+below), opened via `idb` with a typed schema. Five object stores:
 
 | Store         | keyPath                        | Contents |
 |---------------|--------------------------------|----------|
 | `episodes`    | `episodeId`                    | episode meta + podcast slug/name |
-| `segments`    | `[episodeId, segmentIndex]`    | full segment rows; index `by-episode` |
+| `segments`    | `[episodeId, segmentIndex]`    | full segment rows; indexes `by-episode`, `by-id` (M4, non-unique) |
 | `studyGuides` | `segmentId`                    | `{ segmentId, content }` (StudyGuideContent v2) |
 | `downloads`   | `episodeId`                    | DownloadRecord (registry state) |
+| `outbox`      | `id` (`` `${kind}:${targetId}` ``) | OutboxEntry — queued offline study-status mutation (M4) |
 
 Bumping the schema = bump `OFFLINE_DB_VERSION` **and** extend the `upgrade()`
-callback in `src/lib/offline/db.ts`.
+callback in `src/lib/offline/db.ts`, guarded by `oldVersion` so it's correct
+for both a fresh install and an upgrade from an earlier version (see M4's
+migration below for the pattern).
+
+`openOfflineDb` also wires the idb `blocked`/`blocking` handlers: `blocked`
+(an older tab's connection is preventing this open's upgrade) logs a
+diagnostic instead of hanging silently, and `blocking` (a newer tab wants to
+upgrade past this connection's version) closes this connection and nulls the
+cached promise so the newer tab can proceed and a later call here reopens.
+Without `blocking`, a v(N) connection held open in one tab would make every
+other tab's v(N+1) upgrade hang forever.
 
 ## Zod boundary (`types.ts`, `store.ts`)
 
@@ -47,9 +58,15 @@ same transaction (re-segmentation can shrink an episode; without this,
 `getEpisodeSnapshot` would return phantom tail segments from the earlier,
 longer version).
 
-`deleteEpisodeData(episodeId)` cascades across all four stores in one
-transaction. It does **not** touch Cache Storage — use
-`removeDownload` (below) for a full purge.
+`deleteEpisodeData(episodeId)` cascades across all five stores in one
+transaction — including the episode's queued `outbox` entries (the
+episode-status entry plus one segment-status entry per segment row), so a
+removed download's pending study-status changes can't replay against the
+server after the data they came from is gone (M4). It does **not** touch
+Cache Storage — use `removeDownload` (below) for a full purge;
+`removeDownload` also re-syncs the outbox singleton's in-memory mirror
+(`syncAfterExternalChange`) so the pending-changes indicator drops the
+purged entries immediately.
 
 ## Download registry (`downloadStore.ts`, `useDownloadRecord`)
 
@@ -231,10 +248,11 @@ both-sources-miss throw as its error.
 ## Degraded affordances offline (gate = `useOnlineStatus()`)
 
 Network-only controls disable with an "Unavailable offline" hint:
-`EpisodeActionMenu` (start/stop studying, edit, delete — delete via the new
-`disabled`/`disabledHint` props on `DeleteMenuItem`), `SegmentStatusControl`
-(status `<select>`; M4 adds outbox queueing), `AddEpisodeButton`.
-`EpisodeStatusPoller` doesn't spin against a dead network — it uses
+`EpisodeActionMenu` (edit, delete — delete via the `disabled`/`disabledHint`
+props on `DeleteMenuItem`), `AddEpisodeButton`. `SegmentStatusControl` and
+`EpisodeActionMenu`'s start/stop-studying item **no longer disable offline as
+of M4** (below) — they queue instead. `EpisodeStatusPoller` doesn't spin
+against a dead network — it uses
 `navigator.onLine` + `online`/`offline` listeners (not the hook, since its
 polling effect has an empty dep array), shows a reconnect message while
 offline, and resumes on `online`. `OfflineBanner` is wired into
@@ -265,11 +283,246 @@ The navigation fallback **cannot be unit-tested** (the SW only exists in a
 production build). Verify against `npm run build && npm run start`: download an
 episode online, go airplane-mode, reload the episode page → transcript renders
 and play/seek/loop/range-loop/speed all work; open a segment study page (hard
-nav) → guide (from IDB) + playback; confirm edit/delete/status/upload are
-disabled and the poller isn't spinning; navigate to a non-downloaded episode →
-honest empty state. Deploy-staleness: redeploy so chunk hashes change, go
-offline, reload → still renders (shell + chunks re-precached together).
+nav) → guide (from IDB) + playback; confirm edit/delete/upload are disabled,
+study-status changes queue (M4, below), and the poller isn't spinning;
+navigate to a non-downloaded episode → honest empty state. Deploy-staleness:
+redeploy so chunk hashes change, go offline, reload → still renders (shell +
+chunks re-precached together).
 
 ## Offline home list (added to M3 during on-device testing)
 
 Navigating to `/` offline resolves to `{ kind: 'home' }` in `resolveOfflineRoute` and the shell renders a "Downloaded episodes" list from `getAllDownloadRecords()` (status `complete` only, newest `completedAt` first). List items are plain `<a>` links (hard navigation → re-enters the shell offline). Empty list renders an online/offline-aware empty state.
+
+# M4 — Offline mutations + sync
+
+Makes **study-status changes** work offline — the only mutations that queue;
+edit, delete, regenerate, and upload remain online-only exactly as M3 left
+them. `SegmentStatusControl` and `EpisodeActionMenu`'s study toggle route
+through a shared helper instead of a raw `fetch`, and no longer disable
+offline.
+
+## IndexedDB v1 → v2 migration (`db.ts`, `constants.ts`)
+
+`OFFLINE_DB_VERSION` bumped to `2`. The upgrade adds a non-unique `by-id`
+index on `segments` (needed because `SegmentStatusControl` only knows the
+segment's DB id, not its `[episodeId, segmentIndex]` composite key) and a new
+`outbox` object store (keyPath `id`). The `upgrade(db, oldVersion, _newVersion, tx)`
+callback is guarded by `oldVersion` so it's correct both for a fresh install
+(`oldVersion < 1` block runs) and an existing v1 database upgrading in place
+(`oldVersion < 1` is skipped, only the `< 2` block runs — existing rows
+survive untouched). `tx` is the `versionchange` transaction; `createIndex`
+inside it re-indexes rows already present in a store, so pre-existing segment
+rows get indexed by `by-id` for free without a manual backfill.
+
+**`by-id` is deliberately non-unique.** Although `segment.id` is a DB primary
+key and unique in practice, a `{ unique: true }` index build during the
+versionchange transaction would **abort the entire migration** if a duplicate
+ever existed — bricking a user's offline data. A non-unique index cannot
+abort; lookups just take the first matching key. Covered by a migration
+survival test in `store.test.ts` that hand-opens a v1-shaped database, writes
+rows, then opens via the real (v2) `openOfflineDb()` and asserts the rows
+and the new index/store all exist.
+
+## Outbox entry shape + coalescing (`types.ts`)
+
+```ts
+type OutboxKind = 'segment-status' | 'episode-status';
+interface OutboxEntry {
+  id: string;            // `${kind}:${targetId}` -- the coalescing key
+  kind: OutboxKind;
+  targetId: number;      // segmentId (segment-status) or episodeId (episode-status)
+  status: StudyStatus;
+  clientTimestamp: number;
+}
+```
+
+`url`/`method`/`body` are **not stored** — they're derived at replay time by
+`toReplayRequest` (`outboxReplay.ts`) so a future route rename can't strand
+already-queued entries with a stale URL. `id` is the coalescing key:
+`putOutboxEntry` overwrites on repeat writes to the same target, so
+repeatedly flipping one segment's status offline leaves exactly one queued
+entry carrying the latest status (last-write-wins). `outboxEntryId(kind,
+targetId)` is the single source of truth for deriving this key — both
+`outboxStore.enqueue` and `mutateWithOutbox` (to clear a stale entry on a
+fresh online success) use it.
+
+`clientTimestamp` is used **client-side only**, for FIFO replay ordering and
+as the coalesced entry's timestamp. There is no server-side stale-replay
+guard on the two PATCH routes — the offline queue is inherently single-device
+(single-user app), so the one scenario a server timestamp would guard
+against (the same target changed on another device between enqueue and
+replay) can't occur. This is the natural extension point if multi-device
+ever lands.
+
+## `outboxStore.ts` — client singleton + FIFO replay
+
+Modeled directly on `downloadStore.ts`: an in-memory `Map<id, OutboxEntry>`
+mirroring the `outbox` store, `subscribe`/`notify` for `useSyncExternalStore`
+(`src/hooks/useOutbox.ts`), `BroadcastChannel('kiku-outbox')` cross-tab sync,
+and `ensureOutboxInitialized()` — a lazy one-time load that also **installs
+the single `window.addEventListener('online', …)` listener**, **opens the
+BroadcastChannel eagerly** (a passive tab that never writes locally must
+still hear other tabs' outbox changes, or it would hold a stale mirror), and,
+if the queue is non-empty and the browser is already online at init time,
+kicks one replay immediately (drains a queue left behind by a session that
+closed before reconnecting).
+
+`syncAfterExternalChange()` re-syncs the mirror after another module changed
+the outbox IDB store directly (currently: `removeDownload` after
+`deleteEpisodeData`'s cascade) and pings other tabs. Plain `refresh()`
+deliberately does not broadcast — the channel receiver calls it, so
+broadcasting from inside it would ping-pong between tabs.
+
+**`getStateSnapshot()` returns a memoized `{ count, error }` object**,
+rebuilt only inside `notify()` — never fresh on every call. This is required
+for `useSyncExternalStore`: a snapshot getter that allocates a new object on
+every call makes React think the store changed on every render, causing an
+infinite re-render loop. Mirror this pattern for any future singleton that
+exposes more than a single scalar to `useSyncExternalStore`.
+
+`replay()` drains the queue in FIFO order by `clientTimestamp`, PATCHing each
+entry's derived request:
+- success → delete the entry, continue.
+- **permanent** failure (`>= 400 && < 500`, excluding `408`/`429`) → the
+  mutation is invalid or its target is gone (e.g. 404 — segment deleted
+  server-side); drop the entry and set a user-visible error.
+- **transient** failure (network throw, `5xx`, `408`, `429`) → keep the
+  entry and **stop the loop immediately** — later entries are left alone so
+  FIFO ordering (and therefore last-write-wins) holds for the next attempt;
+  skipping ahead would let a later entry replay out of order.
+
+The in-flight drain is retained as a module-level **promise** (not a boolean
+flag): overlapping `online` events join the single in-flight drain,
+`ensureOutboxInitialized`'s fire-and-forget kick can be awaited
+deterministically in tests via `replay()`, and the write-lock coordination
+below can wait on it.
+
+**Same-tab replay/write coordination** (`withTargetWriteLock`): a fresh
+online write from `mutateWithOutbox` and a replay of that target's queued
+(older) value can otherwise race — two PATCHes for the same target in
+flight, with the older value able to land last. `withTargetWriteLock(id, fn)`
+waits for an in-flight drain that still holds the target before running the
+write, and registers the target as being written so a drain that starts
+mid-write **skips** that entry (the write supersedes it and clears it on
+success). This is deliberately same-tab only: cross-tab duplication is not
+coordinated, and its worst case — the same idempotent status-set PATCH sent
+twice — is accepted-safe.
+
+## `mutateWithOutbox` — the shared decision point (`mutateWithOutbox.ts`)
+
+```ts
+interface MutateInput {
+  kind: OutboxKind; targetId: number; status: StudyStatus; isOnline: boolean;
+}
+type MutateResult = { outcome: 'synced' } | { outcome: 'queued' };
+```
+
+1. **Online**: PATCH the derived request, inside `withTargetWriteLock` (see
+   the replay/write coordination above).
+   - success → best-effort refresh the stored snapshot row(s) (D4: a
+     downloaded episode's IDB copy shouldn't drift stale after an online
+     edit — a refresh failure is logged via `console.error`, not surfaced,
+     since the mutation already succeeded server-side), clear any stale
+     coalesced outbox entry for this target (edge case: a queued change made
+     offline earlier must not later revert a fresh online write), return
+     `synced`.
+   - **permanent** failure → throw the parsed response error (a real
+     validation error — surface it, don't queue).
+   - **transient** failure or a network throw → fall through to step 2.
+2. **Offline** (or the transient fallthrough from step 1): attempt the
+   optimistic IndexedDB write — `updateStoredSegmentStudyStatus` (locates the
+   row via the `by-id` index) for `segment-status`, or
+   `setStoredEpisodeSegmentsStudyStatus` (cascades to every stored segment
+   row for the episode, mirroring the server route) for `episode-status`.
+   - a row existed (episode is downloaded) → enqueue the coalesced entry,
+     return `queued`.
+   - no row existed (episode was never downloaded) → **throw** instead of
+     silently no-op'ing. This is the one honesty-preserving edge case: the
+     two controls only render inside the offline shell for downloaded
+     episodes, so in practice this throw path is defensive (e.g. an RSC list
+     page loaded online that then lost connectivity for a non-downloaded
+     episode) — but it's what keeps M3's "not usable offline" guarantee
+     intact rather than silently pretending an unqueueable change succeeded.
+
+## UI wiring
+
+`SegmentStatusControl` and `EpisodeActionMenu`'s study-toggle button call
+`mutateWithOutbox` instead of a raw `fetch`, and dropped `!isOnline` from
+their `disabled` (edit/delete/download stay gated exactly as M3 left them).
+On `synced`, the existing `router.refresh()` still runs. On `queued`,
+`router.refresh()` is skipped (there's no server to re-derive from, and the
+offline shell has no RSC to refresh anyway) and the optimistic value is
+kept: `SegmentStatusControl` shows a muted "Saved — will sync when online"
+hint; `EpisodeActionMenu` gives brief feedback via its existing
+`alert(...)`-based pattern. On a thrown error, both roll back to the
+previous value through their existing error paths (`role="alert"` /
+`alert(...)`).
+
+Both components keep a **local optimistic mirror** of the study status
+(`useState` initialized from the prop, `useEffect` resync on prop change).
+For `EpisodeActionMenu` this is load-bearing, not cosmetic: its
+`studyStatus` prop is server-derived, so after a queued offline toggle (no
+refresh) the prop goes stale — without the mirror, the menu label wouldn't
+flip and a second offline tap would re-send the SAME direction instead of
+reversing it.
+
+## `PendingChangesIndicator` (`src/components/PendingChangesIndicator.tsx`)
+
+A dedicated component (not folded into `OfflineBanner` — connectivity and
+sync-queue state are different concerns that can co-occur, e.g. back online
+with a queue still draining) reading `useOutboxState()`
+(`src/hooks/useOutbox.ts`, a `useSyncExternalStore` wrapper over
+`outboxStore`): renders nothing at `count === 0 && !error`, "N change(s)
+waiting to sync" once entries are queued, and the permanent-replay-failure
+error text otherwise. Mounted in `src/app/layout.tsx` next to `OfflineBanner`
+so it appears app-wide, including on the offline shell. Mounting the hook is
+what triggers `ensureOutboxInitialized()` — the `online` listener and initial
+drain — so the indicator being mounted app-wide is also what keeps the
+replay engine armed.
+
+Two actions (both 44px touch targets with pointer cursor): **"Retry now"**
+(shown while `count > 0`) calls `outboxStore.retry()` — a manual drain,
+because a transient failure hit while genuinely online never gets an
+`online` event to retry it; and a **dismiss** control (shown with an error)
+calls `outboxStore.acknowledgeError()` — the sticky permanent-failure error
+otherwise only clears on a later successful replay, which may never come if
+the queue is already empty.
+
+## No Background Sync API (deliberate scope cut)
+
+Background Sync would need a service-worker `sync` event, page↔SW message
+plumbing, and either duplicating the replay logic inside the SW or giving the
+SW IndexedDB access — a large complexity increase for a single-user app
+whose queued mutations are study-status flips, not latency-critical writes.
+`online`-event replay while the app is open (plus the initial-load drain in
+`ensureOutboxInitialized`) covers the realistic reconnect-with-app-foreground
+case. Not scheduled; recorded here as the natural next step if replay while
+fully closed ever becomes a requirement.
+
+## Testing notes (M4)
+
+- `store.test.ts` — outbox CRUD + `.safeParse` drop of a corrupt row,
+  `updateStoredSegmentStudyStatus` / `setStoredEpisodeSegmentsStudyStatus`,
+  and the v1→v2 migration-survival test (hand-built v1 `openDB`, write rows,
+  reopen via the real v2 path, assert survival + new index/store).
+- `outboxReplay.test.ts` — pure mapper + `isPermanentReplayFailure` boundary
+  table (399/400/404/408/429/499/500/503).
+- `outboxStore.test.ts` (jsdom, `fake-indexeddb`, stubbed `fetch`) —
+  coalescing, snapshot referential stability, FIFO replay ordering, all three
+  failure modes, the shared in-flight drain, `withTargetWriteLock`
+  coordination (both directions), the eager BroadcastChannel, and
+  `online`-event-triggered drain.
+- `mutateWithOutbox.test.ts` (jsdom, `fake-indexeddb`, stubbed `fetch`) — all
+  six branches (synced / stale-entry-cleared / offline-queued /
+  offline-not-downloaded-throws / online-transient-queued /
+  online-permanent-throws).
+- Component tests mock `@/lib/offline/mutateWithOutbox` directly rather than
+  stubbing `fetch` — the components' job is to call the helper with the
+  right arguments and react to its result/throw, not to reimplement its
+  online/offline branching.
+- **Browser-only**: airplane-mode → change a segment's status on a
+  downloaded episode → sticks, indicator shows "1 change waiting to sync",
+  reload offline → status persisted from IDB; flip the same segment multiple
+  times offline → still one queued change (coalesced); reconnect → queue
+  drains, indicator clears, server reflects the final status; a
+  non-downloaded episode's study toggle offline → errors, nothing queued.

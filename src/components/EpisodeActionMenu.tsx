@@ -1,7 +1,7 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, BookOpenCheck, Pencil } from 'lucide-react';
 import ActionMenu from '@/components/ActionMenu';
@@ -9,9 +9,11 @@ import { DeleteMenuItem } from '@/components/DeleteActionMenu';
 import EpisodeDownloadMenuItem from '@/components/EpisodeDownloadMenuItem';
 import { Button, Input, Modal } from '@/components/ui';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { mutateWithOutbox } from '@/lib/offline/mutateWithOutbox';
 import { getErrorMessage } from '@/lib/utils';
 
 const OFFLINE_HINT = 'Unavailable offline';
+const WILL_SYNC_ALERT = 'Saved — will sync when online.';
 
 interface EpisodeActionMenuProps {
   episodeId: number;
@@ -50,9 +52,19 @@ export default function EpisodeActionMenu({
   const [numberError, setNumberError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Optimistic mirror of the server-derived studyStatus prop (same pattern
+  // as SegmentStatusControl's local `status`). On a queued offline change
+  // there is no router.refresh() to re-derive the prop, so without this the
+  // toggle's label and direction would go stale -- a second offline tap
+  // would re-send the SAME status instead of reversing it.
+  const [status, setStatus] = useState(studyStatus);
+  useEffect(() => {
+    setStatus(studyStatus);
+  }, [studyStatus]);
+
   async function handleStudyToggle(closeMenu: () => void): Promise<void> {
-    if (!studyStatus || studyStatus === 'learned') return;
-    const nextStatus = studyStatus === 'studying' ? 'new' : 'studying';
+    if (!status || status === 'learned') return;
+    const nextStatus = status === 'studying' ? 'new' : 'studying';
     const confirmMessage =
       nextStatus === 'studying'
         ? 'Mark the entire episode as Studying? This overwrites every segment’s status — including any segments you’ve marked Learned.'
@@ -64,16 +76,22 @@ export default function EpisodeActionMenu({
     closeMenu();
     setStudyToggling(true);
     try {
-      const response = await fetch(`/api/episodes/${episodeId}/study`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studyStatus: nextStatus }),
+      const result = await mutateWithOutbox({
+        kind: 'episode-status',
+        targetId: episodeId,
+        status: nextStatus,
+        isOnline,
       });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error ?? `Request failed (${response.status})`);
+      setStatus(nextStatus);
+      if (result.outcome === 'synced') {
+        router.refresh();
+      } else {
+        // Queued: there's no server to re-derive from (and on the offline
+        // shell there's no RSC to refresh anyway) -- the optimistic local
+        // status carries the flip; give brief feedback, matching this
+        // component's existing alert-based pattern.
+        alert(WILL_SYNC_ALERT);
       }
-      router.refresh();
     } catch (error: unknown) {
       alert(getErrorMessage(error));
     } finally {
@@ -148,21 +166,20 @@ export default function EpisodeActionMenu({
       <ActionMenu ariaLabel={`Actions for ${episodeTitle}`}>
         {({ closeMenu }) => (
           <>
-            {studyStatus !== 'learned' && studyStatus !== undefined && (
+            {status !== 'learned' && status !== undefined && (
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => void handleStudyToggle(closeMenu)}
-                disabled={studyToggling || !isOnline}
-                title={!isOnline ? OFFLINE_HINT : undefined}
+                disabled={studyToggling}
                 className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-canvas-subtle disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {studyStatus === 'studying' ? (
+                {status === 'studying' ? (
                   <BookOpenCheck size={16} aria-hidden="true" />
                 ) : (
                   <BookOpen size={16} aria-hidden="true" />
                 )}
-                <span>{studyStatus === 'studying' ? 'Stop studying' : 'Start studying'}</span>
+                <span>{status === 'studying' ? 'Stop studying' : 'Start studying'}</span>
               </button>
             )}
             <button

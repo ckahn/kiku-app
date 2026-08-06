@@ -1,14 +1,18 @@
 import { openOfflineDb } from './db';
+import { outboxEntryId } from './outboxReplay';
 import {
   downloadRecordSchema,
   episodeSnapshotSchema,
+  outboxEntrySchema,
   storedEpisodeMetaSchema,
   storedStudyGuideSchema,
   type DownloadRecord,
   type EpisodeSnapshot,
+  type OutboxEntry,
   type StoredEpisodeMeta,
   type StoredStudyGuide,
 } from './types';
+import type { StudyStatus } from '@/lib/episodeStudyStatus';
 
 /**
  * Zod-validated read/write boundary for the offline IndexedDB store.
@@ -128,26 +132,107 @@ export async function getAllDownloadRecords(): Promise<DownloadRecord[]> {
   return records;
 }
 
+export async function putOutboxEntry(entry: OutboxEntry): Promise<void> {
+  const parsed = outboxEntrySchema.parse(entry);
+  const db = await openOfflineDb();
+  await db.put('outbox', parsed);
+}
+
+export async function getAllOutboxEntries(): Promise<OutboxEntry[]> {
+  const db = await openOfflineDb();
+  const rows = await db.getAll('outbox');
+
+  const entries: OutboxEntry[] = [];
+  for (const row of rows) {
+    const result = outboxEntrySchema.safeParse(row);
+    if (result.success) entries.push(result.data);
+  }
+  return entries;
+}
+
+export async function deleteOutboxEntry(id: string): Promise<void> {
+  const db = await openOfflineDb();
+  await db.delete('outbox', id);
+}
+
 /**
- * Delete every record for an episode across all four stores in one
+ * Locates a stored segment row by its DB id (via the non-unique `by-id`
+ * index — see db.ts) and overwrites its `studyStatus` with an immutable
+ * copy. Returns `false` (no-op) when no row exists for this id, which the
+ * caller (`mutateWithOutbox`) treats as "episode not downloaded".
+ */
+export async function updateStoredSegmentStudyStatus(
+  segmentId: number,
+  status: StudyStatus
+): Promise<boolean> {
+  const db = await openOfflineDb();
+  const tx = db.transaction('segments', 'readwrite');
+  const store = tx.objectStore('segments');
+  const key = await store.index('by-id').getKey(segmentId);
+  if (key === undefined) {
+    await tx.done;
+    return false;
+  }
+
+  const row = await store.get(key);
+  if (!row) {
+    await tx.done;
+    return false;
+  }
+
+  await store.put({ ...row, studyStatus: status });
+  await tx.done;
+  return true;
+}
+
+/**
+ * Cascades a `studyStatus` update to every stored segment row for an
+ * episode (mirrors the server route's cascade). Returns the number of rows
+ * updated — 0 means the episode has no stored segments (not downloaded).
+ */
+export async function setStoredEpisodeSegmentsStudyStatus(
+  episodeId: number,
+  status: StudyStatus
+): Promise<number> {
+  const db = await openOfflineDb();
+  const tx = db.transaction('segments', 'readwrite');
+  const store = tx.objectStore('segments');
+  const rows = await store.index('by-episode').getAll(episodeId);
+
+  await Promise.all(rows.map((row) => store.put({ ...row, studyStatus: status })));
+  await tx.done;
+  return rows.length;
+}
+
+/**
+ * Delete every record for an episode across all five stores in one
  * transaction: its snapshot (episode meta + segments), any cached study
- * guides for its segments, and its download record. Does not touch Cache
- * Storage — callers that also want to purge cached audio should use
- * `removeDownload` in `downloadStore.ts`, which wraps this and the Cache
- * Storage delete together.
+ * guides for its segments, its download record, and any queued outbox
+ * entries targeting it (the episode-status entry plus a segment-status
+ * entry per segment) — otherwise a removed download's queued study-status
+ * changes would still PATCH the server on the next reconnect. Does not
+ * touch Cache Storage — callers that also want to purge cached audio should
+ * use `removeDownload` in `downloadStore.ts`, which wraps this, the Cache
+ * Storage delete, and the in-memory outbox re-sync together.
  */
 export async function deleteEpisodeData(episodeId: number): Promise<void> {
   const db = await openOfflineDb();
-  const tx = db.transaction(['episodes', 'segments', 'studyGuides', 'downloads'], 'readwrite');
+  const tx = db.transaction(
+    ['episodes', 'segments', 'studyGuides', 'downloads', 'outbox'],
+    'readwrite'
+  );
   const segmentStore = tx.objectStore('segments');
+  const outboxStore = tx.objectStore('outbox');
   const segmentRows = await segmentStore.index('by-episode').getAll(episodeId);
 
   await Promise.all([
     tx.objectStore('episodes').delete(episodeId),
     tx.objectStore('downloads').delete(episodeId),
+    outboxStore.delete(outboxEntryId('episode-status', episodeId)),
     ...segmentRows.flatMap((row) => [
       segmentStore.delete([row.episodeId, row.segmentIndex]),
       tx.objectStore('studyGuides').delete(row.id),
+      outboxStore.delete(outboxEntryId('segment-status', row.id)),
     ]),
   ]);
 

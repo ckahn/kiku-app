@@ -2,9 +2,15 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetOfflineDbForTests } from '../db';
 import {
+  getAllOutboxEntries,
   getDownloadRecord as readDownloadRecordFromIdb,
   putDownloadRecord as writeDownloadRecordToIdb,
 } from '../store';
+import {
+  enqueue as enqueueOutboxEntry,
+  getStateSnapshot as getOutboxStateSnapshot,
+  resetOutboxStoreForTests,
+} from '../outboxStore';
 import {
   ensureInitialized,
   failDownload,
@@ -23,6 +29,7 @@ import type { DownloadRecord } from '../types';
 
 beforeEach(async () => {
   resetDownloadStoreForTests();
+  resetOutboxStoreForTests();
   await resetOfflineDbForTests();
   await new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase('kiku-offline');
@@ -318,5 +325,22 @@ describe('removeDownload', () => {
     });
 
     await expect(removeDownload(11)).resolves.toBeUndefined();
+  });
+
+  it('purges the episode queued outbox entries and re-syncs the outbox mirror', async () => {
+    await startDownload(startInput(12));
+    await enqueueOutboxEntry({
+      id: 'episode-status:12',
+      kind: 'episode-status',
+      targetId: 12,
+      status: 'studying',
+      clientTimestamp: 1000,
+    });
+    expect(getOutboxStateSnapshot().count).toBe(1);
+
+    await removeDownload(12);
+
+    expect(getOutboxStateSnapshot().count).toBe(0);
+    expect(await getAllOutboxEntries()).toEqual([]);
   });
 });

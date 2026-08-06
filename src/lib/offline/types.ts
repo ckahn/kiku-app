@@ -76,3 +76,30 @@ export const downloadRecordSchema = z.object({
   completedAt: z.number().optional(),
 });
 export type DownloadRecord = z.infer<typeof downloadRecordSchema>;
+
+// Study status enum, duplicated here (rather than imported from
+// src/lib/episodeStudyStatus.ts) to keep the offline persisted-shape schemas
+// self-contained in this file, matching the pattern of every other schema
+// above (e.g. furiganaStatus). Keep in sync with `StudyStatus` there.
+export const outboxStudyStatusSchema = z.enum(['new', 'studying', 'learned']);
+
+export const outboxKindSchema = z.enum(['segment-status', 'episode-status']);
+export type OutboxKind = z.infer<typeof outboxKindSchema>;
+
+/**
+ * A queued offline study-status mutation. `id` is the coalescing key
+ * (`${kind}:${targetId}`) — enqueuing the same target again overwrites the
+ * prior entry (last-write-wins), so repeatedly flipping one segment's status
+ * offline leaves exactly one queued entry carrying the latest status. `url`/
+ * `method`/`body` are deliberately NOT stored; they're derived at replay time
+ * by `toReplayRequest` (see `outboxReplay.ts`) so a future route rename can't
+ * strand queued entries with a stale URL.
+ */
+export const outboxEntrySchema = z.object({
+  id: z.string().min(1),
+  kind: outboxKindSchema,
+  targetId: z.number().int().positive(),
+  status: outboxStudyStatusSchema,
+  clientTimestamp: z.number(),
+});
+export type OutboxEntry = z.infer<typeof outboxEntrySchema>;

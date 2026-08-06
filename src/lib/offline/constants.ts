@@ -7,7 +7,7 @@
 export const OFFLINE_DB_NAME = 'kiku-offline';
 
 /** IndexedDB schema version. Bump alongside a `db.ts` `upgrade()` change. */
-export const OFFLINE_DB_VERSION = 1;
+export const OFFLINE_DB_VERSION = 2;
 
 /**
  * Cache Storage cache name used by the service worker's audio CacheFirst route
