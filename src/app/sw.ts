@@ -1,6 +1,7 @@
 import type { PrecacheEntry, RuntimeCaching, SerwistGlobalConfig } from "serwist";
 import { CacheableResponsePlugin, CacheFirst, NetworkFirst, Serwist } from "serwist";
 import { isAudioRoute, isStudyGuideRoute } from "@/lib/sw-routes";
+import { AUDIO_CACHE_NAME } from "@/lib/offline/constants";
 
 // Ambient augmentation for the precache manifest that @serwist/next injects into this file at
 // build time (via the `self.__SW_MANIFEST` injection point).
@@ -22,7 +23,7 @@ const runtimeCaching: RuntimeCaching[] = [
     matcher: ({ url, sameOrigin }) => sameOrigin && isAudioRoute(url.pathname),
     method: "GET",
     handler: new CacheFirst({
-      cacheName: "kiku-audio",
+      cacheName: AUDIO_CACHE_NAME,
       plugins: [
         // Only cache full (200) responses. The audio route can serve 206 Partial Content
         // for byte-range requests; caching a partial response would corrupt offline

@@ -1,11 +1,45 @@
 import { eq, inArray, sql } from 'drizzle-orm';
 import { db } from '.';
-import { episodes, rawTranscripts, segments } from './schema';
+import { episodes, podcasts, rawTranscripts, segments } from './schema';
+import type { Episode } from './schema';
 import {
   deriveEpisodeStudyStatusFromCounts,
   type StudyStatus,
 } from '@/lib/episodeStudyStatus';
 import type { ElevenLabsTranscript } from '@/lib/api/types';
+
+export interface EpisodeWithPodcast {
+  id: number;
+  title: string;
+  episodeNumber: number;
+  durationMs: number | null;
+  status: Episode['status'];
+  podcastSlug: string;
+  podcastName: string;
+}
+
+/**
+ * Fetch an episode joined with its parent podcast's slug/name — used by the
+ * offline-snapshot endpoint, which resolves these server-side so the client
+ * doesn't need a second round trip while offline.
+ */
+export async function getEpisodeWithPodcast(episodeId: number): Promise<EpisodeWithPodcast | null> {
+  const [row] = await db
+    .select({
+      id: episodes.id,
+      title: episodes.title,
+      episodeNumber: episodes.episodeNumber,
+      durationMs: episodes.durationMs,
+      status: episodes.status,
+      podcastSlug: podcasts.slug,
+      podcastName: podcasts.name,
+    })
+    .from(episodes)
+    .innerJoin(podcasts, eq(episodes.podcastId, podcasts.id))
+    .where(eq(episodes.id, episodeId));
+
+  return row ?? null;
+}
 
 /**
  * Derive study status for a set of episodes from their segments, in one

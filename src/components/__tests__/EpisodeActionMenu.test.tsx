@@ -208,6 +208,35 @@ describe('EpisodeActionMenu', () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
+  it('shows the offline download item when podcastSlug is provided', async () => {
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+        podcastSlug="slow-japanese"
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+
+    expect(screen.getByRole('menuitem', { name: /make available offline/i })).toBeInTheDocument();
+  });
+
+  it('hides the offline download item without a podcastSlug', async () => {
+    render(
+      <EpisodeActionMenu
+        episodeId={5}
+        episodeTitle="Old Episode"
+        episodeNumber={3}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Old Episode' }));
+
+    expect(screen.queryByRole('menuitem', { name: /make available offline/i })).not.toBeInTheDocument();
+  });
+
   it('shows API errors in the edit modal without closing it', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: false,

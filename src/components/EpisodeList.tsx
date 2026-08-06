@@ -1,6 +1,7 @@
 import type { Episode } from '@/db/schema';
 import type { StudyStatus } from '@/lib/episodeStudyStatus';
 import EpisodeActionMenu from '@/components/EpisodeActionMenu';
+import EpisodeOfflineBadge from '@/components/EpisodeOfflineBadge';
 import EpisodeStatusBadge from '@/components/EpisodeStatusBadge';
 import ListItemRow from '@/components/ListItemRow';
 
@@ -21,12 +22,14 @@ export default function EpisodeList({ episodes, podcastSlug }: EpisodeListProps)
             href={`/podcasts/${podcastSlug}/episodes/${ep.episodeNumber}`}
             actions={(
               <>
+                <EpisodeOfflineBadge episodeId={ep.id} />
                 <EpisodeStatusBadge status={ep.status} studyStatus={ep.studyStatus} />
                 <EpisodeActionMenu
                   episodeId={ep.id}
                   episodeTitle={ep.title}
                   episodeNumber={ep.episodeNumber}
                   studyStatus={ep.studyStatus}
+                  podcastSlug={podcastSlug}
                 />
               </>
             )}

@@ -78,6 +78,7 @@ GET                   /api/episodes/[id]/audio               — serve/redirect 
 POST                  /api/episodes/[id]/transcribe          — call ElevenLabs, store raw transcript
 POST                  /api/episodes/[id]/segment             — run segmenting + furigana
 PATCH                 /api/episodes/[id]/study               — cascade study status to all segments
+GET                   /api/episodes/[id]/offline-snapshot    — episode + podcast + segments, for offline download
 GET                   /api/segments/[id]/study-guide         — lazy-generates if missing
 POST                  /api/segments/[id]/study-guide/regenerate
 PATCH                 /api/segments/[id]/study               — update single segment study status
@@ -172,7 +173,18 @@ The built worker script and its sourcemap are generated at build time, not commi
 - Study guides (`GET /api/segments/<id>/study-guide`, exact — does not match its own `/regenerate` sub-route) — `NetworkFirst` with a ~4s `networkTimeoutSeconds`, cache name `kiku-study-guides`.
 - `public/soundtouch-processor.js` is precached automatically by Serwist's default public-folder globbing — confirmed by inspecting the built `sw.js`; no `additionalPrecacheEntries` config was needed.
 
-**Client-side primitives:** `useOnlineStatus` (`src/hooks/useOnlineStatus.ts`) and `OfflineBanner` (`src/components/OfflineBanner.tsx`) exist but are not yet wired into any page — that lands in M3 alongside the download registry.
+**Client-side primitives:** `useOnlineStatus` (`src/hooks/useOnlineStatus.ts`) and `OfflineBanner` (`src/components/OfflineBanner.tsx`) exist; the banner is not yet wired into any page (M3), but `useOnlineStatus` is consumed by the M2 download controls below.
+
+### Offline data layer (M2)
+
+Explicit episode downloads on top of the M1 service worker. Everything lives in `src/lib/offline/` — see the `offline-support` skill for the full design; summary:
+
+- **IndexedDB** (`kiku-offline`, via `idb`): stores `episodes`, `segments` (composite key `[episodeId, segmentIndex]`, index `by-episode`), `studyGuides`, `downloads`. Zod-validated boundary in `store.ts`: writes `parse` (throw), reads `safeParse` (corrupt row = treated as missing). `deleteEpisodeData` cascades all four stores in one transaction.
+- **Download registry** (`downloadStore.ts` + `useDownloadRecord`): client singleton, in-memory Map + subscribe/notify over `useSyncExternalStore`, records persisted to the `downloads` store, cross-tab sync via `BroadcastChannel('kiku-downloads')`. `removeDownload` also purges the episode's audio from the `kiku-audio` Cache Storage cache — eviction is owned here, which is why the SW audio cache has no ExpirationPlugin.
+- **Orchestrator** (`download.ts`): snapshot → guides (bounded to `STUDY_GUIDE_DOWNLOAD_CONCURRENCY = 3` concurrent study-guide fetches; each missing guide is a paid lazy generation) → audio (plain Range-less fetch captured by the SW CacheFirst route — single Blob egress; progress via stream reader). Per-phase failure marks the record `error` at that step with partials retained; re-running resumes (skips stored guides / cached audio). `navigator.storage.persist()` requested best-effort on first download.
+- **Endpoint**: `GET /api/episodes/[id]/offline-snapshot` — episode + podcast slug/name (server-resolved) + segments in one call; 409 unless `ready`.
+- **UI**: `useEpisodeDownload` → `EpisodeDownloadMenuItem` in `EpisodeActionMenu` (start/progress/retry/remove; start disabled offline) and `EpisodeOfflineBadge` on episode lists + episode header (progress chip → "Offline" chip; SSR-safe, renders nothing on the server).
+- **Testing**: unit tests use `fake-indexeddb/auto`; the SW is production-only, so the fetch→SW-cache audio capture can't be exercised in dev/unit tests.
 
 ## Key Design Decisions
 
