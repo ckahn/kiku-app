@@ -30,15 +30,18 @@ export const storedSegmentSchema = z.object({
 });
 export type StoredSegment = z.infer<typeof storedSegmentSchema>;
 
+export const storedEpisodeMetaSchema = z.object({
+  id: z.number().int().positive(),
+  title: z.string(),
+  episodeNumber: z.number().int().positive(),
+  durationMs: z.number().int().nonnegative().nullable(),
+  podcastSlug: z.string(),
+  podcastName: z.string(),
+});
+export type StoredEpisodeMeta = z.infer<typeof storedEpisodeMetaSchema>;
+
 export const episodeSnapshotSchema = z.object({
-  episode: z.object({
-    id: z.number().int().positive(),
-    title: z.string(),
-    episodeNumber: z.number().int().positive(),
-    durationMs: z.number().int().nonnegative().nullable(),
-    podcastSlug: z.string(),
-    podcastName: z.string(),
-  }),
+  episode: storedEpisodeMetaSchema,
   segments: z.array(storedSegmentSchema),
 });
 export type EpisodeSnapshot = z.infer<typeof episodeSnapshotSchema>;

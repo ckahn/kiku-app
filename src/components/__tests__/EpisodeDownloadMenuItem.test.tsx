@@ -61,12 +61,23 @@ describe('EpisodeDownloadMenuItem', () => {
     });
   });
 
-  it('disables the start item while offline', () => {
+  it('disables the start item while offline with an accessible hint', () => {
     mockUseEpisodeDownload.mockReturnValue(makeControls({ canStart: false }));
 
     render(<EpisodeDownloadMenuItem {...PROPS} />);
 
-    expect(screen.getByRole('menuitem', { name: /make available offline/i })).toBeDisabled();
+    const item = screen.getByRole('menuitem', { name: /make available offline/i });
+    expect(item).toBeDisabled();
+    expect(item).toHaveAttribute('title', 'Unavailable offline');
+    expect(screen.getByText('Unavailable offline')).toBeInTheDocument();
+  });
+
+  it('does not show the offline hint while the item is startable', () => {
+    mockUseEpisodeDownload.mockReturnValue(makeControls());
+
+    render(<EpisodeDownloadMenuItem {...PROPS} />);
+
+    expect(screen.queryByText('Unavailable offline')).toBeNull();
   });
 
   it('shows guide progress while downloading guides', () => {

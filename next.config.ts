@@ -1,5 +1,36 @@
+import { createHash } from "node:crypto";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
+import { OFFLINE_SHELL_URL } from "./src/lib/offline/constants";
+
+// Passing `additionalPrecacheEntries` to @serwist/next REPLACES its default
+// public-folder scan (which precaches e.g. public/soundtouch-processor.js — the
+// pitch-correction worklet that offline speed control needs). To add the
+// /offline shell without dropping those, replicate that scan here: glob the
+// public dir (minus the generated worker outputs Serwist itself excludes) and
+// hash each file for its revision, exactly as the default does.
+function publicFolderPrecacheEntries(): { url: string; revision: string }[] {
+  const publicDir = path.join(process.cwd(), "public");
+  const isGeneratedWorker = (url: string) =>
+    /^\/sw\.js(\.map)?$/.test(url) || /^\/swe-worker-.*\.js$/.test(url);
+  // glob's `**/*` skips dot-entries by default; readdirSync does not, so filter
+  // them (any path segment starting with ".", e.g. .DS_Store) to match Serwist.
+  const hasDotSegment = (rel: string) =>
+    rel.split(path.sep).some((segment) => segment.startsWith("."));
+
+  return (readdirSync(publicDir, { recursive: true }) as string[])
+    .filter((rel) => !hasDotSegment(rel))
+    .map((rel) => ({ rel, abs: path.join(publicDir, rel) }))
+    .filter(({ abs }) => statSync(abs).isFile())
+    .map(({ rel, abs }) => ({ url: `/${rel.split(path.sep).join("/")}`, abs }))
+    .filter(({ url }) => !isGeneratedWorker(url))
+    .map(({ url, abs }) => ({
+      url,
+      revision: createHash("md5").update(readFileSync(abs)).digest("hex"),
+    }));
+}
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['127.0.0.1'],
@@ -28,6 +59,17 @@ const isDevelopment = process.env.NODE_ENV === "development";
 const withSerwist = isDevelopment ? (config: NextConfig) => config : withSerwistInit({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
+  // Precache the /offline app-shell so Serwist's fallback (src/app/sw.ts) can
+  // resolve it for offline navigations. A build-scoped revision re-precaches a
+  // fresh shell on every deploy, keeping it consistent with its build-hashed
+  // chunks (which .next/static/** precaches alongside it) — the deploy-proof
+  // approach (D1) instead of caching arbitrary rendered pages. The public
+  // folder entries are replicated (see publicFolderPrecacheEntries) because
+  // this option replaces the default public scan.
+  additionalPrecacheEntries: [
+    { url: OFFLINE_SHELL_URL, revision: process.env.VERCEL_GIT_COMMIT_SHA ?? Date.now().toString() },
+    ...publicFolderPrecacheEntries(),
+  ],
   // Serwist's default (true) force-reloads the page on every `online` event. On mobile,
   // wifi/cellular handoffs fire that event constantly, and a reload destroys in-memory
   // player state (current position, loop range) mid-playback. Offline UX handles

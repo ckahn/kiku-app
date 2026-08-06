@@ -12,6 +12,10 @@ interface DeleteMenuItemProps {
   loadingLabel: string;
   redirectTo?: string;
   closeMenu: () => void;
+  /** Disable the control (e.g. offline — a DELETE would fail). */
+  disabled?: boolean;
+  /** Tooltip/hint shown while disabled. */
+  disabledHint?: string;
 }
 
 interface DeleteResponse {
@@ -25,6 +29,8 @@ export function DeleteMenuItem({
   loadingLabel,
   redirectTo,
   closeMenu,
+  disabled = false,
+  disabledHint,
 }: DeleteMenuItemProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -66,7 +72,8 @@ export function DeleteMenuItem({
       <button
         type="button"
         role="menuitem"
-        disabled={loading}
+        disabled={loading || disabled}
+        title={disabled ? disabledHint : undefined}
         onClick={() => void handleDelete(closeMenu)}
         className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-error-on-subtle transition-colors hover:bg-error-subtle disabled:cursor-not-allowed disabled:opacity-50"
       >

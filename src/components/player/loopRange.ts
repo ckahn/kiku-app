@@ -1,4 +1,4 @@
-import type { Segment } from '@/db/schema';
+import type { PlayerSegment } from './types';
 
 export type LoopRange = {
   readonly firstSegmentId: number;
@@ -7,11 +7,11 @@ export type LoopRange = {
 
 export type Endpoint = 'start' | 'end';
 
-function sorted(segments: readonly Segment[]): Segment[] {
+function sorted(segments: readonly PlayerSegment[]): PlayerSegment[] {
   return [...segments].sort((a, b) => a.segmentIndex - b.segmentIndex);
 }
 
-function idxOf(segs: Segment[], segmentId: number): number {
+function idxOf(segs: PlayerSegment[], segmentId: number): number {
   return segs.findIndex((s) => s.id === segmentId);
 }
 
@@ -22,7 +22,7 @@ export function makeAnchor(segmentId: number): LoopRange {
 // Returns the range if both endpoints exist and are contiguous; null otherwise.
 // Used at runtime to discard a stale range after the segment list changes.
 export function validateRange(
-  segments: readonly Segment[],
+  segments: readonly PlayerSegment[],
   range: LoopRange,
 ): LoopRange | null {
   const segs = sorted(segments);
@@ -37,7 +37,7 @@ export function validateRange(
 
 // Returns true if segmentId falls within the range (inclusive on both ends).
 export function isInRange(
-  segments: readonly Segment[],
+  segments: readonly PlayerSegment[],
   range: LoopRange,
   segmentId: number,
 ): boolean {
@@ -53,7 +53,7 @@ export function isInRange(
 // Dragging past the partner pins to the partner (length-1 range).
 // Returns the range unchanged if targetSegmentId is not in segments.
 export function setEndpoint(
-  segments: readonly Segment[],
+  segments: readonly PlayerSegment[],
   range: LoopRange,
   which: Endpoint,
   targetSegmentId: number,

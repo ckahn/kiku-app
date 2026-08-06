@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import studyGuideFixture from '@fixtures/study-guide.json';
 import type { Segment } from '@/db/schema';
+import type { StudyGuideContent } from '@/lib/api/types';
+import { resetOfflineDbForTests } from '@/lib/offline/db';
+import { putStudyGuide } from '@/lib/offline/store';
 import StudyScreen from '../study/StudyScreen';
 import * as studyNavigation from '../player/studyNavigation';
 
@@ -435,6 +439,59 @@ describe('StudyScreen', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent('Suspicious reading detected.');
+  });
+
+  describe('saved-copy hint', () => {
+    function renderScreen() {
+      return render(
+        <StudyScreen
+          segment={makeSegment()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+    }
+
+    beforeEach(async () => {
+      await resetOfflineDbForTests();
+      indexedDB.deleteDatabase('kiku-offline');
+      Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+    });
+
+    it('shows the hint when online and the guide falls back to the local store', async () => {
+      await putStudyGuide({ segmentId: 12, content: studyGuideFixture as StudyGuideContent });
+      vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+
+      renderScreen();
+
+      expect(await screen.findByText(/showing a saved copy/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Vocabulary' })).toBeInTheDocument();
+    });
+
+    it('does not show the hint for an offline read from the store', async () => {
+      await putStudyGuide({ segmentId: 12, content: studyGuideFixture as StudyGuideContent });
+      Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+      vi.spyOn(global, 'fetch');
+
+      renderScreen();
+
+      expect(await screen.findByRole('button', { name: 'Vocabulary' })).toBeInTheDocument();
+      expect(screen.queryByText(/showing a saved copy/i)).toBeNull();
+    });
+
+    it('does not show the hint when the network succeeds', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, data: studyGuideFixture }),
+      } as Response);
+
+      renderScreen();
+
+      expect(await screen.findByRole('button', { name: 'Vocabulary' })).toBeInTheDocument();
+      expect(screen.queryByText(/showing a saved copy/i)).toBeNull();
+    });
   });
 
   describe('playback rate controls', () => {

@@ -1,7 +1,7 @@
 import type { PrecacheEntry, RuntimeCaching, SerwistGlobalConfig } from "serwist";
-import { CacheableResponsePlugin, CacheFirst, NetworkFirst, Serwist } from "serwist";
-import { isAudioRoute, isStudyGuideRoute } from "@/lib/sw-routes";
-import { AUDIO_CACHE_NAME } from "@/lib/offline/constants";
+import { CacheableResponsePlugin, CacheFirst, NetworkFirst, NetworkOnly, Serwist } from "serwist";
+import { isAudioRoute, isNavigationRequest, isStudyGuideRoute } from "@/lib/sw-routes";
+import { AUDIO_CACHE_NAME, OFFLINE_SHELL_URL } from "@/lib/offline/constants";
 
 // Ambient augmentation for the precache manifest that @serwist/next injects into this file at
 // build time (via the `self.__SW_MANIFEST` injection point).
@@ -45,6 +45,16 @@ const runtimeCaching: RuntimeCaching[] = [
       networkTimeoutSeconds: 4,
     }),
   },
+  {
+    // App Router document navigations. Online this is a plain pass-through to
+    // the real page (RSC/SSR unaffected). Offline the NetworkOnly strategy
+    // errors, and the PrecacheFallbackPlugin that the `fallbacks` option below
+    // attaches to every runtime strategy serves the precached /offline shell
+    // (see the `offline-support` skill / D1). The shell then reads the
+    // requested URL and hydrates from IndexedDB.
+    matcher: ({ request, sameOrigin }) => sameOrigin && isNavigationRequest(request),
+    handler: new NetworkOnly(),
+  },
 ];
 
 const serwist = new Serwist({
@@ -52,6 +62,17 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   runtimeCaching,
+  // When a runtime strategy errors (offline navigation), serve the precached
+  // /offline shell for document navigations. The shell must be precached for
+  // this to resolve — next.config.ts adds it via `additionalPrecacheEntries`.
+  fallbacks: {
+    entries: [
+      {
+        url: OFFLINE_SHELL_URL,
+        matcher: ({ request }) => isNavigationRequest(request),
+      },
+    ],
+  },
 });
 
 serwist.addEventListeners();

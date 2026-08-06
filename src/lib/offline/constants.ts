@@ -19,6 +19,16 @@ export const OFFLINE_DB_VERSION = 1;
  */
 export const AUDIO_CACHE_NAME = 'kiku-audio';
 
+/**
+ * URL of the precached, client-only offline app-shell (src/app/offline/page.tsx).
+ * Single source of truth — imported by both `src/app/sw.ts` (the Serwist
+ * `fallbacks` entry served for offline navigations) and `next.config.ts`
+ * (`additionalPrecacheEntries`, which precaches the shell so the fallback URL
+ * exists). Mirrors the `AUDIO_CACHE_NAME` single-source pattern; the Serwist
+ * webpack build inlines the string into `public/sw.js` cleanly.
+ */
+export const OFFLINE_SHELL_URL = '/offline';
+
 /** Max concurrent study-guide fetches during an episode download. */
 export const STUDY_GUIDE_DOWNLOAD_CONCURRENCY = 3;
 

@@ -2,9 +2,11 @@ import { openOfflineDb } from './db';
 import {
   downloadRecordSchema,
   episodeSnapshotSchema,
+  storedEpisodeMetaSchema,
   storedStudyGuideSchema,
   type DownloadRecord,
   type EpisodeSnapshot,
+  type StoredEpisodeMeta,
   type StoredStudyGuide,
 } from './types';
 
@@ -56,6 +58,25 @@ export async function getEpisodeSnapshot(episodeId: number): Promise<EpisodeSnap
   };
 
   const result = episodeSnapshotSchema.safeParse(candidate);
+  return result.success ? result.data : null;
+}
+
+// Resolves a URL's (podcastSlug, episodeNumber) pair to a stored episode.
+// The offline shell only knows the requested pathname; episode rows are keyed
+// by episodeId, so this scans the (small) episodes store instead of adding a
+// second index for a lookup that runs once per offline navigation.
+export async function findEpisodeBySlugAndNumber(
+  slug: string,
+  episodeNumber: number,
+): Promise<StoredEpisodeMeta | null> {
+  const db = await openOfflineDb();
+  const rows = await db.getAll('episodes');
+  const match = rows.find(
+    (row) => row.podcastSlug === slug && row.episodeNumber === episodeNumber,
+  );
+  if (!match) return null;
+
+  const result = storedEpisodeMetaSchema.safeParse(match);
   return result.success ? result.data : null;
 }
 

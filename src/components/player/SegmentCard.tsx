@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
-import type { Segment } from '@/db/schema';
+import type { PlayerSegment } from './types';
 import { stripFurigana, formatMs } from './segmentUtils';
 import { saveEpisodeFocusState } from './studyNavigation';
 import SegmentStatusIcon from '@/components/SegmentStatusIcon';
 
 interface SegmentCardProps {
-  readonly segment: Segment;
+  readonly segment: PlayerSegment;
   readonly isActive: boolean;
   readonly isDimmed: boolean;
   readonly podcastSlug?: string;

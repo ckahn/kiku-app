@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { Check, Copy, Play, Repeat, Square } from 'lucide-react';
 import type { Segment } from '@/db/schema';
-import type { ApiResponse } from '@/lib/api-response';
 import type { StudyGuideContent } from '@/lib/api/types';
+import { loadStudyGuideContent } from '@/lib/offline/studyGuideLoader';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
 import SegmentStatusControl from '@/components/SegmentStatusControl';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
@@ -65,17 +66,6 @@ function StudySection({ title, isOpen, onToggle, children }: StudySectionProps) 
   );
 }
 
-async function loadStudyGuide(studyGuideUrl: string): Promise<StudyGuideContent> {
-  const response = await fetch(studyGuideUrl);
-  const payload = await response.json() as ApiResponse<StudyGuideContent>;
-
-  if (!response.ok || !payload.success || !payload.data) {
-    throw new Error(payload.error ?? 'Could not load the study guide.');
-  }
-
-  return payload.data;
-}
-
 type PlaybackRate = 0.5 | 0.75 | 1;
 const PLAYBACK_RATES: PlaybackRate[] = [1, 0.75, 0.5];
 const SEGMENT_ACTION_BUTTON_CLASS = 'h-11 w-11 shrink-0 cursor-pointer inline-flex items-center justify-center transition-colors';
@@ -91,6 +81,7 @@ export default function StudyScreen({
 }: StudyScreenProps) {
   const router = useRouter();
   const engine = useAudioEngine(audioUrl);
+  const isOnline = useOnlineStatus();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<PlaybackRate>(1);
@@ -101,6 +92,10 @@ export default function StudyScreen({
     translation: false,
   });
   const [studyGuide, setStudyGuide] = useState<StudyGuideContent | null>(null);
+  // True when we're online but the guide came from the local store (transient
+  // network failure) — it may be stale, so the user gets a subtle hint.
+  // Offline cache reads are expected behavior and set this false.
+  const [showingSavedCopy, setShowingSavedCopy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -128,10 +123,15 @@ export default function StudyScreen({
       try {
         setIsLoading(true);
         setErrorMessage(null);
-        const nextStudyGuide = await loadStudyGuide(studyGuideUrl);
+        const { content, source } = await loadStudyGuideContent(segment.id, studyGuideUrl, {
+          isOnline,
+        });
 
         if (!isCancelled) {
-          setStudyGuide(nextStudyGuide);
+          setStudyGuide(content);
+          // A cache read while online means the network failed and this copy
+          // may be stale; a cache read while offline is just how offline works.
+          setShowingSavedCopy(source === 'cache' && isOnline);
         }
       } catch (error: unknown) {
         if (!isCancelled) {
@@ -149,7 +149,7 @@ export default function StudyScreen({
     return () => {
       isCancelled = true;
     };
-  }, [studyGuideUrl]);
+  }, [segment.id, studyGuideUrl, isOnline]);
 
   // Sync engine errors to error message
   useEffect(() => {
@@ -337,6 +337,11 @@ export default function StudyScreen({
         </div>
       ) : (
         <div className="space-y-3">
+          {showingSavedCopy && (
+            <p className="text-xs text-muted">
+              Showing a saved copy — check your connection.
+            </p>
+          )}
           <StudySection
             title="Vocabulary"
             isOpen={openSections.vocabulary}

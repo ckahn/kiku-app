@@ -79,6 +79,9 @@ export default function EpisodeDownloadMenuItem({
 
   const isFailed = record?.status === 'error';
   const isInterrupted = record?.status === 'downloading';
+  // In this branch isBusy is false (the busy case returned above), so
+  // !canStart can only mean "offline" — a download needs the network.
+  const isDisabledOffline = !canStart;
   return (
     <>
       <button
@@ -86,11 +89,15 @@ export default function EpisodeDownloadMenuItem({
         role="menuitem"
         onClick={handleStart}
         disabled={!canStart}
+        title={isDisabledOffline ? 'Unavailable offline' : undefined}
         className={MENU_ITEM_CLASS}
       >
         <Download size={16} aria-hidden="true" />
         <span>{isFailed || isInterrupted ? 'Retry download' : 'Make available offline'}</span>
       </button>
+      {isDisabledOffline && (
+        <p className="px-3 pb-2 pt-1 text-xs text-muted">Unavailable offline</p>
+      )}
       {isFailed && record.error && (
         <p className="px-3 pb-2 pt-1 text-xs text-error-on-subtle">{record.error}</p>
       )}

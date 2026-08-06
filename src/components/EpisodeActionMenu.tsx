@@ -8,7 +8,10 @@ import ActionMenu from '@/components/ActionMenu';
 import { DeleteMenuItem } from '@/components/DeleteActionMenu';
 import EpisodeDownloadMenuItem from '@/components/EpisodeDownloadMenuItem';
 import { Button, Input, Modal } from '@/components/ui';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { getErrorMessage } from '@/lib/utils';
+
+const OFFLINE_HINT = 'Unavailable offline';
 
 interface EpisodeActionMenuProps {
   episodeId: number;
@@ -37,6 +40,7 @@ export default function EpisodeActionMenu({
   redirectToEditedEpisode = false,
 }: EpisodeActionMenuProps) {
   const router = useRouter();
+  const isOnline = useOnlineStatus();
   const [editOpen, setEditOpen] = useState(false);
   const [title, setTitle] = useState(episodeTitle);
   const [number, setNumber] = useState(String(episodeNumber));
@@ -149,8 +153,9 @@ export default function EpisodeActionMenu({
                 type="button"
                 role="menuitem"
                 onClick={() => void handleStudyToggle(closeMenu)}
-                disabled={studyToggling}
-                className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-canvas-subtle disabled:opacity-50"
+                disabled={studyToggling || !isOnline}
+                title={!isOnline ? OFFLINE_HINT : undefined}
+                className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-canvas-subtle disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {studyStatus === 'studying' ? (
                   <BookOpenCheck size={16} aria-hidden="true" />
@@ -164,7 +169,9 @@ export default function EpisodeActionMenu({
               type="button"
               role="menuitem"
               onClick={() => openEdit(closeMenu)}
-              className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-canvas-subtle"
+              disabled={!isOnline}
+              title={!isOnline ? OFFLINE_HINT : undefined}
+              className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-canvas-subtle disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Pencil size={16} aria-hidden="true" />
               <span>Edit episode</span>
@@ -185,6 +192,8 @@ export default function EpisodeActionMenu({
               loadingLabel="Deleting..."
               redirectTo={redirectTo}
               closeMenu={closeMenu}
+              disabled={!isOnline}
+              disabledHint={OFFLINE_HINT}
             />
           </>
         )}

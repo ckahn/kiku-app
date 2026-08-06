@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { Segment } from '@/db/schema';
-import type { PlayerState } from './player/types';
+import type { PlayerSegment, PlayerState } from './player/types';
 import type { PlayerControls } from './player/usePlayer';
 import type { LoopRange, Endpoint } from './player/loopRange';
 import { findActiveSegmentId } from './player/segmentUtils';
@@ -12,7 +11,7 @@ import SegmentCard from './player/SegmentCard';
 import GutterCell from './player/GutterCell';
 
 interface SegmentListProps {
-  readonly segments: readonly Segment[];
+  readonly segments: readonly PlayerSegment[];
   readonly playerState: PlayerState;
   readonly controls: PlayerControls;
   readonly podcastSlug?: string;
@@ -20,7 +19,7 @@ interface SegmentListProps {
   readonly episodeHref?: string;
 }
 
-function buildRangeSet(segments: readonly Segment[], range: LoopRange): Set<number> {
+function buildRangeSet(segments: readonly PlayerSegment[], range: LoopRange): Set<number> {
   const firstIdx = segments.findIndex((s) => s.id === range.firstSegmentId);
   const lastIdx = segments.findIndex((s) => s.id === range.lastSegmentId);
   if (firstIdx === -1 || lastIdx === -1) return new Set();
@@ -33,7 +32,7 @@ function buildRangeSet(segments: readonly Segment[], range: LoopRange): Set<numb
 
 function makeHandleKeyDown(
   which: Endpoint,
-  segments: readonly Segment[],
+  segments: readonly PlayerSegment[],
   controls: PlayerControls,
 ) {
   return (e: React.KeyboardEvent) => {

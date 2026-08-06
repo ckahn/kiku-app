@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_JP } from "next/font/google";
 import Link from "next/link";
+import OfflineBanner from "@/components/OfflineBanner";
 import "./globals.css";
 
 const inter = Inter({
@@ -59,6 +60,7 @@ export default function RootLayout({
             </Link>
           </div>
         </header>
+        <OfflineBanner />
         {children}
       </body>
     </html>

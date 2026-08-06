@@ -1,9 +1,8 @@
 'use client';
 
 import { useReducer, useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
-import type { Segment } from '@/db/schema';
 import { playerReducer, initialPlayerState } from './playerReducer';
-import type { PlayerState, PlayerAction } from './types';
+import type { PlayerSegment, PlayerState, PlayerAction } from './types';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
 import { findActiveSegmentId, segmentStartSec } from './segmentUtils';
@@ -33,7 +32,7 @@ export type UsePlayerReturn = {
   clearPlaybackError: () => void;
 };
 
-export function usePlayer(segments: readonly Segment[], durationMs: number, audioUrl: string): UsePlayerReturn {
+export function usePlayer(segments: readonly PlayerSegment[], durationMs: number, audioUrl: string): UsePlayerReturn {
   const [state, dispatch] = useReducer(playerReducer, initialPlayerState);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   // Tracks the last error value that was acknowledged (dismissed) by the user,

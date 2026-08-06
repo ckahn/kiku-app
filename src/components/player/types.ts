@@ -1,3 +1,22 @@
+import type { Segment } from '@/db/schema';
+
+// The subset of a DB Segment row the player surfaces actually read. Both the
+// RSC episode page (full Segment rows) and the offline shell (IndexedDB-derived
+// rows without episodeId/createdAt/...) satisfy this shape.
+export type PlayerSegment = Pick<
+  Segment,
+  | 'id'
+  | 'segmentIndex'
+  | 'textRaw'
+  | 'textFurigana'
+  | 'furiganaStatus'
+  | 'furiganaWarning'
+  | 'startMs'
+  | 'endMs'
+  | 'studyStatus'
+  | 'sentences'
+>;
+
 import type { LoopRange } from './loopRange';
 
 export type PlayerState = {

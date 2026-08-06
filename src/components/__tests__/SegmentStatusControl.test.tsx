@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SegmentStatusControl from '../SegmentStatusControl';
 
@@ -8,10 +8,19 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: mockRefresh }),
 }));
 
+function setOnline(value: boolean): void {
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value });
+}
+
 describe('SegmentStatusControl', () => {
   beforeEach(() => {
     mockRefresh.mockReset();
     vi.restoreAllMocks();
+    setOnline(true);
+  });
+
+  afterEach(() => {
+    setOnline(true);
   });
 
   it('renders the current status as the selected option', () => {
@@ -36,6 +45,12 @@ describe('SegmentStatusControl', () => {
       }));
     });
     await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
+  });
+
+  it('disables the status select while offline', () => {
+    setOnline(false);
+    render(<SegmentStatusControl segmentId={7} initialStatus="new" />);
+    expect(screen.getByLabelText('Study status')).toBeDisabled();
   });
 
   it('rolls back and shows an error when the request fails', async () => {
