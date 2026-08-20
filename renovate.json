@@ -38,8 +38,9 @@
       "automerge": false
     },
     {
-      "description": "Major version bumps always need manual review",
+      "description": "Major version bumps always need manual review, and get extra time to settle before we even see the PR — the 7-day default isn't enough runway for peer tooling (e.g. eslint-plugin-react, typescript-eslint) to catch up",
       "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "21 days",
       "automerge": false
     }
   ]
