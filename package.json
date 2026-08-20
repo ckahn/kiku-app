@@ -16,13 +16,13 @@
     "postinstall": "cp node_modules/@soundtouchjs/audio-worklet/.dist/soundtouch-processor.js public/soundtouch-processor.js"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.66",
-    "@ai-sdk/elevenlabs": "^2.0.27",
+    "@ai-sdk/anthropic": "^4.0.0",
+    "@ai-sdk/elevenlabs": "^3.0.0",
     "@neondatabase/serverless": "^1.0.2",
     "@serwist/next": "9.5.12",
     "@soundtouchjs/audio-worklet": "^2.0.3",
     "@vercel/blob": "^2.3.3",
-    "ai": "^6.0.145",
+    "ai": "^7.0.0",
     "drizzle-orm": "^0.45.2",
     "idb": "^8.0.3",
     "kuromoji": "^0.1.2",
