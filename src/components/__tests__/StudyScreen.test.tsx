@@ -202,7 +202,7 @@ describe('StudyScreen', () => {
     expect(screen.getByRole('button', { name: 'Stop audio' })).toBeInTheDocument();
   });
 
-  it('stops playback when the segment reaches its end time', async () => {
+  it('schedules the stop at the segment end on the engine, not from React', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ success: true, data: studyGuideFixture }),
@@ -220,10 +220,13 @@ describe('StudyScreen', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Play audio' }));
 
-    // Advance time past segment endMs (3400ms → 3.4s)
-    act(() => { engineMock._setTime(3.5); });
+    // The stop is scheduled on the audio thread, not policed from a
+    // currentTime effect — that effect stops running when the phone screen
+    // locks, and playback would run on into the rest of the episode.
+    expect(engineMock.setBoundary).toHaveBeenLastCalledWith({ kind: 'stop', endSec: 3.4 });
 
-    expect(engineMock.pause).toHaveBeenCalled();
+    act(() => { engineMock._triggerNaturalEnd(); });
+
     expect(screen.getByRole('button', { name: 'Play audio' })).toBeInTheDocument();
   });
 
@@ -439,6 +442,83 @@ describe('StudyScreen', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent('Suspicious reading detected.');
+  });
+
+  describe('segment boundary', () => {
+    beforeEach(() => {
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, data: studyGuideFixture }),
+      } as Response);
+    });
+
+    function renderStudyScreen() {
+      return render(
+        <StudyScreen
+          segment={makeSegment()}
+          totalSegments={10}
+          audioUrl="/api/episodes/5/audio"
+          studyGuideUrl="/api/segments/12/study-guide"
+          backHref="/podcasts/slow-japanese/episodes/7"
+        />
+      );
+    }
+
+    it('pushes a stop boundary at the segment end when looping is off', () => {
+      renderStudyScreen();
+
+      expect(engineMock.setBoundary).toHaveBeenLastCalledWith({ kind: 'stop', endSec: 3.4 });
+    });
+
+    it('pushes a loop boundary over the segment when looping is enabled', () => {
+      renderStudyScreen();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle loop' }));
+
+      // segmentStartSec applies the 0.1s pre-roll: 1000ms / 1000 - 0.1 = 0.9
+      expect(engineMock.setBoundary).toHaveBeenLastCalledWith({
+        kind: 'loop',
+        startSec: 0.9,
+        endSec: 3.4,
+      });
+    });
+
+    it('updates the boundary mid-playback without restarting the source', () => {
+      renderStudyScreen();
+      fireEvent.click(screen.getByRole('button', { name: 'Play audio' }));
+      engineMock.play.mockClear();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle loop' }));
+
+      expect(engineMock.setBoundary).toHaveBeenLastCalledWith({
+        kind: 'loop',
+        startSec: 0.9,
+        endSec: 3.4,
+      });
+      expect(engineMock.play).not.toHaveBeenCalled();
+    });
+
+    it('does not seek or pause from React when currentTime passes the segment end', () => {
+      renderStudyScreen();
+      fireEvent.click(screen.getByRole('button', { name: 'Play audio' }));
+      engineMock.play.mockClear();
+      engineMock.seek.mockClear();
+      engineMock.pause.mockClear();
+
+      act(() => { engineMock._setTime(3.5); });
+
+      expect(engineMock.seek).not.toHaveBeenCalled();
+      expect(engineMock.pause).not.toHaveBeenCalled();
+      expect(engineMock.play).not.toHaveBeenCalled();
+    });
+
+    it('clears the boundary on unmount so it cannot leak to the episode page', () => {
+      const { unmount } = renderStudyScreen();
+
+      unmount();
+
+      expect(engineMock.setBoundary).toHaveBeenLastCalledWith(null);
+    });
   });
 
   describe('saved-copy hint', () => {

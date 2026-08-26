@@ -101,7 +101,9 @@ Strategy switches live in `src/lib/constants.ts`: `TRANSCRIPT_SEGMENTATION_STRAT
 
 ### Audio Player
 
-Playback uses a Web Audio API engine — the module-level singleton `audioEngine` in `src/lib/audio/audioEngine.ts` — not an `<audio>` element. The file is fetched **once** and decoded into a single cached `AudioBuffer` (motivated by Vercel Blob egress limits: seeks are free in-memory operations, never new range requests). Playback rate goes through a SoundTouch worklet for pitch correction. Looping seeks back to the range's first segment on reaching the last segment's `end_ms`, with no pause between iterations. No audio slicing, no per-seek fetching. React connects via `useAudioEngine(url)` (`src/hooks/useAudioEngine.ts`).
+Playback uses a Web Audio API engine — the module-level singleton `audioEngine` in `src/lib/audio/audioEngine.ts` — not an `<audio>` element. The file is fetched **once** and decoded into a single cached `AudioBuffer` (motivated by Vercel Blob egress limits: seeks are free in-memory operations, never new range requests). Playback rate goes through a SoundTouch worklet for pitch correction. No audio slicing, no per-seek fetching. React connects via `useAudioEngine(url)` (`src/hooks/useAudioEngine.ts`).
+
+**Loop enforcement is in the engine, not in React.** `audioEngine.setBoundary(boundary)` takes a `PlaybackBoundary` — `{ kind: 'loop', startSec, endSec }` or `{ kind: 'stop', endSec }` — and applies it to the source node: native `loop`/`loopStart`/`loopEnd` for a loop (sample-accurate wrapping with no pause between iterations), a scheduled `source.stop()` for a stop. Both are enforced on the audio rendering thread, so they keep working while the page is hidden; a `requestAnimationFrame`-driven check in React does not (a locked phone screen freezes `currentTime` while audio plays on). rAF now only drives the progress bar. `engine.currentTime` folds the linear clock back into an active loop range so the UI resumes at the right position after the page was hidden. The boundary is a one-way projection of loop state — the engine knows nothing about segments — and `useAudioEngine`'s unmount effect clears it, since the engine is a shared singleton.
 
 ```ts
 type LoopRange = { firstSegmentId: number; lastSegmentId: number };
@@ -113,14 +115,14 @@ type PlayerState = {
 };
 ```
 
-`isLooping` is **derived** at the UI boundary (`loopRange !== null`) — there is no separate boolean field. A length-1 range (`firstSegmentId === lastSegmentId`) is the degenerate case equivalent to the single-segment loop.
+`isLooping` is **derived** at the UI boundary (`loopRange !== null`) — there is no separate boolean field. An effect in `usePlayer` projects `loopRange` onto the engine via `setBoundary`. A length-1 range (`firstSegmentId === lastSegmentId`) is the degenerate case equivalent to the single-segment loop.
 
 The range-loop UI exists (loop-range gutter, PR #36): `toggleLoop` anchors the active segment as a length-1 range, and the gutter (`GutterCell.tsx` + `useLoopDrag.ts`) lets the user drag endpoints to grow/shrink the range. `loopRange.ts` exports `makeAnchor`, `validateRange`, `isInRange`, and `setEndpoint`; `usePlayer` exposes `toggleLoop`, `seekToSegment`, `setLoopEndpoint`, and `shiftLoopEndpoint` for loop control. Stale ranges are dropped (not repaired) via `validateRange` when segments change.
 
 **Two loop contexts (scopes are isolated):**
 
-- **Episode page** (`/podcasts/[slug]/episodes/[number]`) — range loop via `loopRange` in `PlayerState` (length-1 on toggle, growable via the gutter). The boundary effect in `usePlayer` seeks back to the range's first segment on reaching the last segment's `end_ms`. No persistence yet (ephemeral per-visit; see `studyNavigation.ts` for the localStorage pattern to follow when persistence is added).
-- **Per-segment study page** (`…/segments/[index]/study`) — single-segment loop via local `useState(isLooping)` in `StudyScreen.tsx`. Self-contained; does not import `usePlayer`, `PlayerControls`, or `playerReducer`.
+- **Episode page** (`/podcasts/[slug]/episodes/[number]`) — range loop via `loopRange` in `PlayerState` (length-1 on toggle, growable via the gutter), pushed to the engine as a `loop` boundary. No persistence yet (ephemeral per-visit; see `studyNavigation.ts` for the localStorage pattern to follow when persistence is added).
+- **Per-segment study page** (`…/segments/[index]/study`) — single-segment loop via local `useState(isLooping)` in `StudyScreen.tsx`, pushed to the engine as a `loop` boundary while looping and a `stop` boundary otherwise (that stop is what ends playback at the segment end). Self-contained; does not import `usePlayer`, `PlayerControls`, or `playerReducer`.
 
 State management: React `useState`/`useReducer` only — no external state library.
 
@@ -213,6 +215,7 @@ Study-status changes (the only mutations that queue — edit, delete, regenerate
 - Drizzle ORM (not Prisma) — lightweight, type-safe, good Vercel Postgres support
 - Deterministic segmentation + kuromoji furigana replaced the original Claude calls (free, fast, reproducible); the Claude branches remain as switchable fallbacks via the strategy constants
 - Web Audio decode-once engine replaced the `<audio>` element to cut Vercel Blob egress (seeks and loops are in-memory, not new range requests)
+- Loop/stop boundaries are enforced on the audio rendering thread (native `loopStart`/`loopEnd`, scheduled `stop()`) rather than by a React `currentTime` effect, so looping survives a hidden page — a locked phone screen stops `requestAnimationFrame` while audio keeps playing
 - Study guides are lazy-generated and stored; regenerate = `UPDATE` in place (one row per segment, `UNIQUE(segment_id)`); `STUDY_GUIDE_CURRENT_VERSION` bumps invalidate the cache
 - Raw ElevenLabs transcript stored in `raw_transcripts.payload` (JSONB) to allow reprocessing without re-calling the API
 - Furigana stored as HTML (`<ruby>` tags) in `segments.text_furigana`, not computed client-side

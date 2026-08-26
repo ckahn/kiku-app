@@ -7,6 +7,34 @@ import type { SoundTouchNode } from '@soundtouchjs/audio-worklet';
 
 export type AudioStatus = 'idle' | 'loading' | 'ready' | 'error';
 
+// A time-domain limit on playback, enforced on the audio rendering thread
+// rather than by a React effect. A hidden page (a locked phone screen) stops
+// being serviced requestAnimationFrame, so anything that watches currentTime
+// from React silently stops firing while the audio graph keeps rendering.
+// Native loopStart/loopEnd wrapping and a scheduled stop() both survive that.
+// The engine knows nothing about segments — callers project their loop state
+// down to seconds.
+export type PlaybackBoundary =
+  | { readonly kind: 'loop'; readonly startSec: number; readonly endSec: number }
+  | { readonly kind: 'stop'; readonly endSec: number };
+
+// Clamps a requested boundary against the loaded buffer. Resolved lazily on
+// read rather than at set time, so a boundary set before the buffer finishes
+// loading is still clamped once the duration is known.
+function resolveBoundary(boundary: PlaybackBoundary | null, duration: number): PlaybackBoundary | null {
+  if (!boundary) return null;
+  const max = duration > 0 ? duration : Number.POSITIVE_INFINITY;
+  const endSec = Math.min(boundary.endSec, max);
+  if (boundary.kind === 'stop') {
+    return endSec > 0 ? { kind: 'stop', endSec } : null;
+  }
+  const startSec = Math.max(0, Math.min(boundary.startSec, max));
+  // A degenerate range would make the wrap math divide by zero; treat it as
+  // no boundary at all rather than as a zero-length loop.
+  if (endSec <= startSec) return null;
+  return { kind: 'loop', startSec, endSec };
+}
+
 function getAudioContext(): typeof AudioContext | null {
   if (typeof window === 'undefined') return null;
   return window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext ?? null;
@@ -30,6 +58,8 @@ export class AudioEngine {
   private _workletLoading: Promise<void> | null = null;
   private _pitchNode: AudioWorkletNode | null = null;
   private _SoundTouchNode: typeof SoundTouchNode | null = null;
+  private _boundary: PlaybackBoundary | null = null;  // as requested, unclamped
+  private _stopScheduled = false;
 
   private _getOrCreateContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -126,13 +156,20 @@ export class AudioEngine {
     // Stop any existing source without triggering onended bookkeeping
     this._stopSource();
 
-    const offset = startSec !== undefined
+    const boundary = this._resolvedBoundary;
+    const requested = startSec !== undefined
       ? Math.max(0, Math.min(buffer.duration, startSec))
       : this._startOffset;
+    // Starting at or past loopEnd would never wrap — the node plays straight
+    // out to the end of the buffer — so pull the offset back into the range.
+    const offset = boundary?.kind === 'loop' && requested >= boundary.endSec
+      ? boundary.startSec
+      : requested;
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.value = this._playbackRate;
+    this._applyLoopRegion(source);
     if (this._playbackRate !== 1 && this._workletLoaded && this._SoundTouchNode) {
       const pitchNode = new this._SoundTouchNode({ context: ctx });
       // Telling SoundTouch the playbackRate lets it auto-compensate pitch so
@@ -177,7 +214,76 @@ export class AudioEngine {
     this._startOffset = offset;
     this._startedAt = ctx.currentTime;
     this._isPlaying = true;
+    // stop() must be scheduled after start(), never before it.
+    this._scheduleBoundaryStop(source, offset);
     this._notify();
+  }
+
+  // Projects a time-domain boundary onto the audio graph. Loop state itself
+  // stays with the caller (PlayerState.loopRange on the episode page, a local
+  // flag on the study page); this is a one-way push, like setPlaybackRate.
+  setBoundary(boundary: PlaybackBoundary | null): void {
+    // Resolve the position under the *previous* boundary — currentTime's wrap
+    // math reads _boundary, so it must be sampled before the swap.
+    const pos = this.currentTime;
+    const hadScheduledStop = this._stopScheduled;
+    this._boundary = boundary;
+    const next = this._resolvedBoundary;
+
+    const source = this._sourceNode;
+    const ctx = this._ctx;
+    if (!this._isPlaying || !source || !ctx) return;
+
+    // A range that shrank under the playhead (an endpoint dragged in the
+    // gutter) can never wrap natively — the node is already past loopEnd.
+    if (next?.kind === 'loop' && pos >= next.endSec) {
+      this.play(next.startSec);
+      return;
+    }
+
+    // A scheduled stop() cannot be cancelled; a fresh source node is the only
+    // way to clear or re-time one.
+    if (hadScheduledStop) {
+      this.play(pos);
+      return;
+    }
+
+    // Rebase the linear clock onto the node's true position: wraps already
+    // played out under the old boundary, future ones follow the new one.
+    this._startOffset = pos;
+    this._startedAt = ctx.currentTime;
+    this._stopScheduled = false;
+    this._applyLoopRegion(source);
+    this._scheduleBoundaryStop(source, pos);
+  }
+
+  private get _resolvedBoundary(): PlaybackBoundary | null {
+    return resolveBoundary(this._boundary, this.duration);
+  }
+
+  private _applyLoopRegion(source: AudioBufferSourceNode): void {
+    const boundary = this._resolvedBoundary;
+    if (boundary?.kind === 'loop') {
+      source.loop = true;
+      source.loopStart = boundary.startSec;
+      source.loopEnd = boundary.endSec;
+    } else {
+      source.loop = false;
+    }
+  }
+
+  private _scheduleBoundaryStop(source: AudioBufferSourceNode, fromSec: number): void {
+    this._stopScheduled = false;
+    const boundary = this._resolvedBoundary;
+    const ctx = this._ctx;
+    if (boundary?.kind !== 'stop' || !ctx) return;
+    const remaining = Math.max(0, (boundary.endSec - fromSec) / this._playbackRate);
+    try {
+      source.stop(ctx.currentTime + remaining);
+      this._stopScheduled = true;
+    } catch {
+      /* source already stopped */
+    }
   }
 
   pause(): void {
@@ -238,7 +344,14 @@ export class AudioEngine {
 
   get currentTime(): number {
     if (!this._isPlaying || !this._ctx) return this._startOffset;
-    return this._startOffset + (this._ctx.currentTime - this._startedAt) * this._playbackRate;
+    const raw = this._startOffset + (this._ctx.currentTime - this._startedAt) * this._playbackRate;
+    // The linear clock keeps counting past loopEnd while the node wraps, so
+    // fold it back into the range. This is what lets the UI resume at the
+    // right position after the page was hidden for many loop iterations.
+    const boundary = this._resolvedBoundary;
+    if (boundary?.kind !== 'loop' || raw < boundary.endSec) return raw;
+    const length = boundary.endSec - boundary.startSec;
+    return boundary.startSec + ((raw - boundary.startSec) % length);
   }
 
   get duration(): number {
@@ -262,6 +375,7 @@ export class AudioEngine {
   }
 
   private _stopSource(): void {
+    this._stopScheduled = false;
     if (this._sourceNode) {
       const node = this._sourceNode;
       // Null out first so onended skips its bookkeeping for this stop

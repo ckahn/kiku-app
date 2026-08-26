@@ -64,29 +64,36 @@ export function usePlayer(segments: readonly PlayerSegment[], durationMs: number
     }
   }, [engine.isPlaying]);
 
-  // Sync currentTime into reducer state and enforce segment boundary looping.
-  // On crossing the last segment's end, seek straight back to the first
-  // segment's start (no pause beat). Seeking moves currentTime below the
-  // boundary, so the effect won't re-fire for the same crossing.
+  // Sync currentTime into reducer state. This is a paint-time concern only —
+  // loop enforcement deliberately does not live here (see the boundary effect
+  // below).
   useEffect(() => {
     dispatch({ type: 'SET_TIME', payload: engine.currentTime });
+  }, [engine.currentTime]);
 
-    const range = stateRef.current.loopRange;
-    if (range && engine.isPlaying) {
-      const segs = segmentsRef.current;
-      const lastSeg = segs.find((s) => s.id === range.lastSegmentId);
-      if (lastSeg && engine.currentTime >= lastSeg.endMs / 1000) {
-        const firstSeg = segs.find((s) => s.id === range.firstSegmentId);
-        if (firstSeg) {
-          audioEngine.play(segmentStartSec(firstSeg));
-        }
-      }
+  // Project loopRange down to a time-domain boundary the engine enforces on
+  // the audio rendering thread. It must not be enforced from a currentTime
+  // effect: a hidden page (locked phone screen) stops being serviced
+  // requestAnimationFrame, so currentTime freezes while the audio graph plays
+  // on — the loop would run straight past its end until the screen woke up.
+  useEffect(() => {
+    const range = state.loopRange;
+    const firstSeg = range && segments.find((s) => s.id === range.firstSegmentId);
+    const lastSeg = range && segments.find((s) => s.id === range.lastSegmentId);
+    if (!firstSeg || !lastSeg) {
+      audioEngine.setBoundary(null);
+      return;
     }
-  }, [engine.currentTime, engine.isPlaying]);
+    audioEngine.setBoundary({
+      kind: 'loop',
+      startSec: segmentStartSec(firstSeg),
+      endSec: lastSeg.endMs / 1000,
+    });
+  }, [state.loopRange, segments]);
 
   // When the audio file reaches its natural end while looping, restart from the
-  // first segment. Handles the edge case where the last segment's endMs equals
-  // the file duration and the boundary check above can't catch it in time.
+  // first segment. A natively looping source never ends on its own, so this is
+  // the safety net for a range the engine rejected as degenerate.
   useEffect(() => {
     return audioEngine.subscribeToEnd(() => {
       const range = stateRef.current.loopRange;

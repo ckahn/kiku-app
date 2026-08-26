@@ -67,9 +67,14 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
     };
   }, [isPlaying]);
 
-  // Pause on unmount so audio stops when navigating away.
+  // Pause on unmount so audio stops when navigating away, and drop the
+  // playback boundary — the engine is a module-level singleton, so a loop
+  // region left behind would still be enforced on the next page.
   useEffect(() => {
-    return () => { audioEngine.pause(); };
+    return () => {
+      audioEngine.pause();
+      audioEngine.setBoundary(null);
+    };
   }, []);
 
   // Load when URL changes

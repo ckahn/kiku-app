@@ -28,6 +28,7 @@ const { engineMock } = vi.hoisted(() => {
     restartAtZero: vi.fn(() => { state.time = 0; state.isPlaying = false; notifyGeneral(); }),
     seek: vi.fn((sec: number) => { state.time = Math.max(0, sec); notifyGeneral(); }),
     setPlaybackRate: vi.fn(),
+    setBoundary: vi.fn(),
     subscribe(fn: () => void) { generalSubs.add(fn); return () => generalSubs.delete(fn); },
     subscribeToEnd(fn: () => void) { endSubs.add(fn); return () => endSubs.delete(fn); },
     _setTime(t: number) { state.time = t; notifyGeneral(); },

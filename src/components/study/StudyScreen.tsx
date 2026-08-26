@@ -165,15 +165,19 @@ export default function StudyScreen({
     }
   }, [engine.isPlaying, isPlaying]);
 
-  // Enforce segment boundary: loop or stop when currentTime passes endMs
+  // Enforce the segment boundary on the audio rendering thread rather than
+  // from a currentTime effect: a hidden page (locked phone screen) stops being
+  // serviced requestAnimationFrame, so such an effect never fires while the
+  // audio graph plays on into the rest of the episode. The engine wraps a loop
+  // natively and schedules its own stop when looping is off.
   useEffect(() => {
-    if (!engine.isPlaying || engine.currentTime < segment.endMs / 1000) return;
-    audioEngine.seek(segmentStartSec(segment));
-    if (!isLooping) {
-      audioEngine.pause();
-      setIsPlaying(false);
-    }
-  }, [engine.currentTime, engine.isPlaying, isLooping, segment]);
+    const endSec = segment.endMs / 1000;
+    audioEngine.setBoundary(
+      isLooping
+        ? { kind: 'loop', startSec: segmentStartSec(segment), endSec }
+        : { kind: 'stop', endSec },
+    );
+  }, [isLooping, segment]);
 
   const stopPlayback = useCallback(() => {
     audioEngine.seek(segmentStartSec(segment));
