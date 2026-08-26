@@ -188,7 +188,12 @@ describe('loop boundary — pushed to the engine', () => {
     expect(engineMock.setBoundary).toHaveBeenLastCalledWith(null);
   });
 
-  it('clears the boundary on unmount so it cannot leak to another page', () => {
+  it('leaves the boundary alone on unmount so it cannot wipe the next page\'s', () => {
+    // React mounts the incoming page before unmounting the outgoing one (see
+    // the note in EpisodePlayer.tsx), so a clear-on-unmount lands *after* the
+    // next page has pushed its own boundary and leaves the engine unbounded —
+    // meaning "play to the end of the file" — for that whole visit. Every
+    // consumer pushes a boundary on mount, so there is nothing to clean up.
     const { result, unmount } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
 
     act(() => {
@@ -197,9 +202,14 @@ describe('loop boundary — pushed to the engine', () => {
         range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
       });
     });
+
+    // The incoming page mounts and pushes its boundary first.
+    const incoming = { kind: 'stop', endSec: 3.4 } as const;
+    act(() => { engineMock.setBoundary(incoming); });
+
     unmount();
 
-    expect(engineMock.setBoundary).toHaveBeenLastCalledWith(null);
+    expect(engineMock.boundary).toEqual(incoming);
   });
 
   it('restarts from the first segment on natural file end while looping', () => {

@@ -512,12 +512,18 @@ describe('StudyScreen', () => {
       expect(engineMock.play).not.toHaveBeenCalled();
     });
 
-    it('clears the boundary on unmount so it cannot leak to the episode page', () => {
+    it('leaves the boundary alone on unmount so it cannot wipe the next page\'s', () => {
+      // The incoming page mounts before this one unmounts, so clearing here
+      // would strip the boundary it just pushed. Every consumer sets its own
+      // on mount; an unset boundary means "play to the end of the file".
       const { unmount } = renderStudyScreen();
+
+      const incoming = { kind: 'loop', startSec: 0, endSec: 12 } as const;
+      act(() => { engineMock.setBoundary(incoming); });
 
       unmount();
 
-      expect(engineMock.setBoundary).toHaveBeenLastCalledWith(null);
+      expect(engineMock.boundary).toEqual(incoming);
     });
   });
 

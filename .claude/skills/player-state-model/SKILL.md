@@ -49,9 +49,13 @@ type LoopRange = { firstSegmentId: number; lastSegmentId: number };
   correctness does not depend on it.
   `subscribeToEnd` remains as a safety net for a range the engine rejected as
   degenerate — a natively looping source never ends on its own.
-- The engine is a **module-level singleton**, so whoever sets a boundary must
-  clear it: `useAudioEngine`'s unmount effect calls `setBoundary(null)`
-  alongside `pause()`. Without that, a loop region leaks into the next page.
+- The engine is a **module-level singleton**, and the boundary is owned by
+  whichever consumer is mounted — it is **not** cleared on unmount. React
+  mounts the incoming page before unmounting the outgoing one (see the note in
+  `EpisodePlayer.tsx`), so a clear-on-unmount runs *after* the next page has
+  pushed its boundary and strips it, leaving the engine unbounded for that
+  whole visit. Each consumer establishes the boundary on mount instead; only
+  `pause()` happens on unmount.
 - `currentTime` is wrap-aware: the linear clock keeps counting past `loopEnd`,
   so the getter folds it back into the range. This is what makes the progress
   bar resume at the right position after the page was hidden for many
