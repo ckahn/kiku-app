@@ -61,6 +61,14 @@ type LoopRange = { firstSegmentId: number; lastSegmentId: number };
   the "stop at the segment end" behaviour is a scheduled `source.stop()`, also
   immune to a hidden page. A scheduled stop cannot be cancelled, so clearing or
   re-timing one restarts the source node.
+- `RandomSegmentCard.tsx` is the third `audioEngine` consumer and uses the same
+  `{ kind: 'stop', endSec }` boundary to end its preview at the segment end.
+  Any new consumer must push a boundary too — the engine is a singleton and an
+  unset boundary means "play to the end of the file".
+- `seekToSegment` clears the boundary **before** it seeks when the target
+  segment is outside the current range: `play()` pulls a start offset at or
+  past `loopEnd` back to `loopStart`, so seeking first would land in the old
+  range instead of the tapped segment.
 - Segment seeks start 0.1s early (`SEGMENT_PLAYBACK_OFFSET_SEC`, applied by
   `segmentStartSec` in `segmentUtils.ts`) — intentional pre-roll, keep it.
 - Stale ranges are dropped, not repaired: an effect runs

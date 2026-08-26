@@ -56,14 +56,14 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     }
   }, [engine.isPlaying]);
 
-  // Enforce segment end boundary
+  // Enforce the segment end on the audio rendering thread rather than from a
+  // currentTime effect: a hidden page (locked phone screen) stops being
+  // serviced requestAnimationFrame, so such an effect never fires while the
+  // audio graph plays on into the rest of the episode. The engine schedules
+  // its own stop(); the isPlaying sync effect above picks up the stop.
   useEffect(() => {
-    if (!engine.isPlaying) return;
-    if (engine.currentTime >= segment.endMs / 1000) {
-      audioEngine.pause();
-      setIsPlaying(false);
-    }
-  }, [engine.currentTime, engine.isPlaying, segment.endMs]);
+    audioEngine.setBoundary({ kind: 'stop', endSec: segment.endMs / 1000 });
+  }, [segment.endMs]);
 
   function handlePlayPause(e: React.MouseEvent) {
     e.preventDefault();

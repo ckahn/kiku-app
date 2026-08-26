@@ -441,6 +441,24 @@ describe('segment looping — additional cases', () => {
     });
   });
 
+  it('drops the stale loop boundary before seeking out of the range', () => {
+    // play() pulls a start offset at or past loopEnd back to loopStart, so a
+    // seek issued while the old boundary is still on the engine would land in
+    // the old range instead of the tapped segment.
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+
+    act(() => { result.current.controls.toggleLoop(); }); // anchors to SEG1 at t=0
+    act(() => { engineMock.play(2); });
+    engineMock.setBoundary.mockClear();
+    engineMock.seek.mockClear();
+
+    act(() => { result.current.controls.seekToSegment(3); });
+
+    expect(engineMock.setBoundary).toHaveBeenNthCalledWith(1, null);
+    expect(engineMock.setBoundary.mock.invocationCallOrder[0])
+      .toBeLessThan(engineMock.seek.mock.invocationCallOrder[0]);
+  });
+
   it('pauses on natural file end when looping is off', () => {
     const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
     act(() => { result.current.controls.play(); });

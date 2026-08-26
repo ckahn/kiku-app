@@ -195,11 +195,16 @@ export function usePlayer(segments: readonly PlayerSegment[], durationMs: number
     seekToSegment: useCallback((segmentId: number) => {
       const segment = segmentsRef.current.find((c) => c.id === segmentId);
       if (!segment) return;
-      seekAndSyncState(segmentStartSec(segment));
       const range = stateRef.current.loopRange;
       if (range !== null && !isInRange(segmentsRef.current, range, segmentId)) {
+        // Drop the old loop boundary *before* seeking. The engine pulls a
+        // start offset at or past loopEnd back to loopStart, so seeking first
+        // would send playback to the old range instead of the tapped segment.
+        // The boundary effect above re-pushes the new anchor after this render.
+        audioEngine.setBoundary(null);
         dispatch({ type: 'SET_LOOP', range: makeAnchor(segmentId) });
       }
+      seekAndSyncState(segmentStartSec(segment));
     }, [seekAndSyncState]),
 
     setLoopEndpoint: useCallback((which: Endpoint, segmentId: number) => {

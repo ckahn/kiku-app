@@ -124,6 +124,8 @@ The range-loop UI exists (loop-range gutter, PR #36): `toggleLoop` anchors the a
 - **Episode page** (`/podcasts/[slug]/episodes/[number]`) — range loop via `loopRange` in `PlayerState` (length-1 on toggle, growable via the gutter), pushed to the engine as a `loop` boundary. No persistence yet (ephemeral per-visit; see `studyNavigation.ts` for the localStorage pattern to follow when persistence is added).
 - **Per-segment study page** (`…/segments/[index]/study`) — single-segment loop via local `useState(isLooping)` in `StudyScreen.tsx`, pushed to the engine as a `loop` boundary while looping and a `stop` boundary otherwise (that stop is what ends playback at the segment end). Self-contained; does not import `usePlayer`, `PlayerControls`, or `playerReducer`.
 
+`RandomSegmentCard.tsx` is a third engine consumer (no loop, preview only) and pushes a `stop` boundary at its segment end for the same reason.
+
 State management: React `useState`/`useReducer` only — no external state library.
 
 ### Pages
