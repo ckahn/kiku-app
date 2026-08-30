@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import type { Mock } from 'vitest';
-import type { AudioStatus } from '../audioEngine';
+import type { AudioStatus, PlaybackBoundary } from '../audioEngine';
 
 export interface MockAudioEngineState {
   time: number;
@@ -9,6 +9,7 @@ export interface MockAudioEngineState {
   status: AudioStatus;
   workletReady: boolean;
   pendingSeek: number | null;
+  boundary: PlaybackBoundary | null;
 }
 
 export interface MockAudioEngine {
@@ -19,6 +20,7 @@ export interface MockAudioEngine {
   restartAtZero: Mock<() => void>;
   seek: Mock<(sec: number) => void>;
   setPlaybackRate: Mock<(rate: number) => void>;
+  setBoundary: Mock<(boundary: PlaybackBoundary | null) => void>;
   subscribe: (fn: () => void) => () => void;
   subscribeToEnd: (fn: () => void) => () => void;
   // Test helpers
@@ -35,6 +37,7 @@ export interface MockAudioEngine {
   readonly isPlaying: boolean;
   readonly error: string | null;
   readonly workletReady: boolean;
+  readonly boundary: PlaybackBoundary | null;
 }
 
 export function createMockAudioEngine(): MockAudioEngine {
@@ -45,6 +48,7 @@ export function createMockAudioEngine(): MockAudioEngine {
     status: 'ready',
     workletReady: true,
     pendingSeek: null,
+    boundary: null,
   };
   const generalSubs = new Set<() => void>();
   const endSubs = new Set<() => void>();
@@ -84,6 +88,12 @@ export function createMockAudioEngine(): MockAudioEngine {
       }
     }),
     setPlaybackRate: vi.fn(),
+    // Records the boundary only. The wrap itself is the real engine's job and
+    // is covered in audioEngine.test.ts; keeping the mock's clock linear is
+    // what lets these tests prove React no longer enforces the boundary.
+    setBoundary: vi.fn((boundary: PlaybackBoundary | null) => {
+      state.boundary = boundary;
+    }),
     subscribe(fn: () => void) {
       generalSubs.add(fn);
       return () => generalSubs.delete(fn);
@@ -116,6 +126,7 @@ export function createMockAudioEngine(): MockAudioEngine {
       state.status = 'ready';
       state.workletReady = true;
       state.pendingSeek = null;
+      state.boundary = null;
       generalSubs.clear();
       endSubs.clear();
       vi.clearAllMocks();
@@ -126,6 +137,7 @@ export function createMockAudioEngine(): MockAudioEngine {
     get isPlaying() { return state.isPlaying; },
     get error() { return state.error; },
     get workletReady() { return state.workletReady; },
+    get boundary() { return state.boundary; },
   };
 
   return mock;

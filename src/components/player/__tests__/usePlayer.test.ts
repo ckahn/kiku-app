@@ -77,8 +77,12 @@ describe('toggleLoop — anchor-at-active', () => {
   });
 });
 
-describe('loop boundary wrap', () => {
-  it('seeks back to the first segment start immediately on crossing the last segment end', () => {
+describe('loop boundary — pushed to the engine', () => {
+  // The wrap itself is enforced on the audio rendering thread (see
+  // audioEngine.test.ts). These tests prove usePlayer projects the range down
+  // correctly and no longer polices it from a currentTime effect — the effect
+  // that stops running when the page is hidden and the phone screen is locked.
+  it('pushes the range as a loop boundary in seconds when the loop is set', () => {
     const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
 
     act(() => {
@@ -87,18 +91,54 @@ describe('loop boundary wrap', () => {
         range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
       });
     });
+
+    // segmentStartSec(SEG1) = max(0, 0 - 0.1) = 0; SEG2.endMs / 1000 = 12
+    expect(engineMock.setBoundary).toHaveBeenLastCalledWith({
+      kind: 'loop',
+      startSec: 0,
+      endSec: 12,
+    });
+  });
+
+  it('applies the 0.1s segment pre-roll to the range start', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+
+    act(() => {
+      result.current.dispatch({
+        type: 'SET_LOOP',
+        range: { firstSegmentId: SEG2.id, lastSegmentId: SEG3.id },
+      });
+    });
+
+    expect(engineMock.setBoundary).toHaveBeenLastCalledWith({
+      kind: 'loop',
+      startSec: 4.9,
+      endSec: 20,
+    });
+  });
+
+  it('does not seek from React when currentTime crosses the boundary', () => {
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+
+    act(() => {
+      result.current.dispatch({
+        type: 'SET_LOOP',
+        range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
+      });
+    });
+    engineMock.play.mockClear();
+    engineMock.seek.mockClear();
 
     act(() => {
       engineMock._setIsPlaying(true);
       engineMock._setTime(12); // SEG2.endMs / 1000
     });
 
-    // No pause beat: playback jumps straight back to the first segment.
-    // segmentStartSec(SEG1) = max(0, 0 - 0.1) = 0
-    expect(engineMock.play).toHaveBeenCalledWith(0);
+    expect(engineMock.play).not.toHaveBeenCalled();
+    expect(engineMock.seek).not.toHaveBeenCalled();
   });
 
-  it('does not wrap when not past the last segment end', () => {
+  it('clears the engine boundary when the loop is cleared', () => {
     const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
 
     act(() => {
@@ -107,18 +147,54 @@ describe('loop boundary wrap', () => {
         range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
       });
     });
-    engineMock.play.mockClear();
+    act(() => { result.current.dispatch({ type: 'SET_LOOP', range: null }); });
 
-    act(() => {
-      engineMock._setIsPlaying(true);
-      engineMock._setTime(10); // inside SEG2, before endMs
-    });
-
-    expect(engineMock.play).not.toHaveBeenCalled();
+    expect(engineMock.setBoundary).toHaveBeenLastCalledWith(null);
   });
 
-  it('does not wrap when paused at the boundary', () => {
+  it('pushes an updated boundary when an endpoint is dragged', () => {
     const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+
+    act(() => {
+      result.current.dispatch({
+        type: 'SET_LOOP',
+        range: { firstSegmentId: SEG1.id, lastSegmentId: SEG1.id },
+      });
+    });
+    act(() => { result.current.controls.setLoopEndpoint('end', SEG3.id); });
+
+    expect(engineMock.setBoundary).toHaveBeenLastCalledWith({
+      kind: 'loop',
+      startSec: 0,
+      endSec: 20,
+    });
+  });
+
+  it('clears the boundary when the range goes stale as segments change', () => {
+    const { result, rerender } = renderHook(
+      ({ segs }: { segs: readonly Segment[] }) => usePlayer(segs, 20000, '/audio'),
+      { initialProps: { segs: SEGS } },
+    );
+
+    act(() => {
+      result.current.dispatch({
+        type: 'SET_LOOP',
+        range: { firstSegmentId: SEG1.id, lastSegmentId: SEG3.id },
+      });
+    });
+
+    rerender({ segs: [SEG1, SEG2] }); // SEG3 removed
+
+    expect(engineMock.setBoundary).toHaveBeenLastCalledWith(null);
+  });
+
+  it('leaves the boundary alone on unmount so it cannot wipe the next page\'s', () => {
+    // React mounts the incoming page before unmounting the outgoing one (see
+    // the note in EpisodePlayer.tsx), so a clear-on-unmount lands *after* the
+    // next page has pushed its own boundary and leaves the engine unbounded —
+    // meaning "play to the end of the file" — for that whole visit. Every
+    // consumer pushes a boundary on mount, so there is nothing to clean up.
+    const { result, unmount } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
 
     act(() => {
       result.current.dispatch({
@@ -126,12 +202,14 @@ describe('loop boundary wrap', () => {
         range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
       });
     });
-    engineMock.play.mockClear();
 
-    // isPlaying stays false; advance time to boundary
-    act(() => { engineMock._setTime(12); });
+    // The incoming page mounts and pushes its boundary first.
+    const incoming = { kind: 'stop', endSec: 3.4 } as const;
+    act(() => { engineMock.setBoundary(incoming); });
 
-    expect(engineMock.play).not.toHaveBeenCalled();
+    unmount();
+
+    expect(engineMock.boundary).toEqual(incoming);
   });
 
   it('restarts from the first segment on natural file end while looping', () => {
@@ -143,35 +221,11 @@ describe('loop boundary wrap', () => {
         range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
       });
     });
-    act(() => {
-      engineMock._setIsPlaying(true);
-      engineMock._setTime(12);
-    });
     engineMock.play.mockClear();
 
     act(() => { engineMock._triggerNaturalEnd(); });
 
     expect(engineMock.play).toHaveBeenCalledWith(0);
-  });
-
-  it('clearing the loop mid-playback stops further wrapping', () => {
-    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
-
-    act(() => {
-      result.current.dispatch({
-        type: 'SET_LOOP',
-        range: { firstSegmentId: SEG1.id, lastSegmentId: SEG2.id },
-      });
-    });
-    act(() => { result.current.dispatch({ type: 'SET_LOOP', range: null }); });
-    engineMock.play.mockClear();
-
-    act(() => {
-      engineMock._setIsPlaying(true);
-      engineMock._setTime(12); // past the (now-cleared) boundary
-    });
-
-    expect(engineMock.play).not.toHaveBeenCalled();
   });
 });
 
@@ -373,26 +427,46 @@ describe('shiftLoopEndpoint', () => {
 });
 
 describe('segment looping — additional cases', () => {
-  it('does not wrap when looping is off', () => {
+  it('sets no engine boundary when looping is off', () => {
     renderHook(() => usePlayer(SEGS, 20000, '/audio'));
     act(() => { engineMock.play(6); });
     engineMock.play.mockClear();
     act(() => { engineMock._setTime(12.1); });
     expect(engineMock.play).not.toHaveBeenCalled();
+    expect(engineMock.boundary).toBeNull();
   });
 
-  it('loops the new segment after seekToSegment re-anchors the loop', () => {
+  it('re-anchors the engine boundary to the new segment after seekToSegment', () => {
     const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
 
     act(() => { result.current.controls.toggleLoop(); }); // anchors to SEG1 at t=0
     act(() => { engineMock.play(2); });
 
     act(() => { result.current.controls.seekToSegment(3); }); // re-anchors to SEG3
-    engineMock.play.mockClear();
 
-    act(() => { engineMock._setTime(20.1); });
+    expect(engineMock.setBoundary).toHaveBeenLastCalledWith({
+      kind: 'loop',
+      startSec: 11.9, // 12000ms / 1000 - 0.1s offset
+      endSec: 20,
+    });
+  });
 
-    expect(engineMock.play).toHaveBeenCalledWith(11.9); // 12000ms / 1000 - 0.1s offset
+  it('drops the stale loop boundary before seeking out of the range', () => {
+    // play() pulls a start offset at or past loopEnd back to loopStart, so a
+    // seek issued while the old boundary is still on the engine would land in
+    // the old range instead of the tapped segment.
+    const { result } = renderHook(() => usePlayer(SEGS, 20000, '/audio'));
+
+    act(() => { result.current.controls.toggleLoop(); }); // anchors to SEG1 at t=0
+    act(() => { engineMock.play(2); });
+    engineMock.setBoundary.mockClear();
+    engineMock.seek.mockClear();
+
+    act(() => { result.current.controls.seekToSegment(3); });
+
+    expect(engineMock.setBoundary).toHaveBeenNthCalledWith(1, null);
+    expect(engineMock.setBoundary.mock.invocationCallOrder[0])
+      .toBeLessThan(engineMock.seek.mock.invocationCallOrder[0]);
   });
 
   it('pauses on natural file end when looping is off', () => {

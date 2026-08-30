@@ -49,6 +49,9 @@ function makeMockAudioBuffer(duration = 10): AudioBuffer {
 interface MockSourceNode {
   buffer: AudioBuffer | null;
   playbackRate: { value: number };
+  loop: boolean;
+  loopStart: number;
+  loopEnd: number;
   connect: ReturnType<typeof vi.fn>;
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
@@ -60,6 +63,9 @@ function makeMockSourceNode(): MockSourceNode {
   const node: MockSourceNode = {
     buffer: null,
     playbackRate: { value: 1 },
+    loop: false,
+    loopStart: 0,
+    loopEnd: 0,
     connect: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(),
@@ -674,6 +680,304 @@ describe('AudioEngine', () => {
       mockCtx._lastSource()._fireEnded();
 
       expect(pitchNode.disconnect).toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // setBoundary() — playback boundary enforced on the audio rendering thread
+  // -------------------------------------------------------------------------
+
+  describe('setBoundary() — loop', () => {
+    beforeEach(async () => {
+      engine.unlock();
+      await engine.load('/audio/ep1.mp3'); // 10s buffer
+    });
+
+    it('applies the loop region to a source node created after the boundary is set', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+
+      engine.play(2);
+
+      const source = mockCtx._lastSource();
+      expect(source.loop).toBe(true);
+      expect(source.loopStart).toBe(2);
+      expect(source.loopEnd).toBe(5);
+    });
+
+    it('mutates the live source in place without restarting playback', () => {
+      engine.play(0);
+      const source = mockCtx._lastSource();
+      const startCalls = mockCtx.createBufferSource.mock.calls.length;
+
+      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
+
+      expect(mockCtx.createBufferSource.mock.calls.length).toBe(startCalls);
+      expect(source.loop).toBe(true);
+      expect(source.loopStart).toBe(1);
+      expect(source.loopEnd).toBe(4);
+    });
+
+    it('re-applies the boundary to the new source after a seek', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 6 });
+      engine.play(2);
+
+      engine.seek(3);
+
+      const source = mockCtx._lastSource();
+      expect(source.loop).toBe(true);
+      expect(source.loopStart).toBe(2);
+      expect(source.loopEnd).toBe(6);
+    });
+
+    it('re-applies the boundary to the new source after a playback rate change', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 6 });
+      engine.play(2);
+
+      engine.setPlaybackRate(0.5);
+
+      const source = mockCtx._lastSource();
+      expect(source.loop).toBe(true);
+      expect(source.loopStart).toBe(2);
+      expect(source.loopEnd).toBe(6);
+    });
+
+    it('clears looping on the live source when the boundary is removed', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
+      engine.play(1);
+      const source = mockCtx._lastSource();
+
+      engine.setBoundary(null);
+
+      expect(source.loop).toBe(false);
+    });
+
+    it('clamps loopEnd to the buffer duration', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 8, endSec: 30 });
+
+      engine.play(8);
+
+      expect(mockCtx._lastSource().loopEnd).toBe(10);
+    });
+
+    it('ignores a degenerate range where endSec is not after startSec', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 5, endSec: 5 });
+
+      engine.play(0);
+
+      expect(mockCtx._lastSource().loop).toBe(false);
+    });
+
+    it('restarts inside the range when the range shrinks under the playhead', () => {
+      engine.play(0);
+      mockCtx._advance(7); // playhead at 7s
+      const sourcesBefore = mockCtx.createBufferSource.mock.calls.length;
+
+      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
+
+      expect(mockCtx.createBufferSource.mock.calls.length).toBe(sourcesBefore + 1);
+      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 1);
+      expect(engine.currentTime).toBeCloseTo(1);
+    });
+
+    it('starts at the range start when play() is asked for a position past loopEnd', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
+
+      engine.play(8);
+
+      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 1);
+    });
+
+    it('does not touch the source when the engine is paused', () => {
+      engine.play(0);
+      engine.pause();
+      const sourcesBefore = mockCtx.createBufferSource.mock.calls.length;
+
+      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
+
+      expect(mockCtx.createBufferSource.mock.calls.length).toBe(sourcesBefore);
+    });
+  });
+
+  describe('currentTime under a loop boundary', () => {
+    beforeEach(async () => {
+      engine.unlock();
+      await engine.load('/audio/ep1.mp3');
+    });
+
+    // These assertions run with no subscriber, no React effect and no
+    // requestAnimationFrame in play — the wrap must hold on the engine alone,
+    // which is exactly the locked-screen case.
+    it('wraps back into the range after passing loopEnd', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+      engine.play(2);
+
+      mockCtx._advance(4); // raw position 6s, one wrap past loopEnd
+
+      expect(engine.currentTime).toBeCloseTo(3);
+    });
+
+    it('reports loopStart exactly at the wrap point', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+      engine.play(2);
+
+      mockCtx._advance(3);
+
+      expect(engine.currentTime).toBeCloseTo(2);
+    });
+
+    it('stays inside the range across many iterations', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+      engine.play(2);
+
+      mockCtx._advance(60); // 20 loop iterations while the screen is locked
+
+      const t = engine.currentTime;
+      expect(t).toBeGreaterThanOrEqual(2);
+      expect(t).toBeLessThan(5);
+      expect(t).toBeCloseTo(2);
+    });
+
+    it('wraps correctly at a reduced playback rate', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+      engine.setPlaybackRate(0.5);
+      engine.play(2);
+
+      mockCtx._advance(8); // 8s real × 0.5 = 4s audio → raw 6s
+
+      expect(engine.currentTime).toBeCloseTo(3);
+    });
+
+    it('wraps correctly when playback started before loopStart (segment pre-roll)', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+      engine.play(1.9); // 0.1s pre-roll ahead of the range
+
+      mockCtx._advance(3.1); // reaches loopEnd, then 0s past it
+      expect(engine.currentTime).toBeCloseTo(2);
+
+      mockCtx._advance(1);
+      expect(engine.currentTime).toBeCloseTo(3);
+    });
+
+    it('does not wrap before the playhead reaches loopEnd', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+      engine.play(2);
+
+      mockCtx._advance(2.5);
+
+      expect(engine.currentTime).toBeCloseTo(4.5);
+    });
+
+    it('pause() records the wrapped position, not the raw elapsed one', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+      engine.play(2);
+      mockCtx._advance(4);
+
+      engine.pause();
+
+      expect(engine.currentTime).toBeCloseTo(3);
+    });
+
+    it('keeps reporting a continuous position after the loop is cleared mid-playback', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+      engine.play(2);
+      mockCtx._advance(4); // wrapped position 3s
+
+      engine.setBoundary(null);
+      mockCtx._advance(1);
+
+      expect(engine.currentTime).toBeCloseTo(4);
+    });
+
+    it('rebases the clock when one loop range replaces another mid-playback', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
+      engine.play(2);
+      mockCtx._advance(4); // wrapped position 3s
+
+      engine.setBoundary({ kind: 'loop', startSec: 0, endSec: 8 });
+      mockCtx._advance(1);
+
+      expect(engine.currentTime).toBeCloseTo(4);
+    });
+  });
+
+  describe('setBoundary() — stop', () => {
+    beforeEach(async () => {
+      engine.unlock();
+      await engine.load('/audio/ep1.mp3');
+    });
+
+    it('schedules a stop at the boundary when playback starts', () => {
+      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
+
+      engine.play(1.4);
+
+      // 2s of audio remaining at 1×, scheduled against the context clock
+      expect(mockCtx._lastSource().stop).toHaveBeenCalledWith(2);
+    });
+
+    it('scales the scheduled stop by the playback rate', () => {
+      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
+      engine.setPlaybackRate(0.5);
+
+      engine.play(1.4);
+
+      // 2s of audio at 0.5× takes 4s of real time
+      expect(mockCtx._lastSource().stop).toHaveBeenCalledWith(4);
+    });
+
+    it('does not enable native looping', () => {
+      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
+
+      engine.play(1.4);
+
+      expect(mockCtx._lastSource().loop).toBe(false);
+    });
+
+    it('schedules the stop on a live source without restarting it', () => {
+      engine.play(1.4);
+      const source = mockCtx._lastSource();
+      const sourcesBefore = mockCtx.createBufferSource.mock.calls.length;
+
+      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
+
+      expect(mockCtx.createBufferSource.mock.calls.length).toBe(sourcesBefore);
+      expect(source.stop).toHaveBeenCalledWith(2);
+    });
+
+    it('never schedules a stop in the past', () => {
+      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
+
+      engine.play(9);
+
+      expect(mockCtx._lastSource().stop).toHaveBeenCalledWith(0);
+    });
+
+    it('replaces the source when a scheduled stop is cleared (stop() cannot be cancelled)', () => {
+      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
+      engine.play(1.4);
+      const sourcesBefore = mockCtx.createBufferSource.mock.calls.length;
+      mockCtx._advance(1);
+
+      engine.setBoundary(null);
+
+      expect(mockCtx.createBufferSource.mock.calls.length).toBe(sourcesBefore + 1);
+      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 2.4);
+    });
+
+    it('fires general and end subscribers when the scheduled stop lands', () => {
+      const general = vi.fn();
+      const ended = vi.fn();
+      engine.subscribe(general);
+      engine.subscribeToEnd(ended);
+      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
+      engine.play(1.4);
+      general.mockClear();
+
+      mockCtx._lastSource()._fireEnded();
+
+      expect(engine.isPlaying).toBe(false);
+      expect(general).toHaveBeenCalled();
+      expect(ended).toHaveBeenCalled();
     });
   });
 });

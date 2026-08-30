@@ -35,11 +35,44 @@ type LoopRange = { firstSegmentId: number; lastSegmentId: number };
   will drift.
 - A length-1 range (`firstSegmentId === lastSegmentId`) *is* the
   single-segment loop; there is no separate mode.
-- Loop enforcement is not in the engine: an effect in `usePlayer`
-  (`src/components/player/usePlayer.ts`) watches `engine.currentTime` and, on
-  crossing the last segment's `endMs`, calls `audioEngine.play()` at the first
-  segment's start with **no pause beat**. A second effect handles the
-  end-of-file edge case via `subscribeToEnd`.
+- **Loop enforcement lives in the engine, on the audio rendering thread.**
+  `usePlayer` projects `loopRange` down to a time-domain
+  `PlaybackBoundary` — `{ kind: 'loop', startSec, endSec }` — via
+  `audioEngine.setBoundary()`, and the engine sets the source node's native
+  `loop`/`loopStart`/`loopEnd`. That is a one-way push, like
+  `setPlaybackRate`: the engine knows nothing about segments, and `loopRange`
+  is still the only loop state.
+  **Never move the boundary check back into a `currentTime` effect.** A hidden
+  page — a locked phone screen — stops being serviced `requestAnimationFrame`,
+  so `currentTime` freezes while the audio graph plays on, and the loop runs
+  straight past its end until the screen wakes. rAF is now a paint loop only;
+  correctness does not depend on it.
+  `subscribeToEnd` remains as a safety net for a range the engine rejected as
+  degenerate — a natively looping source never ends on its own.
+- The engine is a **module-level singleton**, and the boundary is owned by
+  whichever consumer is mounted — it is **not** cleared on unmount. React
+  mounts the incoming page before unmounting the outgoing one (see the note in
+  `EpisodePlayer.tsx`), so a clear-on-unmount runs *after* the next page has
+  pushed its boundary and strips it, leaving the engine unbounded for that
+  whole visit. Each consumer establishes the boundary on mount instead; only
+  `pause()` happens on unmount.
+- `currentTime` is wrap-aware: the linear clock keeps counting past `loopEnd`,
+  so the getter folds it back into the range. This is what makes the progress
+  bar resume at the right position after the page was hidden for many
+  iterations, instead of jumping.
+- `StudyScreen` uses the same mechanism for its single segment:
+  `{ kind: 'loop', … }` when looping, and `{ kind: 'stop', endSec }` when not —
+  the "stop at the segment end" behaviour is a scheduled `source.stop()`, also
+  immune to a hidden page. A scheduled stop cannot be cancelled, so clearing or
+  re-timing one restarts the source node.
+- `RandomSegmentCard.tsx` is the third `audioEngine` consumer and uses the same
+  `{ kind: 'stop', endSec }` boundary to end its preview at the segment end.
+  Any new consumer must push a boundary too — the engine is a singleton and an
+  unset boundary means "play to the end of the file".
+- `seekToSegment` clears the boundary **before** it seeks when the target
+  segment is outside the current range: `play()` pulls a start offset at or
+  past `loopEnd` back to `loopStart`, so seeking first would land in the old
+  range instead of the tapped segment.
 - Segment seeks start 0.1s early (`SEGMENT_PLAYBACK_OFFSET_SEC`, applied by
   `segmentStartSec` in `segmentUtils.ts`) — intentional pre-roll, keep it.
 - Stale ranges are dropped, not repaired: an effect runs
@@ -82,8 +115,19 @@ deps re-runs it every tick and causes seek loops.
 
 `npx vitest run src/components/player/__tests__/usePlayer.test.ts
 src/components/player/__tests__/loopRange.test.ts
-src/components/player/__tests__/playerReducer.test.ts` plus
+src/components/player/__tests__/playerReducer.test.ts
+src/lib/audio/audioEngine.test.ts` plus
 `src/components/__tests__/audioPlayerFlow.test.tsx` for integration. For real
 playback behavior (looping across the boundary, rate change pitch), test in the
 browser — the engine is mocked in unit tests
-(`src/lib/audio/__tests__/mockAudioEngine.ts`).
+(`src/lib/audio/__tests__/mockAudioEngine.ts`), and the mock's clock is
+deliberately linear so those tests cannot accidentally re-prove a React-side
+wrap.
+
+jsdom cannot catch a hidden-page regression at all: there is no audio rendering
+thread and no page-visibility model. Verify looping-while-locked on a real
+device against a **deployed HTTPS build** — `audioWorklet` and service-worker
+registration are both secure-context only, so over `http://<lan-ip>:3000` the
+SoundTouch worklet silently no-ops and the speed path is not exercised. On the
+**episode page**, set a loop, play, lock the screen for a minute: the same range
+must still be repeating on unlock, with no jump-back seek.

@@ -67,9 +67,17 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
     };
   }, [isPlaying]);
 
-  // Pause on unmount so audio stops when navigating away.
+  // Pause on unmount so audio stops when navigating away. The playback
+  // boundary is deliberately NOT cleared here: React mounts the incoming page
+  // before unmounting the outgoing one (see the note in EpisodePlayer.tsx), so
+  // this cleanup runs after the next page has already pushed its boundary and
+  // would strip it — leaving the engine unbounded, which means "play to the
+  // end of the file", for that whole visit. Every consumer pushes its own
+  // boundary on mount, so there is nothing to clean up.
   useEffect(() => {
-    return () => { audioEngine.pause(); };
+    return () => {
+      audioEngine.pause();
+    };
   }, []);
 
   // Load when URL changes

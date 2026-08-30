@@ -125,6 +125,24 @@ describe('RandomSegmentCard', () => {
     expect(screen.getByRole('button', { name: 'Play segment' })).toBeInTheDocument();
   });
 
+  it('pushes a stop boundary at the segment end instead of policing it from React', async () => {
+    render(<RandomSegmentCard initialSegment={SEGMENT} />);
+
+    // Enforced on the audio rendering thread — a currentTime effect stops
+    // firing when the phone screen locks and playback would run on into the
+    // rest of the episode.
+    expect(engineMock.setBoundary).toHaveBeenLastCalledWith({ kind: 'stop', endSec: 3 });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play segment' }));
+    });
+    engineMock.pause.mockClear();
+
+    act(() => { engineMock._setTime(3.5); });
+
+    expect(engineMock.pause).not.toHaveBeenCalled();
+  });
+
   it('disables the play button while shuffle is loading', async () => {
     let resolveFetch!: (v: unknown) => void;
     vi.stubGlobal('fetch', vi.fn().mockReturnValue(
