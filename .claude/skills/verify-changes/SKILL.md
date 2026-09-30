@@ -18,7 +18,7 @@ npm run build                                  # catches route/config/type issue
 
 ## What the 80% coverage gate actually covers
 
-Per `vitest.config.ts`, thresholds (80% lines/functions/branches) apply
+Per `vitest.config.mts`, thresholds (80% lines/functions/branches) apply
 **only** to `src/lib/api/**/*.ts` and `src/components/ui/**/*.tsx`
 (excluding tests, `types.ts`, `index.ts`). New code in those two trees must
 ship with tests or `npm run test:coverage` fails. Code elsewhere
