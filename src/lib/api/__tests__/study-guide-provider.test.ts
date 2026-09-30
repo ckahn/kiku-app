@@ -12,7 +12,6 @@ vi.mock('@ai-sdk/anthropic', () => ({
 describe('study guide provider adapter', () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.clearAllMocks();
   });
 
   afterEach(() => {

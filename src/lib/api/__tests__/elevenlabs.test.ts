@@ -65,7 +65,6 @@ describe('transcribe() — non-mock mode', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.clearAllMocks();
   });
 
   it('throws when ELEVENLABS_API_KEY is not set', async () => {

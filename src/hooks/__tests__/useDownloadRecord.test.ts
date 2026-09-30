@@ -14,7 +14,6 @@ vi.mock('@/lib/offline/downloadStore', () => ({
 
 describe('useDownloadRecord', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockEnsureInitialized.mockResolvedValue(undefined);
     mockSubscribe.mockImplementation(() => () => {});
     mockGetSnapshot.mockReturnValue(undefined);

@@ -21,7 +21,6 @@ const segment = { id: 12, episodeId: 5, textRaw: '日本語の文です。' };
 
 describe('generateAndSaveStudyGuide', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetSegmentsByEpisodeId.mockResolvedValue([
       { id: 11, episodeId: 5, textRaw: '前後の文もあります。' },
       { id: 12, episodeId: 5, textRaw: '日本語の文です。' },

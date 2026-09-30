@@ -99,7 +99,6 @@ describe('segmentTranscript() — real API', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.clearAllMocks();
   });
 
   it('throws when ANTHROPIC_API_KEY is not configured', async () => {
@@ -134,7 +133,6 @@ describe('addFurigana() — real API', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.clearAllMocks();
   });
 
   it('throws when ANTHROPIC_API_KEY is not configured', async () => {
