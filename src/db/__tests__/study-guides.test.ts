@@ -30,7 +30,6 @@ const validStudyGuideFixture = studyGuideFixture as StudyGuideContent;
 
 describe('study guide repository', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockFrom.mockReturnValue({ where: mockWhere });
     mockSelect.mockReturnValue({ from: mockFrom });
     mockWhere.mockResolvedValue([]);

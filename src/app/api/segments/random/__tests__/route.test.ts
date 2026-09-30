@@ -22,7 +22,6 @@ const FAKE_SEGMENT: RandomSegmentData = {
 
 describe('GET /api/segments/random', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetRandomStudyingSegment.mockResolvedValue(null);
   });
 

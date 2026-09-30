@@ -59,7 +59,6 @@ type SegmentInsertInput = SegmentWithFurigana & {
 
 describe('insertSegments()', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockInsert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
   });
 
@@ -259,7 +258,6 @@ describe('insertSegments()', () => {
 
 describe('getSegmentsByEpisodeId()', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockSelect.mockReturnValue({ from: mockFrom });
     mockFrom.mockReturnValue({ where: mockWhere });
     mockWhere.mockReturnValue({ orderBy: mockOrderBy });
@@ -294,7 +292,6 @@ describe('getSegmentsByEpisodeId()', () => {
 
 describe('getSegmentById()', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockSelect.mockReturnValue({ from: mockFrom });
     mockFrom.mockReturnValue({ where: mockWhere });
     mockWhere.mockResolvedValue([]);
@@ -343,7 +340,6 @@ describe('getRandomStudyingSegment()', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockSelect.mockReturnValue({ from: mockFrom });
     mockFrom.mockReturnValue({ innerJoin: mockInnerJoin });
     mockInnerJoin
@@ -388,7 +384,6 @@ describe('getRandomStudyingSegment()', () => {
 
 describe('getSegmentByEpisodeIdAndIndex()', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockSelect.mockReturnValue({ from: mockFrom });
     mockFrom.mockReturnValue({ where: mockWhere });
     mockWhere.mockResolvedValue([]);
@@ -423,10 +418,6 @@ describe('getSegmentByEpisodeIdAndIndex()', () => {
 });
 
 describe('updateSegmentStudyStatus()', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   function mockUpdateChain(returnedRows: unknown[]) {
     const returning = vi.fn().mockResolvedValue(returnedRows);
     const where = vi.fn().mockReturnValue({ returning });
@@ -461,10 +452,6 @@ describe('updateSegmentStudyStatus()', () => {
 });
 
 describe('setEpisodeSegmentsStudyStatus()', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('cascades the status to every segment and returns the affected count', async () => {
     const returning = vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
     const where = vi.fn().mockReturnValue({ returning });

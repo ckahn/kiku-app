@@ -13,7 +13,6 @@ vi.mock('@/db/segments', () => ({
 
 describe('GET /api/episodes/[id]/offline-snapshot', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetEpisodeWithPodcast.mockResolvedValue({
       id: 5,
       title: 'Episode Five',

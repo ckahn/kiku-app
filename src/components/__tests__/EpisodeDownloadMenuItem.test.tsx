@@ -31,7 +31,6 @@ function makeControls(overrides: Record<string, unknown> = {}) {
 
 describe('EpisodeDownloadMenuItem', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     PROPS.closeMenu = vi.fn();
   });
 

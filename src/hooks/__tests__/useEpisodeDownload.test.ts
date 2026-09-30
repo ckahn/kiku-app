@@ -35,7 +35,6 @@ const INPUT = {
 
 describe('useEpisodeDownload', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockUseDownloadRecord.mockReturnValue(undefined);
     mockUseOnlineStatus.mockReturnValue(true);
     mockDownloadEpisode.mockResolvedValue({ episodeId: 5, status: 'complete' });

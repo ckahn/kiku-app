@@ -21,7 +21,6 @@ vi.mock('@/lib/api/study-guide-provider', () => ({
 
 describe('POST /api/segments/[id]/study-guide/regenerate', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetSegmentById.mockResolvedValue({ id: 12, episodeId: 5, textRaw: '日本語の文です。' });
     mockGetSegmentsByEpisodeId.mockResolvedValue([
       { id: 11, episodeId: 5, textRaw: '前後の文もあります。' },

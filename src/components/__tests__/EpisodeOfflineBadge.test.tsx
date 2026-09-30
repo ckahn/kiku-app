@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import EpisodeOfflineBadge from '../EpisodeOfflineBadge';
 
@@ -10,10 +10,6 @@ vi.mock('@/hooks/useDownloadRecord', () => ({
 }));
 
 describe('EpisodeOfflineBadge', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders nothing when there is no download record', () => {
     mockUseDownloadRecord.mockReturnValue(undefined);
 

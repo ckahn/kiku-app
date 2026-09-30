@@ -49,7 +49,6 @@ const SEGMENTS = [
 ];
 
 beforeEach(() => {
-  vi.clearAllMocks();
   engineMock._reset();
   vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(0 as unknown as ReturnType<typeof requestAnimationFrame>);
   vi.spyOn(window, 'cancelAnimationFrame').mockReturnValue(undefined);

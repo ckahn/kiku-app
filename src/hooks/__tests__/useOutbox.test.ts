@@ -14,7 +14,6 @@ vi.mock('@/lib/offline/outboxStore', () => ({
 
 describe('useOutboxState', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockEnsureOutboxInitialized.mockResolvedValue(undefined);
     mockSubscribe.mockImplementation(() => () => {});
     mockGetStateSnapshot.mockReturnValue({ count: 0, error: null });
