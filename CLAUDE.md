@@ -26,6 +26,7 @@ Detailed procedures and guardrails live in the project skills under `.claude/ski
 npm run dev            # Start dev server
 npm run build          # Production build
 npm run lint           # Run ESLint
+npm run typecheck      # Type-check everything, tests included (tsc --noEmit)
 npm run test           # Run all tests once
 npm run test:watch     # Run tests in watch mode
 npm run test:coverage  # Run tests with coverage report
