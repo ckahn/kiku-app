@@ -13,6 +13,7 @@ npx vitest run src/path/to/file.test.ts        # single file (multiple paths OK)
 npm run test:watch                             # watch mode
 npm run test:coverage                          # coverage + threshold gate
 npm run lint                                   # eslint (no output = clean)
+npm run typecheck                              # tsc --noEmit over src + tests (CI runs it)
 npm run build                                  # catches route/config/type issues tests miss
 ```
 
@@ -66,7 +67,9 @@ Every clickable region: ≥44×44px touch target and `cursor: pointer` on hover.
 
 1. Targeted test file(s) with `npx vitest run …` while iterating.
 2. `npm run test` — the whole suite is fast; always run it.
-3. `npm run lint`.
+3. `npm run lint` and `npm run typecheck` (vitest does not type-check, and
+   `next build` type-checks test files too, so a type error in a test breaks
+   the deploy).
 4. `npm run test:coverage` if you touched `src/lib/api/**` or
    `src/components/ui/**`.
 5. `npm run build` if you touched routes, `next.config.ts`, or anything

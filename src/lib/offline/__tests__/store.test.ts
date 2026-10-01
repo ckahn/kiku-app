@@ -196,7 +196,7 @@ describe('study guide round-trip', () => {
     await putStudyGuide(record);
     const updated: StoredStudyGuide = {
       segmentId: 101,
-      content: { ...(studyGuideFixture as never), version: 2 },
+      content: { ...(studyGuideFixture as StoredStudyGuide['content']), version: 2 },
     };
     await putStudyGuide(updated);
 

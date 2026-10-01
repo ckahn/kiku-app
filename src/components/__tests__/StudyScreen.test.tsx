@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import studyGuideFixture from '@fixtures/study-guide.json';
 import type { Segment } from '@/db/schema';
-import type { StudyGuideContent } from '@/lib/api/types';
+import type { StoredStudyGuide } from '@/lib/offline/types';
 import { resetOfflineDbForTests } from '@/lib/offline/db';
 import { putStudyGuide } from '@/lib/offline/store';
 import StudyScreen from '../study/StudyScreen';
@@ -547,7 +547,7 @@ describe('StudyScreen', () => {
     });
 
     it('shows the hint when online and the guide falls back to the local store', async () => {
-      await putStudyGuide({ segmentId: 12, content: studyGuideFixture as StudyGuideContent });
+      await putStudyGuide({ segmentId: 12, content: studyGuideFixture as StoredStudyGuide['content'] });
       vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
 
       renderScreen();
@@ -557,7 +557,7 @@ describe('StudyScreen', () => {
     });
 
     it('does not show the hint for an offline read from the store', async () => {
-      await putStudyGuide({ segmentId: 12, content: studyGuideFixture as StudyGuideContent });
+      await putStudyGuide({ segmentId: 12, content: studyGuideFixture as StoredStudyGuide['content'] });
       Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
       vi.spyOn(global, 'fetch');
 

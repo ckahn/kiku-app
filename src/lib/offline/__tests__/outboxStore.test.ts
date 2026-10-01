@@ -166,7 +166,7 @@ describe('replay', () => {
   });
 
   it('concurrent replay calls share a single in-flight drain', async () => {
-    let resolveFirst: (() => void) | null = null;
+    let resolveFirst: () => void = () => {};
     const fetchMock = vi.fn(
       () =>
         new Promise<Response>((resolve) => {
@@ -183,7 +183,7 @@ describe('replay', () => {
     expect(second).toBe(first);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    resolveFirst?.();
+    resolveFirst();
     await first;
     expect(getStateSnapshot().count).toBe(0);
   });
@@ -193,7 +193,7 @@ describe('replay', () => {
     vi.stubGlobal('fetch', fetchMock);
     await enqueue(makeEntry());
 
-    let releaseWrite: (() => void) | null = null;
+    let releaseWrite: () => void = () => {};
     const writeDone = withTargetWriteLock(
       makeEntry().id,
       () =>
@@ -207,14 +207,14 @@ describe('replay', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(getStateSnapshot().count).toBe(1);
 
-    releaseWrite?.();
+    releaseWrite();
     await writeDone;
   });
 });
 
 describe('withTargetWriteLock', () => {
   it('waits for an in-flight replay of the same target before running the write', async () => {
-    let resolveReplayFetch: (() => void) | null = null;
+    let resolveReplayFetch: () => void = () => {};
     const fetchMock = vi.fn(
       () =>
         new Promise<Response>((resolve) => {
@@ -235,7 +235,7 @@ describe('withTargetWriteLock', () => {
     await Promise.resolve();
     expect(writeOrder).toEqual([]);
 
-    resolveReplayFetch?.();
+    resolveReplayFetch();
     await drain;
     await write;
     expect(writeOrder).toEqual(['write']);
