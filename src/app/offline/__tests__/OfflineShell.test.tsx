@@ -6,7 +6,7 @@ import studyGuideFixture from '@fixtures/study-guide.json';
 import { resetOfflineDbForTests } from '@/lib/offline/db';
 import { putDownloadRecord, putEpisodeSnapshot, putStudyGuide } from '@/lib/offline/store';
 import type { DownloadRecord, EpisodeSnapshot } from '@/lib/offline/types';
-import type { StudyGuideContent } from '@/lib/api/types';
+import type { StoredStudyGuide } from '@/lib/offline/types';
 import OfflineShell from '../page';
 
 vi.mock('next/navigation', () => ({
@@ -24,7 +24,7 @@ vi.mock('@/lib/audio/audioEngine', async () => {
   return { audioEngine: createMockAudioEngine() };
 });
 
-const studyGuide = studyGuideFixture as unknown as StudyGuideContent;
+const studyGuide = studyGuideFixture as unknown as StoredStudyGuide['content'];
 
 function makeSnapshot(): EpisodeSnapshot {
   return {

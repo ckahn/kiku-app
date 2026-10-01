@@ -4,13 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetOfflineDbForTests } from '../db';
 import { putStudyGuide } from '../store';
 import { loadStudyGuideContent } from '../studyGuideLoader';
-import type { StudyGuideContent } from '@/lib/api/types';
+import type { StoredStudyGuide } from '../types';
 
-const content = studyGuideFixture as StudyGuideContent;
+const content = studyGuideFixture as StoredStudyGuide['content'];
 const SEGMENT_ID = 42;
 const URL = '/api/segments/42/study-guide';
 
-function okResponse(data: StudyGuideContent): Response {
+function okResponse(data: StoredStudyGuide['content']): Response {
   return new Response(JSON.stringify({ success: true, data, error: null }), { status: 200 });
 }
 

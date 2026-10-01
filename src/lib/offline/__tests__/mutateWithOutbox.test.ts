@@ -220,7 +220,7 @@ describe('mutateWithOutbox — replay coordination (same-tab race)', () => {
     await putEpisodeSnapshot(makeSnapshot());
 
     const bodies: string[] = [];
-    let resolveReplayFetch: (() => void) | null = null;
+    let resolveReplayFetch: () => void = () => {};
     const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
       bodies.push(String(init?.body));
       if (bodies.length === 1) {
@@ -256,7 +256,7 @@ describe('mutateWithOutbox — replay coordination (same-tab race)', () => {
     await Promise.resolve();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    resolveReplayFetch?.();
+    resolveReplayFetch();
     await drain;
     const result = await mutatePromise;
 
