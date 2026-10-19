@@ -6,6 +6,7 @@ import { Loader2, Play, Shuffle, Square } from 'lucide-react';
 import type { RandomSegmentData } from '@/db/segments';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
+import { useMediaSession } from '@/hooks/useMediaSession';
 import { segmentStartSec } from '@/components/player/segmentUtils';
 
 interface RandomSegmentCardProps {
@@ -65,26 +66,38 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
     audioEngine.setBoundary({ kind: 'stop', endSec: segment.endMs / 1000 });
   }, [segment.endMs]);
 
+  function startPlayback() {
+    audioEngine.unlock();
+    setIsPlaying(true);
+    if (audioEngine.status === 'ready') {
+      audioEngine.play(segmentStartSec(segment));
+    } else {
+      // Buffer still loading (or errored) — queue play and trigger/retry load.
+      // The auto-play effect above fires it once status becomes 'ready'.
+      pendingPlayRef.current = true;
+      void audioEngine.load(audioUrl);
+    }
+  }
+
+  function stopPlayback() {
+    pendingPlayRef.current = false;
+    audioEngine.pause();
+    setIsPlaying(false);
+  }
+
+  // OS media controls. Play must restart the segment: after the stop boundary
+  // the engine rewinds to the file start, so the element's default play
+  // action would play the episode from 0:00.
+  useMediaSession({ play: startPlayback, pause: stopPlayback });
+
   function handlePlayPause(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
 
-    audioEngine.unlock();
-
     if (isPlaying) {
-      pendingPlayRef.current = false;
-      audioEngine.pause();
-      setIsPlaying(false);
+      stopPlayback();
     } else {
-      setIsPlaying(true);
-      if (audioEngine.status === 'ready') {
-        audioEngine.play(segmentStartSec(segment));
-      } else {
-        // Buffer still loading (or errored) — queue play and trigger/retry load.
-        // The auto-play effect above fires it once status becomes 'ready'.
-        pendingPlayRef.current = true;
-        void audioEngine.load(audioUrl);
-      }
+      startPlayback();
     }
   }
 

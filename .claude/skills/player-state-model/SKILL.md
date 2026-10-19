@@ -8,17 +8,49 @@ description: Use when touching audio playback, looping, usePlayer, playerReducer
 ## The audio engine (why it is the way it is)
 
 `src/lib/audio/audioEngine.ts` exports a **module-level singleton**
-`audioEngine` (Web Audio API). It fetches the audio file **once**, decodes the
-whole thing into an `AudioBuffer` (~210 MB for 20 min mono — deliberate), and
-caches exactly **one** buffer; playback-rate changes go through a SoundTouch
-worklet for pitch correction (`postinstall` copies `soundtouch-processor.js`
-into `public/`).
+`audioEngine`, typed as `PlaybackEngine`. `AUDIO_ENGINE_STRATEGY` in
+`src/lib/constants.ts` picks the implementation:
 
-**Why:** the migration off `<audio>` (PR #23) was driven by **Vercel Blob
-egress limits** — an `<audio>` element re-requests byte ranges on every seek,
-and looped study means constant seeking. One full fetch, then free in-memory
-seeks. Do not reintroduce an `<audio>` element, per-seek fetching, or audio
-slicing. Audio responses are also cached 30 days (PR #30) for the same reason.
+- **`'media-element'` (default)** — `MediaElementEngine`
+  (`mediaElementEngine.ts`). Fetches the file **once** in full, turns the Blob
+  into an object URL, and plays it on one native `<audio>` element. Seeks read
+  local bytes; only the compressed file is in memory. Speed is the element's
+  pitch-preserving `playbackRate` (no worklet; `workletReady` is always true).
+- **`'web-audio'` (fallback)** — `AudioEngine`. Fetches once, decodes into one
+  `AudioBuffer` (~210 MB per 20 min mono), speed through a SoundTouch worklet
+  (`postinstall` copies `soundtouch-processor.js` into `public/`). Kept until
+  the media-element engine is proven on device; delete it and SoundTouch
+  together.
+
+**Why it is this way:** the original `<audio>` element *streamed* from the
+audio route, and every seek became a new range request against Vercel Blob
+egress limits. PR #23 fixed that with the Web Audio engine, but Web Audio has
+no OS media controls, unreliable screen-off playback, and two-stage
+resample + SoundTouch slowdown that sounds bad. The media-element engine keeps
+the one-full-fetch property and gets those back. **The rule is "one full fetch
+per episode", not "no `<audio>`"**: never point an element at the network URL
+(`/api/episodes/<id>/audio`) — that brings back per-seek range requests. No
+per-seek fetching, no audio slicing. Audio responses are also cached 30 days
+(PR #30) for the same reason.
+
+**Seek accuracy depends on the file format with the media-element engine.**
+MP3 has no time→byte index, so Chrome estimates seek positions from the
+bitrate; VBR files can land far off target and report a wrong `currentTime`.
+AAC in an M4A (MP4) container has exact sample tables. If segment starts are
+audibly off, convert the audio rather than changing the engine.
+
+The element's own `play`/`pause`/`ended` events are the source of truth for
+`isPlaying` — the OS (media notification, headphones, audio focus) can pause it
+without the engine asking.
+
+**OS media controls** come from `useMediaSession` (`src/hooks/useMediaSession.ts`
+over `src/lib/audio/mediaSession.ts`). Each page that plays audio registers
+handlers: the episode page maps previous/next to the adjacent segment
+(`findAdjacentSegmentId`); `StudyScreen` and `RandomSegmentCard` map play to
+"restart the segment", because after a stop boundary the engine has rewound to
+0:00 and the element's default play would start the episode from the top.
+Like the boundary, handlers are not stripped on unmount — `claimMediaSession`
+hands back a release that only clears handlers it still owns.
 
 React talks to the engine through `useAudioEngine(url)`
 (`src/hooks/useAudioEngine.ts`), which subscribes to engine notifications.
@@ -35,11 +67,15 @@ type LoopRange = { firstSegmentId: number; lastSegmentId: number };
   will drift.
 - A length-1 range (`firstSegmentId === lastSegmentId`) *is* the
   single-segment loop; there is no separate mode.
-- **Loop enforcement lives in the engine, on the audio rendering thread.**
+- **Loop enforcement lives in the engine.**
   `usePlayer` projects `loopRange` down to a time-domain
-  `PlaybackBoundary` — `{ kind: 'loop', startSec, endSec }` — via
-  `audioEngine.setBoundary()`, and the engine sets the source node's native
-  `loop`/`loopStart`/`loopEnd`. That is a one-way push, like
+  `PlaybackBoundary` (`playbackBoundary.ts`) — `{ kind: 'loop', startSec, endSec }` — via
+  `audioEngine.setBoundary()`. The media-element engine aims a `setTimeout`
+  at the boundary (re-armed on play, seek, `seeked`, rate change; re-checked
+  if it fires early; `timeupdate` as a backup) — Chrome does not throttle
+  timers in an audible tab. Wraps land within tens of ms with a short gap.
+  The Web Audio engine sets the source node's native
+  `loop`/`loopStart`/`loopEnd` (sample-accurate, gapless). That is a one-way push, like
   `setPlaybackRate`: the engine knows nothing about segments, and `loopRange`
   is still the only loop state.
   **Never move the boundary check back into a `currentTime` effect.** A hidden
@@ -48,7 +84,7 @@ type LoopRange = { firstSegmentId: number; lastSegmentId: number };
   straight past its end until the screen wakes. rAF is now a paint loop only;
   correctness does not depend on it.
   `subscribeToEnd` remains as a safety net for a range the engine rejected as
-  degenerate — a natively looping source never ends on its own.
+  degenerate — a looping engine never ends on its own.
 - The engine is a **module-level singleton**, and the boundary is owned by
   whichever consumer is mounted — it is **not** cleared on unmount. React
   mounts the incoming page before unmounting the outgoing one (see the note in
@@ -56,15 +92,17 @@ type LoopRange = { firstSegmentId: number; lastSegmentId: number };
   pushed its boundary and strips it, leaving the engine unbounded for that
   whole visit. Each consumer establishes the boundary on mount instead; only
   `pause()` happens on unmount.
-- `currentTime` is wrap-aware: the linear clock keeps counting past `loopEnd`,
-  so the getter folds it back into the range. This is what makes the progress
+- `currentTime` is wrap-aware. The media-element engine reads the element's
+  real position, so this is automatic; the Web Audio engine's linear clock
+  keeps counting past `loopEnd`, so its getter folds it back into the range. This is what makes the progress
   bar resume at the right position after the page was hidden for many
   iterations, instead of jumping.
 - `StudyScreen` uses the same mechanism for its single segment:
   `{ kind: 'loop', … }` when looping, and `{ kind: 'stop', endSec }` when not —
-  the "stop at the segment end" behaviour is a scheduled `source.stop()`, also
-  immune to a hidden page. A scheduled stop cannot be cancelled, so clearing or
-  re-timing one restarts the source node.
+  the "stop at the segment end" behaviour is the engine's stop boundary (a
+  timer on the media-element engine, a scheduled `source.stop()` on Web
+  Audio), also immune to a hidden page. On Web Audio a scheduled stop cannot be
+  cancelled, so clearing or re-timing one restarts the source node.
 - `RandomSegmentCard.tsx` is the third `audioEngine` consumer and uses the same
   `{ kind: 'stop', endSec }` boundary to end its preview at the segment end.
   Any new consumer must push a boundary too — the engine is a singleton and an
@@ -116,6 +154,7 @@ deps re-runs it every tick and causes seek loops.
 `npx vitest run src/components/player/__tests__/usePlayer.test.ts
 src/components/player/__tests__/loopRange.test.ts
 src/components/player/__tests__/playerReducer.test.ts
+src/lib/audio/mediaElementEngine.test.ts src/lib/audio/mediaSession.test.ts
 src/lib/audio/audioEngine.test.ts` plus
 `src/components/__tests__/audioPlayerFlow.test.tsx` for integration. For real
 playback behavior (looping across the boundary, rate change pitch), test in the
@@ -124,10 +163,17 @@ browser — the engine is mocked in unit tests
 deliberately linear so those tests cannot accidentally re-prove a React-side
 wrap.
 
-jsdom cannot catch a hidden-page regression at all: there is no audio rendering
-thread and no page-visibility model. Verify looping-while-locked on a real
-device against a **deployed HTTPS build** — `audioWorklet` and service-worker
-registration are both secure-context only, so over `http://<lan-ip>:3000` the
-SoundTouch worklet silently no-ops and the speed path is not exercised. On the
-**episode page**, set a loop, play, lock the screen for a minute: the same range
-must still be repeating on unlock, with no jump-back seek.
+jsdom cannot catch a hidden-page regression at all: there is no media
+playback, no audio rendering thread and no page-visibility model
+(`mediaElementEngine.test.ts` drives a fake element and fake timers). Verify on
+a real device against a **deployed HTTPS build** — the Media Session API,
+`audioWorklet` and service-worker registration are secure-context only, so
+`http://<lan-ip>:3000` does not exercise them. Check:
+
+- **Screen-off loop:** on the episode page, set a loop, play, lock the screen
+  for a minute — the same range must still be repeating on unlock.
+- **Media controls:** the notification shows play/pause and previous/next;
+  next moves playback (and an active loop) to the following segment.
+- **Seek accuracy:** tap segments deep into a long episode — each must start
+  on its first word. Drift here means the file format (VBR MP3), not the engine.
+- **Speed:** 0.75× should sound natural, not warbly.

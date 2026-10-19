@@ -4,36 +4,13 @@
 // new one is fetched fresh.
 
 import type { SoundTouchNode } from '@soundtouchjs/audio-worklet';
+import { resolveBoundary, type PlaybackBoundary } from './playbackBoundary';
+import { MediaElementEngine } from './mediaElementEngine';
+import { AUDIO_ENGINE_STRATEGY } from '@/lib/constants';
+
+export type { PlaybackBoundary } from './playbackBoundary';
 
 export type AudioStatus = 'idle' | 'loading' | 'ready' | 'error';
-
-// A time-domain limit on playback, enforced on the audio rendering thread
-// rather than by a React effect. A hidden page (a locked phone screen) stops
-// being serviced requestAnimationFrame, so anything that watches currentTime
-// from React silently stops firing while the audio graph keeps rendering.
-// Native loopStart/loopEnd wrapping and a scheduled stop() both survive that.
-// The engine knows nothing about segments — callers project their loop state
-// down to seconds.
-export type PlaybackBoundary =
-  | { readonly kind: 'loop'; readonly startSec: number; readonly endSec: number }
-  | { readonly kind: 'stop'; readonly endSec: number };
-
-// Clamps a requested boundary against the loaded buffer. Resolved lazily on
-// read rather than at set time, so a boundary set before the buffer finishes
-// loading is still clamped once the duration is known.
-function resolveBoundary(boundary: PlaybackBoundary | null, duration: number): PlaybackBoundary | null {
-  if (!boundary) return null;
-  const max = duration > 0 ? duration : Number.POSITIVE_INFINITY;
-  const endSec = Math.min(boundary.endSec, max);
-  if (boundary.kind === 'stop') {
-    return endSec > 0 ? { kind: 'stop', endSec } : null;
-  }
-  const startSec = Math.max(0, Math.min(boundary.startSec, max));
-  // A degenerate range would make the wrap math divide by zero; treat it as
-  // no boundary at all rather than as a zero-length loop.
-  if (endSec <= startSec) return null;
-  return { kind: 'loop', startSec, endSec };
-}
 
 function getAudioContext(): typeof AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -389,4 +366,14 @@ export class AudioEngine {
   }
 }
 
-export const audioEngine = new AudioEngine();
+// The public surface both engines share. Consumers only ever see this.
+export type PlaybackEngine = Pick<
+  AudioEngine,
+  | 'unlock' | 'load' | 'play' | 'pause' | 'restartAtZero' | 'seek'
+  | 'setPlaybackRate' | 'setBoundary' | 'subscribe' | 'subscribeToEnd'
+  | 'currentTime' | 'duration' | 'status' | 'isPlaying' | 'error' | 'workletReady'
+>;
+
+export const audioEngine: PlaybackEngine = AUDIO_ENGINE_STRATEGY === 'media-element'
+  ? new MediaElementEngine()
+  : new AudioEngine();

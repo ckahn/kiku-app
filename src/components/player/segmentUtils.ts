@@ -34,6 +34,25 @@ export function findActiveSegmentId(
 }
 
 /**
+ * Find the segment before or after the given one, in playback order. Stays on
+ * the first/last segment at the edges; with no current segment, returns the
+ * first. Drives the OS media controls' previous/next buttons.
+ */
+export function findAdjacentSegmentId(
+  segments: readonly PlayerSegment[],
+  segmentId: number | null,
+  direction: 'previous' | 'next',
+): number | null {
+  const sorted = [...segments].sort((a, b) => a.startMs - b.startMs);
+  if (sorted.length === 0) return null;
+  const index = sorted.findIndex((segment) => segment.id === segmentId);
+  if (index === -1) return sorted[0].id;
+  const step = direction === 'next' ? 1 : -1;
+  const target = Math.max(0, Math.min(sorted.length - 1, index + step));
+  return sorted[target].id;
+}
+
+/**
  * Format a millisecond value as m:ss (e.g. 3723000 → "62:03").
  */
 export function formatMs(ms: number): string {

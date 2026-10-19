@@ -8,7 +8,8 @@ import AudioPlayer from './AudioPlayer';
 import SegmentList from '@/components/SegmentList';
 import { saveEpisodeFocusState, loadEpisodeFocusState } from './studyNavigation';
 import { scrollSegmentToTop } from './scrollSegment';
-import { findActiveSegmentId } from './segmentUtils';
+import { findActiveSegmentId, findAdjacentSegmentId } from './segmentUtils';
+import { useMediaSession } from '@/hooks/useMediaSession';
 import { useManualScrollRestoration } from './useManualScrollRestoration';
 
 interface EpisodePlayerProps {
@@ -58,6 +59,22 @@ export default function EpisodePlayer({
 
   const { seekToSegment, pause } = player.controls;
   const activeSegmentId = findActiveSegmentId(segments, player.state.currentTime);
+
+  // OS media controls (notification, lock screen, headphones). Previous/next
+  // step by segment; while looping, that moves the loop to the new segment,
+  // which is how a sentence-by-sentence drill works with the phone pocketed.
+  const seekAdjacentSegment = (direction: 'previous' | 'next') => {
+    const targetId = findAdjacentSegmentId(segments, activeSegmentId, direction);
+    if (targetId === null) return;
+    seekToSegment(targetId);
+    scrollSegmentToTop(targetId);
+  };
+  useMediaSession({
+    play: player.controls.play,
+    pause,
+    previoustrack: () => seekAdjacentSegment('previous'),
+    nexttrack: () => seekAdjacentSegment('next'),
+  });
   const restoredFocusSegmentRef = useRef<number | null>(null);
 
   // Restore the focused segment when returning from study or refreshing.

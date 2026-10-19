@@ -12,6 +12,7 @@ import { saveEpisodeFocusState } from '@/components/player/studyNavigation';
 import SegmentStatusControl from '@/components/SegmentStatusControl';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { audioEngine } from '@/lib/audio/audioEngine';
+import { useMediaSession } from '@/hooks/useMediaSession';
 import { segmentStartSec } from '@/components/player/segmentUtils';
 import { useStudyKeyboardShortcuts } from '@/components/player/useStudyKeyboardShortcuts';
 
@@ -199,6 +200,11 @@ export default function StudyScreen({
       playFromSegmentStart();
     }
   }, [isPlaying, stopPlayback, playFromSegmentStart]);
+
+  // OS media controls. Play must restart the segment: after a stop boundary
+  // the engine rewinds to the file start, so the element's default play
+  // action would play the episode from 0:00 up to this segment's end.
+  useMediaSession({ play: playFromSegmentStart, pause: stopPlayback });
 
   const toggleLoop = useCallback(() => setIsLooping((prev) => !prev), []);
   const navigate = useCallback((href: string) => router.push(href), [router]);
