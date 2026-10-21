@@ -10,7 +10,6 @@ export type UseAudioEngineReturn = {
   currentTime: number;
   durationSec: number;
   error: string | null;
-  workletReady: boolean;
   controls: {
     play: (startSec?: number) => void;
     pause: () => void;
@@ -27,7 +26,6 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
   const [currentTime, setCurrentTime] = useState(audioEngine.currentTime);
   const [durationSec, setDurationSec] = useState(audioEngine.duration);
   const [error, setError] = useState<string | null>(audioEngine.error);
-  const [workletReady, setWorkletReady] = useState(audioEngine.workletReady);
   const rafRef = useRef<number | null>(null);
 
   // Subscribe to engine state changes
@@ -38,7 +36,6 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
       setCurrentTime(audioEngine.currentTime);
       setDurationSec(audioEngine.duration);
       setError(audioEngine.error);
-      setWorkletReady(audioEngine.workletReady);
     });
     return unsubscribe;
   }, []);
@@ -87,10 +84,7 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
   }, [url]);
 
   const controls = {
-    play: useCallback((startSec?: number) => {
-      audioEngine.unlock();
-      audioEngine.play(startSec);
-    }, []),
+    play: useCallback((startSec?: number) => audioEngine.play(startSec), []),
     pause: useCallback(() => audioEngine.pause(), []),
     seek: useCallback((sec: number) => audioEngine.seek(sec), []),
     setPlaybackRate: useCallback((rate: number) => audioEngine.setPlaybackRate(rate), []),
@@ -102,7 +96,6 @@ export function useAudioEngine(url: string): UseAudioEngineReturn {
     currentTime,
     durationSec,
     error,
-    workletReady,
     controls,
   };
 }

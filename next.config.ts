@@ -6,9 +6,8 @@ import withSerwistInit from "@serwist/next";
 import { OFFLINE_SHELL_URL } from "./src/lib/offline/constants";
 
 // Passing `additionalPrecacheEntries` to @serwist/next REPLACES its default
-// public-folder scan (which precaches e.g. public/soundtouch-processor.js — the
-// pitch-correction worklet that offline speed control needs). To add the
-// /offline shell without dropping those, replicate that scan here: glob the
+// public-folder scan (which precaches the icons and other public/ assets). To
+// add the /offline shell without dropping those, replicate that scan here: glob the
 // public dir (minus the generated worker outputs Serwist itself excludes) and
 // hash each file for its revision, exactly as the default does.
 function publicFolderPrecacheEntries(): { url: string; revision: string }[] {

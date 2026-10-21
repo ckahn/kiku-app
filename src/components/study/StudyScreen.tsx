@@ -105,12 +105,6 @@ export default function StudyScreen({
     saveEpisodeFocusState({ episodeHref: backHref, segmentId: segment.id });
   }, [backHref, segment.id]);
 
-  // Eager-load the SoundTouch worklet so the speed selector is available
-  // before the user taps Play (unlock() is otherwise deferred to first play).
-  useEffect(() => {
-    void audioEngine.unlock();
-  }, []);
-
   // Reset playback rate to 1x when leaving the study screen — the rate is
   // stored on the singleton engine and should not bleed into the episode page.
   useEffect(() => {
@@ -189,7 +183,6 @@ export default function StudyScreen({
   const playFromSegmentStart = useCallback(() => {
     setErrorMessage(null);
     setIsPlaying(true);
-    audioEngine.unlock();
     audioEngine.play(segmentStartSec(segment));
   }, [segment]);
 
@@ -308,9 +301,8 @@ export default function StudyScreen({
               <button
                 type="button"
                 onClick={cyclePlaybackRate}
-                disabled={!engine.workletReady}
                 aria-label={`Playback speed: ${playbackRate}×`}
-                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md text-xs font-medium tabular-nums ${!engine.workletReady ? 'opacity-40 cursor-not-allowed text-muted' : playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
+                className={`${SEGMENT_ACTION_BUTTON_CLASS} rounded-md text-xs font-medium tabular-nums ${playbackRate !== 1 ? 'bg-primary-subtle text-primary' : 'text-muted hover:text-ink hover:bg-muted/20'}`}
               >
                 {playbackRate}×
               </button>

@@ -19,8 +19,7 @@ the Claude version:
 - **`docs/kiku-app-plan.md` no longer exists** (`docs/` is empty). The real
   prompts live in `src/lib/api/claude.ts` and `src/lib/api/study-guide-provider.ts`.
 - Playback is a native `<audio>` element fed from a one-time full download
-  (`MediaElementEngine`), with the Web Audio `AudioEngine` as a switchable
-  fallback (see the `player-state-model` skill).
+  (`AudioEngine`; see the `player-state-model` skill).
 
 ## Who drives the pipeline — critical, non-obvious
 

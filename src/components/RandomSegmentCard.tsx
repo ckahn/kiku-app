@@ -67,7 +67,6 @@ export default function RandomSegmentCard({ initialSegment }: RandomSegmentCardP
   }, [segment.endMs]);
 
   function startPlayback() {
-    audioEngine.unlock();
     setIsPlaying(true);
     if (audioEngine.status === 'ready') {
       audioEngine.play(segmentStartSec(segment));

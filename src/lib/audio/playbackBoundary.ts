@@ -1,9 +1,8 @@
 // A time-domain limit on playback, enforced by the engine rather than by a
 // React effect. A hidden page (a locked phone screen) stops being serviced
 // requestAnimationFrame, so anything that watches currentTime from React
-// silently stops firing while audio keeps playing. The Web Audio engine uses
-// native loopStart/loopEnd and a scheduled stop(); the media-element engine
-// uses timers, which Chrome keeps running in audible tabs. The engine knows
+// silently stops firing while audio keeps playing. The engine uses timers
+// instead, which Chrome keeps running in audible tabs. The engine knows
 // nothing about segments — callers project their loop state down to seconds.
 export type PlaybackBoundary =
   | { readonly kind: 'loop'; readonly startSec: number; readonly endSec: number }

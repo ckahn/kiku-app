@@ -1,6 +1,6 @@
 // Media Session wiring: the OS media notification, lock-screen controls and
-// headphone buttons. Only meaningful with the media-element engine — the OS
-// attaches these controls to a playing media element, not to Web Audio.
+// headphone buttons. The OS attaches these controls to the audio engine's
+// playing <audio> element.
 
 export const MEDIA_SESSION_ACTIONS = ['play', 'pause', 'previoustrack', 'nexttrack'] as const;
 
