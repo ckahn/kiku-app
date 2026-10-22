@@ -139,7 +139,6 @@ export function usePlayer(segments: readonly PlayerSegment[], durationMs: number
   const controls: PlayerControls = {
     play: useCallback(() => {
       setPlaybackError(null);
-      audioEngine.unlock();
       audioEngine.play();
     }, []),
 
@@ -148,7 +147,6 @@ export function usePlayer(segments: readonly PlayerSegment[], durationMs: number
     }, []),
 
     toggle: useCallback(() => {
-      audioEngine.unlock();
       if (stateRef.current.isPlaying) {
         audioEngine.pause();
       } else {

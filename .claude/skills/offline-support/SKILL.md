@@ -272,8 +272,7 @@ source of truth, imported by both `src/app/sw.ts` and `next.config.ts`.
   **Gotcha:** `additionalPrecacheEntries` **replaces** @serwist/next's default
   public-folder scan, so `next.config.ts` replicates that scan (glob `public/**`,
   md5 revision per file, minus the generated `sw*`/`swe-worker*` outputs) —
-  otherwise `public/soundtouch-processor.js` drops out of the precache and
-  offline speed control breaks.
+  otherwise the icons and other `public/` assets drop out of the precache.
 - In-app `<Link>` navigations offline fail their `?_rsc=` fetch; Next hard-nav's
   on failure → the SW catches the resulting document navigation → shell.
 
