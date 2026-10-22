@@ -33,6 +33,8 @@ export function findActiveSegmentId(
   return null;
 }
 
+export type SegmentDirection = 'previous' | 'next';
+
 /**
  * Find the segment before or after the given one, in playback order. Stays on
  * the first/last segment at the edges; with no current segment, returns the
@@ -41,7 +43,7 @@ export function findActiveSegmentId(
 export function findAdjacentSegmentId(
   segments: readonly PlayerSegment[],
   segmentId: number | null,
-  direction: 'previous' | 'next',
+  direction: SegmentDirection,
 ): number | null {
   const sorted = [...segments].sort((a, b) => a.startMs - b.startMs);
   if (sorted.length === 0) return null;

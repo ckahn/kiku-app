@@ -2,6 +2,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AudioEngine } from './audioEngine';
 
+const AUDIO_URL = '/api/episodes/1/audio';
+
 // ---------------------------------------------------------------------------
 // Fake <audio> element. jsdom does not implement media playback, so the
 // engine takes an element factory and the tests drive the clock by hand.
@@ -60,7 +62,7 @@ function okResponse() {
 
 let objectUrlCount = 0;
 
-async function loadReady(engine: AudioEngine, audio: FakeAudio, url = '/api/episodes/1/audio', duration = 10) {
+async function loadReady(engine: AudioEngine, audio: FakeAudio, url = AUDIO_URL, duration = 10) {
   const previousSrc = audio.src;
   const loading = engine.load(url);
   // Let fetch + blob resolve so the engine attaches the new src and starts
@@ -102,7 +104,7 @@ describe('AudioEngine', () => {
       await loadReady(engine, audio);
 
       expect(fetch).toHaveBeenCalledTimes(1);
-      expect(fetch).toHaveBeenCalledWith('/api/episodes/1/audio');
+      expect(fetch).toHaveBeenCalledWith(AUDIO_URL);
       expect(audio.src).toBe('blob:fake/1');
       expect(engine.status).toBe('ready');
       expect(engine.duration).toBe(10);
@@ -116,13 +118,13 @@ describe('AudioEngine', () => {
 
     it('is a no-op when the same URL is already ready', async () => {
       await loadReady(engine, audio);
-      await engine.load('/api/episodes/1/audio');
+      await engine.load(AUDIO_URL);
       expect(fetch).toHaveBeenCalledTimes(1);
     });
 
     it('is a no-op when the same URL is already loading', async () => {
-      const first = engine.load('/api/episodes/1/audio');
-      const second = engine.load('/api/episodes/1/audio');
+      const first = engine.load(AUDIO_URL);
+      const second = engine.load(AUDIO_URL);
       await vi.waitFor(() => expect(audio.src).not.toBe(''));
       audio.resolveMetadata();
       await Promise.all([first, second]);
@@ -130,7 +132,7 @@ describe('AudioEngine', () => {
     });
 
     it('revokes the previous object URL when a different file is loaded', async () => {
-      await loadReady(engine, audio, '/api/episodes/1/audio');
+      await loadReady(engine, audio, AUDIO_URL);
       await loadReady(engine, audio, '/api/episodes/2/audio', 30);
 
       expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake/1');
@@ -140,13 +142,13 @@ describe('AudioEngine', () => {
 
     it('reports an error when the fetch is not ok', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response);
-      await engine.load('/api/episodes/1/audio');
+      await engine.load(AUDIO_URL);
       expect(engine.status).toBe('error');
       expect(engine.error).toBe('Audio fetch failed: 404');
     });
 
     it('reports an error when the element cannot decode the file', async () => {
-      const loading = engine.load('/api/episodes/1/audio');
+      const loading = engine.load(AUDIO_URL);
       await vi.waitFor(() => expect(audio.src).not.toBe(''));
       audio.fire('error');
       await loading;
@@ -155,7 +157,7 @@ describe('AudioEngine', () => {
     });
 
     it('applies a seek requested before the file was ready', async () => {
-      const loading = engine.load('/api/episodes/1/audio');
+      const loading = engine.load(AUDIO_URL);
       engine.seek(4);
       await vi.waitFor(() => expect(audio.src).not.toBe(''));
       audio.resolveMetadata();

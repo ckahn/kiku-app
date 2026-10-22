@@ -8,7 +8,7 @@ import AudioPlayer from './AudioPlayer';
 import SegmentList from '@/components/SegmentList';
 import { saveEpisodeFocusState, loadEpisodeFocusState } from './studyNavigation';
 import { scrollSegmentToTop } from './scrollSegment';
-import { findActiveSegmentId, findAdjacentSegmentId } from './segmentUtils';
+import { findActiveSegmentId, findAdjacentSegmentId, type SegmentDirection } from './segmentUtils';
 import { useMediaSession } from '@/hooks/useMediaSession';
 import { useManualScrollRestoration } from './useManualScrollRestoration';
 
@@ -63,7 +63,7 @@ export default function EpisodePlayer({
   // OS media controls (notification, lock screen, headphones). Previous/next
   // step by segment; while looping, that moves the loop to the new segment,
   // which is how a sentence-by-sentence drill works with the phone pocketed.
-  const seekAdjacentSegment = (direction: 'previous' | 'next') => {
+  const seekAdjacentSegment = (direction: SegmentDirection) => {
     const targetId = findAdjacentSegmentId(segments, activeSegmentId, direction);
     if (targetId === null) return;
     seekToSegment(targetId);
