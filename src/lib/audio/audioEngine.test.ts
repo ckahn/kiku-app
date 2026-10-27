@@ -2,140 +2,93 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AudioEngine } from './audioEngine';
 
+const AUDIO_URL = '/api/episodes/1/audio';
+
 // ---------------------------------------------------------------------------
-// SoundTouchNode mock
+// Fake <audio> element. jsdom does not implement media playback, so the
+// engine takes an element factory and the tests drive the clock by hand.
 // ---------------------------------------------------------------------------
 
-interface MockPitchNode {
-  playbackRate: { value: number };
-  connect: ReturnType<typeof vi.fn>;
-  disconnect: ReturnType<typeof vi.fn>;
-}
+class FakeAudio extends EventTarget {
+  currentTime = 0;
+  duration = Number.NaN;
+  paused = true;
+  playbackRate = 1;
+  preservesPitch = false;
+  preload = '';
+  src = '';
+  playResult: Promise<void> = Promise.resolve();
 
-const soundTouchMock = vi.hoisted(() => {
-  const instances: MockPitchNode[] = [];
-  return {
-    instances,
-    clear() { instances.length = 0; },
-    last(): MockPitchNode | null { return instances.at(-1) ?? null; },
-  };
-});
+  play = vi.fn(() => {
+    this.paused = false;
+    this.dispatchEvent(new Event('play'));
+    return this.playResult;
+  });
 
-vi.mock('@soundtouchjs/audio-worklet', () => {
-  function MockSoundTouchNode(this: MockPitchNode) {
-    this.playbackRate = { value: 1 };
-    this.connect = vi.fn();
-    this.disconnect = vi.fn();
-    soundTouchMock.instances.push(this);
+  pause = vi.fn(() => {
+    if (this.paused) return;
+    this.paused = true;
+    this.dispatchEvent(new Event('pause'));
+  });
+
+  removeAttribute = vi.fn((name: string) => {
+    if (name === 'src') this.src = '';
+  });
+
+  load = vi.fn();
+
+  fire(type: string) {
+    this.dispatchEvent(new Event(type));
   }
-  (MockSoundTouchNode as unknown as { register: ReturnType<typeof vi.fn> }).register =
-    vi.fn().mockResolvedValue(undefined);
-  return { SoundTouchNode: MockSoundTouchNode };
-});
 
-// ---------------------------------------------------------------------------
-// Web Audio API mocks
-// ---------------------------------------------------------------------------
+  // Simulates the browser finishing metadata parsing for the current src.
+  resolveMetadata(duration = 10) {
+    this.duration = duration;
+    this.fire('loadedmetadata');
+  }
 
-function makeMockAudioBuffer(duration = 10): AudioBuffer {
-  return {
-    duration,
-    length: duration * 44100,
-    sampleRate: 44100,
-    numberOfChannels: 1,
-  } as unknown as AudioBuffer;
+  // Simulates playback reaching the natural end of the file.
+  playToEnd() {
+    this.currentTime = this.duration;
+    this.paused = true;
+    this.fire('pause');
+    this.fire('ended');
+  }
 }
 
-interface MockSourceNode {
-  buffer: AudioBuffer | null;
-  playbackRate: { value: number };
-  loop: boolean;
-  loopStart: number;
-  loopEnd: number;
-  connect: ReturnType<typeof vi.fn>;
-  start: ReturnType<typeof vi.fn>;
-  stop: ReturnType<typeof vi.fn>;
-  onended: ((e: Event) => void) | null;
-  _fireEnded: () => void;
+function okResponse() {
+  return { ok: true, status: 200, blob: vi.fn().mockResolvedValue(new Blob(['x'])) };
 }
 
-function makeMockSourceNode(): MockSourceNode {
-  const node: MockSourceNode = {
-    buffer: null,
-    playbackRate: { value: 1 },
-    loop: false,
-    loopStart: 0,
-    loopEnd: 0,
-    connect: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
-    onended: null,
-    _fireEnded() {
-      node.onended?.(new Event('ended'));
-    },
-  };
-  return node;
-}
+let objectUrlCount = 0;
 
-interface MockAudioContext {
-  currentTime: number;
-  state: AudioContextState;
-  destination: Record<string, never>;
-  audioWorklet: { addModule: ReturnType<typeof vi.fn> };
-  resume: ReturnType<typeof vi.fn>;
-  createBufferSource: ReturnType<typeof vi.fn>;
-  decodeAudioData: ReturnType<typeof vi.fn>;
-  _advance: (sec: number) => void;
-  _lastSource: () => MockSourceNode;
+async function loadReady(engine: AudioEngine, audio: FakeAudio, url = AUDIO_URL, duration = 10) {
+  const previousSrc = audio.src;
+  const loading = engine.load(url);
+  // Let fetch + blob resolve so the engine attaches the new src and starts
+  // waiting for metadata.
+  await vi.waitFor(() => expect(audio.src).not.toBe(previousSrc));
+  audio.resolveMetadata(duration);
+  await loading;
 }
-
-function makeMockAudioContext(bufferDuration = 10): MockAudioContext {
-  let time = 0;
-  const sources: MockSourceNode[] = [];
-  const ctx: MockAudioContext = {
-    get currentTime() { return time; },
-    state: 'running' as AudioContextState,
-    destination: {},
-    audioWorklet: { addModule: vi.fn().mockResolvedValue(undefined) },
-    resume: vi.fn().mockResolvedValue(undefined),
-    createBufferSource: vi.fn(() => {
-      const node = makeMockSourceNode();
-      sources.push(node);
-      return node;
-    }),
-    decodeAudioData: vi.fn().mockResolvedValue(makeMockAudioBuffer(bufferDuration)),
-    _advance(sec: number) { time += sec; },
-    _lastSource() { return sources[sources.length - 1]; },
-  };
-  return ctx;
-}
-
-function makeOkFetchResponse(bufferBytes = new ArrayBuffer(8)) {
-  return {
-    ok: true,
-    arrayBuffer: vi.fn().mockResolvedValue(bufferBytes),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('AudioEngine', () => {
+  let audio: FakeAudio;
   let engine: AudioEngine;
-  let mockCtx: MockAudioContext;
-  let CtorMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    soundTouchMock.clear();
-    engine = new AudioEngine();
-    mockCtx = makeMockAudioContext();
-    CtorMock = vi.fn(function () { return mockCtx; });
-    vi.stubGlobal('AudioContext', CtorMock);
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeOkFetchResponse()));
+    objectUrlCount = 0;
+    audio = new FakeAudio();
+    engine = new AudioEngine(() => audio as unknown as HTMLAudioElement);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse()));
+    vi.stubGlobal('URL', Object.assign(Object.create(URL), {
+      createObjectURL: vi.fn(() => `blob:fake/${++objectUrlCount}`),
+      revokeObjectURL: vi.fn(),
+    }));
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -144,840 +97,305 @@ describe('AudioEngine', () => {
   // -------------------------------------------------------------------------
 
   describe('load()', () => {
-    it('transitions idle → loading → ready and notifies subscribers', async () => {
+    it('fetches the file once, plays it from an object URL, and becomes ready', async () => {
       const statuses: string[] = [];
       engine.subscribe(() => statuses.push(engine.status));
 
-      await engine.load('/audio/ep1.mp3');
+      await loadReady(engine, audio);
 
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(fetch).toHaveBeenCalledWith(AUDIO_URL);
+      expect(audio.src).toBe('blob:fake/1');
+      expect(engine.status).toBe('ready');
+      expect(engine.duration).toBe(10);
       expect(statuses).toEqual(['loading', 'ready']);
-      expect(engine.status).toBe('ready');
-      expect(engine.duration).toBe(10);
-      expect(engine.error).toBeNull();
     });
 
-    it('is a no-op when called again with the same URL while ready', async () => {
-      await engine.load('/audio/ep1.mp3');
-      const fetchCallsBefore = vi.mocked(fetch).mock.calls.length;
-
-      await engine.load('/audio/ep1.mp3');
-
-      expect(vi.mocked(fetch).mock.calls.length).toBe(fetchCallsBefore);
-      expect(engine.status).toBe('ready');
+    it('keeps the browser pitch correction on', async () => {
+      await loadReady(engine, audio);
+      expect(audio.preservesPitch).toBe(true);
     });
 
-    it('is a no-op when called again with the same URL while already loading', async () => {
-      let resolveDecodeFirst!: (b: AudioBuffer) => void;
-      const slowCtx = makeMockAudioContext();
-      slowCtx.decodeAudioData = vi.fn().mockReturnValue(
-        new Promise<AudioBuffer>((resolve) => { resolveDecodeFirst = resolve; }),
-      );
-      vi.stubGlobal('AudioContext', vi.fn(function () { return slowCtx; }));
-
-      const firstLoad = engine.load('/audio/ep1.mp3');
-      const secondLoad = engine.load('/audio/ep1.mp3'); // same URL — no-op
-
-      expect(engine.status).toBe('loading');
-      expect(vi.mocked(fetch).mock.calls.length).toBe(1);
-
-      resolveDecodeFirst(makeMockAudioBuffer());
-      await Promise.all([firstLoad, secondLoad]);
-
-      expect(engine.status).toBe('ready');
+    it('is a no-op when the same URL is already ready', async () => {
+      await loadReady(engine, audio);
+      await engine.load(AUDIO_URL);
+      expect(fetch).toHaveBeenCalledTimes(1);
     });
 
-    it('evicts the previous buffer when a different URL is loaded', async () => {
-      await engine.load('/audio/ep1.mp3');
-      expect(engine.duration).toBe(10);
+    it('is a no-op when the same URL is already loading', async () => {
+      const first = engine.load(AUDIO_URL);
+      const second = engine.load(AUDIO_URL);
+      await vi.waitFor(() => expect(audio.src).not.toBe(''));
+      audio.resolveMetadata();
+      await Promise.all([first, second]);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
 
-      mockCtx.decodeAudioData.mockResolvedValue(makeMockAudioBuffer(30));
-      await engine.load('/audio/ep2.mp3');
+    it('revokes the previous object URL when a different file is loaded', async () => {
+      await loadReady(engine, audio, AUDIO_URL);
+      await loadReady(engine, audio, '/api/episodes/2/audio', 30);
 
-      expect(engine.status).toBe('ready');
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake/1');
+      expect(audio.src).toBe('blob:fake/2');
       expect(engine.duration).toBe(30);
     });
 
-    it('sets status to error when fetch returns non-ok', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404, arrayBuffer: vi.fn() }));
-      engine.unlock(); // create context first so the error is from fetch, not from missing context
-
-      await engine.load('/audio/missing.mp3');
-
+    it('reports an error when the fetch is not ok', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response);
+      await engine.load(AUDIO_URL);
       expect(engine.status).toBe('error');
-      expect(engine.error).toMatch('404');
+      expect(engine.error).toBe('Audio fetch failed: 404');
     });
 
-    it('sets status to error when decodeAudioData rejects', async () => {
-      engine.unlock();
-      mockCtx.decodeAudioData.mockRejectedValue(new Error('corrupt audio data'));
-
-      await engine.load('/audio/bad.mp3');
-
+    it('reports an error when the element cannot decode the file', async () => {
+      const loading = engine.load(AUDIO_URL);
+      await vi.waitFor(() => expect(audio.src).not.toBe(''));
+      audio.fire('error');
+      await loading;
       expect(engine.status).toBe('error');
-      expect(engine.error).toBe('corrupt audio data');
+      expect(engine.error).toMatch(/could not be decoded/i);
     });
 
-    it('ignores a stale load result when superseded by a newer URL', async () => {
-      let resolveFirst!: (b: AudioBuffer) => void;
-      const slowCtx = makeMockAudioContext();
-      let callCount = 0;
-      slowCtx.decodeAudioData = vi.fn().mockImplementation(() => {
-        callCount++;
-        if (callCount === 1) {
-          return new Promise<AudioBuffer>((resolve) => { resolveFirst = resolve; });
-        }
-        return Promise.resolve(makeMockAudioBuffer(5));
-      });
-      vi.stubGlobal('AudioContext', vi.fn(function () { return slowCtx; }));
-      engine = new AudioEngine();
-      engine.unlock();
-
-      const first = engine.load('/audio/ep1.mp3');
-      // ep2 starts and finishes before ep1
-      await engine.load('/audio/ep2.mp3');
-      expect(engine.duration).toBe(5);
-
-      // Now let the slow ep1 decode finish — should be ignored
-      resolveFirst(makeMockAudioBuffer(99));
-      await first;
-
-      expect(engine.duration).toBe(5);
-      expect(engine.status).toBe('ready');
+    it('applies a seek requested before the file was ready', async () => {
+      const loading = engine.load(AUDIO_URL);
+      engine.seek(4);
+      await vi.waitFor(() => expect(audio.src).not.toBe(''));
+      audio.resolveMetadata();
+      await loading;
+      expect(audio.currentTime).toBe(4);
     });
   });
 
   // -------------------------------------------------------------------------
-  // play() / pause()
+  // play / pause / seek
   // -------------------------------------------------------------------------
 
-  describe('play() and pause()', () => {
+  describe('playback', () => {
     beforeEach(async () => {
-      engine.unlock();
-      await engine.load('/audio/ep1.mp3');
+      await loadReady(engine, audio);
     });
 
-    it('starts playback from offset 0 by default', () => {
-      engine.play();
-
-      expect(engine.isPlaying).toBe(true);
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 0);
-    });
-
-    it('starts playback from the given startSec', () => {
-      engine.play(3);
-
-      expect(engine.isPlaying).toBe(true);
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 3);
-    });
-
-    it('clamps startSec below 0 to 0', () => {
-      engine.play(-5);
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 0);
-    });
-
-    it('clamps startSec above duration to duration', () => {
-      engine.play(999);
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 10);
-    });
-
-    it('applies the current playbackRate to the source node', () => {
-      engine.setPlaybackRate(0.5);
-      engine.play();
-
-      expect(mockCtx._lastSource().playbackRate.value).toBe(0.5);
-    });
-
-    it('notifies subscribers when playback starts', () => {
-      const fn = vi.fn();
-      engine.subscribe(fn);
-      engine.play();
-      expect(fn).toHaveBeenCalled();
-    });
-
-    it('is a no-op when no buffer is loaded', () => {
-      const fresh = new AudioEngine();
-      fresh.unlock();
-      expect(() => fresh.play()).not.toThrow();
+    it('does nothing before a file is ready', () => {
+      const fresh = new AudioEngine(() => new FakeAudio() as unknown as HTMLAudioElement);
+      fresh.play(2);
       expect(fresh.isPlaying).toBe(false);
     });
 
-    it('surfaces error via engine.error when source.start() throws (e.g. iOS autoplay block)', () => {
-      mockCtx.createBufferSource = vi.fn(() => {
-        const node = makeMockSourceNode();
-        node.start = vi.fn(() => { throw new Error('InvalidStateError'); });
-        return node;
-      });
-
-      engine.play();
-
-      expect(engine.isPlaying).toBe(false);
-      expect(engine.error).toBe('InvalidStateError');
-    });
-
-    it('pause() records current position and stops playback', () => {
-      engine.play(2);
-      mockCtx._advance(3); // 3s real time at 1× = 3s audio advance
-
-      engine.pause();
-
-      expect(engine.isPlaying).toBe(false);
-      expect(engine.currentTime).toBeCloseTo(5); // 2 start + 3 elapsed
-    });
-
-    it('pause() is a no-op when already paused', () => {
-      const fn = vi.fn();
-      engine.subscribe(fn);
-      fn.mockClear();
-
-      engine.pause();
-
-      expect(fn).not.toHaveBeenCalled();
-    });
-
-    it('resumes from the saved position after pause', () => {
-      engine.play(2);
-      mockCtx._advance(3);
-      engine.pause();
-
-      engine.play();
-
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 5);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // seek()
-  // -------------------------------------------------------------------------
-
-  describe('seek()', () => {
-    beforeEach(async () => {
-      engine.unlock();
-      await engine.load('/audio/ep1.mp3');
-    });
-
-    it('updates position while paused without creating a source node', () => {
-      const createsBefore = vi.mocked(mockCtx.createBufferSource).mock.calls.length;
-      engine.seek(4);
-
-      expect(engine.currentTime).toBe(4);
-      expect(vi.mocked(mockCtx.createBufferSource).mock.calls.length).toBe(createsBefore);
-    });
-
-    it('restarts from the new position while playing', () => {
-      engine.play();
-      engine.seek(6);
-
+    it('play(startSec) seeks then plays', () => {
+      engine.play(3);
+      expect(audio.currentTime).toBe(3);
+      expect(audio.play).toHaveBeenCalled();
       expect(engine.isPlaying).toBe(true);
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 6);
-    });
-
-    it('clamps below 0 to 0', () => {
-      engine.seek(-1);
-      expect(engine.currentTime).toBe(0);
-    });
-
-    it('clamps above duration to duration', () => {
-      engine.seek(100);
-      expect(engine.currentTime).toBe(10);
-    });
-
-    it('is a no-op when no buffer is loaded', () => {
-      const fresh = new AudioEngine();
-      expect(() => fresh.seek(5)).not.toThrow();
-    });
-
-    it('pending seek applied to startOffset when buffer finishes loading', async () => {
-      // Simulates: user refreshes, restore effect calls seekToSegment before buffer loads
-      const fresh = new AudioEngine();
-      fresh.unlock();
-
-      let resolveLoad!: (b: AudioBuffer) => void;
-      mockCtx.decodeAudioData = vi.fn().mockReturnValue(
-        new Promise<AudioBuffer>((resolve) => { resolveLoad = resolve; }),
-      );
-
-      const loadPromise = fresh.load('/audio/ep1.mp3');
-      // Buffer not ready yet — seek should queue rather than no-op
-      fresh.seek(4);
-      expect(fresh.currentTime).toBe(0); // engine doesn't know position yet
-
-      // Now let the buffer finish loading
-      resolveLoad(makeMockAudioBuffer(10));
-      await loadPromise;
-
-      // startOffset should now reflect the queued seek
-      expect(fresh.currentTime).toBe(4);
-    });
-
-    it('seek while playing still works normally after a previous pending seek', async () => {
-      engine.play(2);
-      engine.seek(6);
-
-      expect(engine.isPlaying).toBe(true);
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 6);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // setPlaybackRate()
-  // -------------------------------------------------------------------------
-
-  describe('setPlaybackRate()', () => {
-    beforeEach(async () => {
-      engine.unlock();
-      await engine.load('/audio/ep1.mp3');
-    });
-
-    it('while playing: restarts at current audio position with the new rate', () => {
-      engine.play(2);
-      mockCtx._advance(2); // 2s real at 1× = position 4
-
-      engine.setPlaybackRate(0.5);
-
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 4);
-      expect(mockCtx._lastSource().playbackRate.value).toBe(0.5);
-    });
-
-    it('while paused: stores the rate without creating a source node', () => {
-      const createsBefore = vi.mocked(mockCtx.createBufferSource).mock.calls.length;
-      engine.setPlaybackRate(0.75);
-
-      expect(vi.mocked(mockCtx.createBufferSource).mock.calls.length).toBe(createsBefore);
-
-      engine.play(0);
-      expect(mockCtx._lastSource().playbackRate.value).toBe(0.75);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // currentTime getter
-  // -------------------------------------------------------------------------
-
-  describe('currentTime', () => {
-    beforeEach(async () => {
-      engine.unlock();
-      await engine.load('/audio/ep1.mp3');
-    });
-
-    it('returns startOffset when paused', () => {
-      engine.seek(3);
       expect(engine.currentTime).toBe(3);
     });
 
-    it('accounts for elapsed real time at 1× speed', () => {
+    it('play() with no argument resumes from the current position', () => {
+      audio.currentTime = 6;
+      engine.play();
+      expect(audio.currentTime).toBe(6);
+    });
+
+    it('clamps a start position to the file duration', () => {
+      engine.play(99);
+      expect(audio.currentTime).toBe(10);
+    });
+
+    it('pause() pauses the element and keeps the position', () => {
+      engine.play(3);
+      audio.currentTime = 4;
+      engine.pause();
+      expect(audio.pause).toHaveBeenCalled();
+      expect(engine.isPlaying).toBe(false);
+      expect(engine.currentTime).toBe(4);
+    });
+
+    it('seek() while paused moves the position without playing', () => {
+      engine.seek(5);
+      expect(audio.currentTime).toBe(5);
+      expect(audio.play).not.toHaveBeenCalled();
+    });
+
+    it('seek() while playing keeps playing from the new position', () => {
       engine.play(1);
-      mockCtx._advance(2.5);
-      expect(engine.currentTime).toBeCloseTo(3.5);
+      engine.seek(7);
+      expect(audio.currentTime).toBe(7);
+      expect(engine.isPlaying).toBe(true);
     });
 
-    it('accounts for elapsed real time at 0.5× speed', () => {
-      engine.setPlaybackRate(0.5);
-      engine.play(0);
-      mockCtx._advance(4); // 4s real × 0.5 = 2s audio
-      expect(engine.currentTime).toBeCloseTo(2);
+    it('restartAtZero() stops and rewinds', () => {
+      engine.play(5);
+      engine.restartAtZero();
+      expect(engine.isPlaying).toBe(false);
+      expect(audio.currentTime).toBe(0);
     });
 
-    it('accounts for elapsed real time at 2× speed', () => {
-      engine.setPlaybackRate(2);
+    it('surfaces a rejected play() as an error', async () => {
+      audio.playResult = Promise.reject(new DOMException('blocked', 'NotAllowedError'));
       engine.play(0);
-      mockCtx._advance(3); // 3s real × 2 = 6s audio
-      expect(engine.currentTime).toBeCloseTo(6);
+      await vi.waitFor(() => expect(engine.error).toBe('blocked'));
+      expect(engine.isPlaying).toBe(false);
+    });
+
+    it('ignores the AbortError from a play() interrupted by pause()', async () => {
+      audio.playResult = Promise.reject(new DOMException('interrupted', 'AbortError'));
+      engine.play(0);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(engine.error).toBeNull();
+    });
+
+    it('setPlaybackRate() applies to the element', () => {
+      engine.setPlaybackRate(0.75);
+      expect(audio.playbackRate).toBe(0.75);
+      expect(audio.preservesPitch).toBe(true);
     });
   });
 
   // -------------------------------------------------------------------------
-  // onended discrimination: natural end vs explicit stop
+  // External state changes (notification controls, headphones, audio focus)
   // -------------------------------------------------------------------------
 
-  describe('onended discrimination', () => {
+  describe('external element events', () => {
     beforeEach(async () => {
-      engine.unlock();
-      await engine.load('/audio/ep1.mp3');
+      await loadReady(engine, audio);
     });
 
-    it('fires general and end subscribers on natural file end', () => {
-      const general = vi.fn();
-      const end = vi.fn();
-      engine.subscribe(general);
-      engine.subscribeToEnd(end);
-      engine.play();
-      general.mockClear();
-
-      mockCtx._lastSource()._fireEnded();
-
+    it('tracks a pause that did not come from the engine', () => {
+      engine.play(1);
+      const listener = vi.fn();
+      engine.subscribe(listener);
+      audio.pause();
       expect(engine.isPlaying).toBe(false);
-      expect(general).toHaveBeenCalled();
-      expect(end).toHaveBeenCalled();
+      expect(listener).toHaveBeenCalled();
     });
 
-    it('does NOT fire end subscribers when pause() stops the source', () => {
-      const end = vi.fn();
-      engine.subscribeToEnd(end);
-      engine.play();
-      const source = mockCtx._lastSource();
-
-      engine.pause();
-      // onended fires from the audio thread after stop() — the guard must reject it
-      source._fireEnded();
-
-      expect(end).not.toHaveBeenCalled();
+    it('tracks a play that did not come from the engine', () => {
+      audio.play();
+      expect(engine.isPlaying).toBe(true);
     });
 
-    it('does NOT fire end subscribers when a seek replaces the source', () => {
-      const end = vi.fn();
-      engine.subscribeToEnd(end);
-      engine.play(0);
-      const oldSource = mockCtx._lastSource();
-
-      engine.seek(5); // stops old source, creates a new one
-      oldSource._fireEnded();
-
-      expect(end).not.toHaveBeenCalled();
+    it('surfaces a media error during playback', () => {
+      engine.play(1);
+      audio.fire('error');
+      expect(engine.isPlaying).toBe(false);
+      expect(engine.error).toMatch(/playback failed/i);
     });
 
-    it('resets isPlaying and currentTime to 0 on natural end', () => {
-      engine.play(3);
-      mockCtx._lastSource()._fireEnded();
-
+    it('natural end rewinds to 0 and notifies end subscribers', () => {
+      const onEnd = vi.fn();
+      engine.subscribeToEnd(onEnd);
+      engine.play(9);
+      audio.playToEnd();
       expect(engine.isPlaying).toBe(false);
       expect(engine.currentTime).toBe(0);
+      expect(onEnd).toHaveBeenCalledTimes(1);
     });
   });
 
   // -------------------------------------------------------------------------
-  // subscribe / subscribeToEnd
+  // Boundaries
   // -------------------------------------------------------------------------
 
-  describe('subscribe()', () => {
-    it('notifies the subscriber on engine state changes', async () => {
-      engine.unlock();
-      const fn = vi.fn();
-      engine.subscribe(fn);
-
-      await engine.load('/audio/ep1.mp3');
-
-      expect(fn).toHaveBeenCalled();
-    });
-
-    it('stops notifying after the returned unsubscribe is called', async () => {
-      engine.unlock();
-      const fn = vi.fn();
-      const unsubscribe = engine.subscribe(fn);
-      unsubscribe();
-      fn.mockClear();
-
-      await engine.load('/audio/ep1.mp3');
-
-      expect(fn).not.toHaveBeenCalled();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // unlock()
-  // -------------------------------------------------------------------------
-
-  describe('unlock()', () => {
-    it('creates the AudioContext lazily on first call', () => {
-      const fresh = new AudioEngine();
-      expect(CtorMock).not.toHaveBeenCalled();
-      fresh.unlock();
-      expect(CtorMock).toHaveBeenCalledTimes(1);
-    });
-
-    it('workletReady is false before unlock() and true after it resolves', async () => {
-      const fresh = new AudioEngine();
-      expect(fresh.workletReady).toBe(false);
-      await fresh.unlock();
-      expect(fresh.workletReady).toBe(true);
-    });
-
-    it('notifies subscribers when the worklet finishes loading', async () => {
-      const fresh = new AudioEngine();
-      const fn = vi.fn();
-      fresh.subscribe(fn);
-      await fresh.unlock();
-      expect(fn).toHaveBeenCalled();
-    });
-
-    it('calls ctx.resume() when the context is suspended', () => {
-      mockCtx.state = 'suspended';
-      engine.unlock(); // creates context
-      expect(mockCtx.resume).toHaveBeenCalled();
-    });
-
-    it('does not call ctx.resume() when the context is already running', () => {
-      mockCtx.state = 'running';
-      engine.unlock();
-      expect(mockCtx.resume).not.toHaveBeenCalled();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // SoundTouch pitch correction
-  // -------------------------------------------------------------------------
-
-  describe('SoundTouch pitch correction', () => {
+  describe('boundaries', () => {
     beforeEach(async () => {
-      await engine.unlock();
-      await engine.load('/audio/ep1.mp3');
+      await loadReady(engine, audio);
+      vi.useFakeTimers();
     });
 
-    it('inserts a SoundTouch pitch node in the signal chain at non-1× speed', () => {
-      engine.setPlaybackRate(0.75);
-      engine.play(0);
-
-      const source = mockCtx._lastSource();
-      const pitchNode = soundTouchMock.last();
-      expect(pitchNode).not.toBeNull();
-      expect(pitchNode!.playbackRate.value).toBe(0.75);
-      expect(source.connect).toHaveBeenCalledWith(pitchNode);
-    });
-
-    it('connects source directly to destination at 1× speed (no pitch node)', () => {
-      engine.play(0);
-
-      expect(soundTouchMock.last()).toBeNull();
-      expect(mockCtx._lastSource().connect).toHaveBeenCalledWith(mockCtx.destination);
-    });
-
-    it('does not create a pitch node when the worklet has not loaded', async () => {
-      // load() creates the context but skips worklet loading (unlock() not called)
-      const fresh = new AudioEngine();
-      await fresh.load('/audio/ep1.mp3');
-      fresh.setPlaybackRate(0.5);
-
-      const instancesBefore = soundTouchMock.instances.length;
-      fresh.play(0);
-
-      expect(soundTouchMock.instances.length).toBe(instancesBefore);
-    });
-
-    it('disconnects the pitch node when pause() stops playback', () => {
-      engine.setPlaybackRate(0.75);
-      engine.play(0);
-      const pitchNode = soundTouchMock.last()!;
-
-      engine.pause();
-
-      expect(pitchNode.disconnect).toHaveBeenCalled();
-    });
-
-    it('disconnects the pitch node when seek() replaces the source', () => {
-      engine.setPlaybackRate(0.75);
-      engine.play(0);
-      const pitchNode = soundTouchMock.last()!;
-
-      engine.seek(5);
-
-      expect(pitchNode.disconnect).toHaveBeenCalled();
-    });
-
-    it('disconnects the pitch node on natural file end', () => {
-      engine.setPlaybackRate(0.75);
-      engine.play(0);
-      const pitchNode = soundTouchMock.last()!;
-
-      mockCtx._lastSource()._fireEnded();
-
-      expect(pitchNode.disconnect).toHaveBeenCalled();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // setBoundary() — playback boundary enforced on the audio rendering thread
-  // -------------------------------------------------------------------------
-
-  describe('setBoundary() — loop', () => {
-    beforeEach(async () => {
-      engine.unlock();
-      await engine.load('/audio/ep1.mp3'); // 10s buffer
-    });
-
-    it('applies the loop region to a source node created after the boundary is set', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-
+    it('wraps a loop back to its start when the end is reached', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 4 });
       engine.play(2);
 
-      const source = mockCtx._lastSource();
-      expect(source.loop).toBe(true);
-      expect(source.loopStart).toBe(2);
-      expect(source.loopEnd).toBe(5);
+      audio.currentTime = 4;
+      vi.advanceTimersByTime(2000);
+
+      expect(audio.currentTime).toBe(2);
+      expect(engine.isPlaying).toBe(true);
     });
 
-    it('mutates the live source in place without restarting playback', () => {
-      engine.play(0);
-      const source = mockCtx._lastSource();
-      const startCalls = mockCtx.createBufferSource.mock.calls.length;
-
-      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
-
-      expect(mockCtx.createBufferSource.mock.calls.length).toBe(startCalls);
-      expect(source.loop).toBe(true);
-      expect(source.loopStart).toBe(1);
-      expect(source.loopEnd).toBe(4);
-    });
-
-    it('re-applies the boundary to the new source after a seek', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 6 });
-      engine.play(2);
-
-      engine.seek(3);
-
-      const source = mockCtx._lastSource();
-      expect(source.loop).toBe(true);
-      expect(source.loopStart).toBe(2);
-      expect(source.loopEnd).toBe(6);
-    });
-
-    it('re-applies the boundary to the new source after a playback rate change', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 6 });
-      engine.play(2);
-
+    it('schedules the wrap from the remaining time, scaled by playback rate', () => {
       engine.setPlaybackRate(0.5);
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 4 });
+      engine.play(2);
 
-      const source = mockCtx._lastSource();
-      expect(source.loop).toBe(true);
-      expect(source.loopStart).toBe(2);
-      expect(source.loopEnd).toBe(6);
+      // 2s of media at 0.5x is 4s of wall time.
+      audio.currentTime = 3.9;
+      vi.advanceTimersByTime(3000);
+      expect(audio.currentTime).toBe(3.9);
+
+      audio.currentTime = 4;
+      vi.advanceTimersByTime(1000);
+      expect(audio.currentTime).toBe(2);
     });
 
-    it('clears looping on the live source when the boundary is removed', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
+    it('re-arms when a timer fires early instead of wrapping', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 4 });
+      engine.play(2);
+
+      // The element lagged (e.g. still finishing the seek), so the timer fires
+      // before the media clock reaches the end.
+      audio.currentTime = 3.5;
+      vi.advanceTimersByTime(2000);
+      expect(audio.currentTime).toBe(3.5);
+
+      audio.currentTime = 4;
+      vi.advanceTimersByTime(500);
+      expect(audio.currentTime).toBe(2);
+    });
+
+    it('wraps from timeupdate as a backup when a timer was throttled', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 4 });
+      engine.play(2);
+      audio.currentTime = 4.2;
+      audio.fire('timeupdate');
+      expect(audio.currentTime).toBe(2);
+    });
+
+    it('pulls a start at or past the loop end back to the loop start', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 4 });
+      engine.play(6);
+      expect(audio.currentTime).toBe(2);
+    });
+
+    it('jumps to the loop start when the range shrinks under the playhead', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 8 });
+      engine.play(6);
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 4 });
+      expect(audio.currentTime).toBe(2);
+    });
+
+    it('a stop boundary pauses, rewinds to 0, and notifies end subscribers', () => {
+      const onEnd = vi.fn();
+      engine.subscribeToEnd(onEnd);
+      engine.setBoundary({ kind: 'stop', endSec: 3 });
       engine.play(1);
-      const source = mockCtx._lastSource();
 
-      engine.setBoundary(null);
+      audio.currentTime = 3;
+      vi.advanceTimersByTime(2000);
 
-      expect(source.loop).toBe(false);
-    });
-
-    it('clamps loopEnd to the buffer duration', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 8, endSec: 30 });
-
-      engine.play(8);
-
-      expect(mockCtx._lastSource().loopEnd).toBe(10);
-    });
-
-    it('ignores a degenerate range where endSec is not after startSec', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 5, endSec: 5 });
-
-      engine.play(0);
-
-      expect(mockCtx._lastSource().loop).toBe(false);
-    });
-
-    it('restarts inside the range when the range shrinks under the playhead', () => {
-      engine.play(0);
-      mockCtx._advance(7); // playhead at 7s
-      const sourcesBefore = mockCtx.createBufferSource.mock.calls.length;
-
-      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
-
-      expect(mockCtx.createBufferSource.mock.calls.length).toBe(sourcesBefore + 1);
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 1);
-      expect(engine.currentTime).toBeCloseTo(1);
-    });
-
-    it('starts at the range start when play() is asked for a position past loopEnd', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
-
-      engine.play(8);
-
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 1);
-    });
-
-    it('does not touch the source when the engine is paused', () => {
-      engine.play(0);
-      engine.pause();
-      const sourcesBefore = mockCtx.createBufferSource.mock.calls.length;
-
-      engine.setBoundary({ kind: 'loop', startSec: 1, endSec: 4 });
-
-      expect(mockCtx.createBufferSource.mock.calls.length).toBe(sourcesBefore);
-    });
-  });
-
-  describe('currentTime under a loop boundary', () => {
-    beforeEach(async () => {
-      engine.unlock();
-      await engine.load('/audio/ep1.mp3');
-    });
-
-    // These assertions run with no subscriber, no React effect and no
-    // requestAnimationFrame in play — the wrap must hold on the engine alone,
-    // which is exactly the locked-screen case.
-    it('wraps back into the range after passing loopEnd', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-      engine.play(2);
-
-      mockCtx._advance(4); // raw position 6s, one wrap past loopEnd
-
-      expect(engine.currentTime).toBeCloseTo(3);
-    });
-
-    it('reports loopStart exactly at the wrap point', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-      engine.play(2);
-
-      mockCtx._advance(3);
-
-      expect(engine.currentTime).toBeCloseTo(2);
-    });
-
-    it('stays inside the range across many iterations', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-      engine.play(2);
-
-      mockCtx._advance(60); // 20 loop iterations while the screen is locked
-
-      const t = engine.currentTime;
-      expect(t).toBeGreaterThanOrEqual(2);
-      expect(t).toBeLessThan(5);
-      expect(t).toBeCloseTo(2);
-    });
-
-    it('wraps correctly at a reduced playback rate', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-      engine.setPlaybackRate(0.5);
-      engine.play(2);
-
-      mockCtx._advance(8); // 8s real × 0.5 = 4s audio → raw 6s
-
-      expect(engine.currentTime).toBeCloseTo(3);
-    });
-
-    it('wraps correctly when playback started before loopStart (segment pre-roll)', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-      engine.play(1.9); // 0.1s pre-roll ahead of the range
-
-      mockCtx._advance(3.1); // reaches loopEnd, then 0s past it
-      expect(engine.currentTime).toBeCloseTo(2);
-
-      mockCtx._advance(1);
-      expect(engine.currentTime).toBeCloseTo(3);
-    });
-
-    it('does not wrap before the playhead reaches loopEnd', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-      engine.play(2);
-
-      mockCtx._advance(2.5);
-
-      expect(engine.currentTime).toBeCloseTo(4.5);
-    });
-
-    it('pause() records the wrapped position, not the raw elapsed one', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-      engine.play(2);
-      mockCtx._advance(4);
-
-      engine.pause();
-
-      expect(engine.currentTime).toBeCloseTo(3);
-    });
-
-    it('keeps reporting a continuous position after the loop is cleared mid-playback', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-      engine.play(2);
-      mockCtx._advance(4); // wrapped position 3s
-
-      engine.setBoundary(null);
-      mockCtx._advance(1);
-
-      expect(engine.currentTime).toBeCloseTo(4);
-    });
-
-    it('rebases the clock when one loop range replaces another mid-playback', () => {
-      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 5 });
-      engine.play(2);
-      mockCtx._advance(4); // wrapped position 3s
-
-      engine.setBoundary({ kind: 'loop', startSec: 0, endSec: 8 });
-      mockCtx._advance(1);
-
-      expect(engine.currentTime).toBeCloseTo(4);
-    });
-  });
-
-  describe('setBoundary() — stop', () => {
-    beforeEach(async () => {
-      engine.unlock();
-      await engine.load('/audio/ep1.mp3');
-    });
-
-    it('schedules a stop at the boundary when playback starts', () => {
-      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
-
-      engine.play(1.4);
-
-      // 2s of audio remaining at 1×, scheduled against the context clock
-      expect(mockCtx._lastSource().stop).toHaveBeenCalledWith(2);
-    });
-
-    it('scales the scheduled stop by the playback rate', () => {
-      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
-      engine.setPlaybackRate(0.5);
-
-      engine.play(1.4);
-
-      // 2s of audio at 0.5× takes 4s of real time
-      expect(mockCtx._lastSource().stop).toHaveBeenCalledWith(4);
-    });
-
-    it('does not enable native looping', () => {
-      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
-
-      engine.play(1.4);
-
-      expect(mockCtx._lastSource().loop).toBe(false);
-    });
-
-    it('schedules the stop on a live source without restarting it', () => {
-      engine.play(1.4);
-      const source = mockCtx._lastSource();
-      const sourcesBefore = mockCtx.createBufferSource.mock.calls.length;
-
-      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
-
-      expect(mockCtx.createBufferSource.mock.calls.length).toBe(sourcesBefore);
-      expect(source.stop).toHaveBeenCalledWith(2);
-    });
-
-    it('never schedules a stop in the past', () => {
-      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
-
-      engine.play(9);
-
-      expect(mockCtx._lastSource().stop).toHaveBeenCalledWith(0);
-    });
-
-    it('replaces the source when a scheduled stop is cleared (stop() cannot be cancelled)', () => {
-      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
-      engine.play(1.4);
-      const sourcesBefore = mockCtx.createBufferSource.mock.calls.length;
-      mockCtx._advance(1);
-
-      engine.setBoundary(null);
-
-      expect(mockCtx.createBufferSource.mock.calls.length).toBe(sourcesBefore + 1);
-      expect(mockCtx._lastSource().start).toHaveBeenCalledWith(0, 2.4);
-    });
-
-    it('fires general and end subscribers when the scheduled stop lands', () => {
-      const general = vi.fn();
-      const ended = vi.fn();
-      engine.subscribe(general);
-      engine.subscribeToEnd(ended);
-      engine.setBoundary({ kind: 'stop', endSec: 3.4 });
-      engine.play(1.4);
-      general.mockClear();
-
-      mockCtx._lastSource()._fireEnded();
-
+      expect(audio.pause).toHaveBeenCalled();
       expect(engine.isPlaying).toBe(false);
-      expect(general).toHaveBeenCalled();
-      expect(ended).toHaveBeenCalled();
+      expect(engine.currentTime).toBe(0);
+      expect(onEnd).toHaveBeenCalledTimes(1);
+    });
+
+    it('clearing a boundary cancels the pending wrap', () => {
+      engine.setBoundary({ kind: 'loop', startSec: 2, endSec: 4 });
+      engine.play(2);
+      engine.setBoundary(null);
+
+      audio.currentTime = 4;
+      vi.advanceTimersByTime(5000);
+      audio.fire('timeupdate');
+
+      expect(audio.currentTime).toBe(4);
+    });
+
+    it('does not enforce a boundary while paused', () => {
+      engine.setBoundary({ kind: 'stop', endSec: 3 });
+      engine.seek(3.5);
+      audio.fire('timeupdate');
+      expect(audio.pause).not.toHaveBeenCalled();
     });
   });
 });

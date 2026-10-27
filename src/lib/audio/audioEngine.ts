@@ -1,143 +1,125 @@
-// Decoded AudioBuffers are large: ~210 MB for a 20-min mono 44.1 kHz file,
-// ~420 MB stereo. We cache only 1 buffer at a time — enough for single-episode
-// study sessions. If the user switches episodes the old buffer is GC'd and the
-// new one is fetched fresh.
+// Playback engine: one native <audio> element, fed from a single full
+// download. Playing through a media element makes the OS treat it as media:
+// Chrome keeps it playing with the screen off, shows notification /
+// lock-screen controls via the Media Session API, and slows speech down with
+// its own pitch-preserving time-stretch.
+//
+// Vercel Blob egress is why the element never streams from the network: the
+// file is fetched once in full and handed to the element as an object URL, so
+// every seek and loop wrap reads local bytes instead of issuing a new range
+// request. Only the compressed file is held in memory.
+//
+// Boundaries are enforced by a timer aimed at the boundary, with timeupdate as
+// a backup. Chrome does not throttle timers in an audible tab, so this keeps
+// working while the page is hidden.
 
-import type { SoundTouchNode } from '@soundtouchjs/audio-worklet';
+import { resolveBoundary, type PlaybackBoundary } from './playbackBoundary';
+
+export type { PlaybackBoundary } from './playbackBoundary';
 
 export type AudioStatus = 'idle' | 'loading' | 'ready' | 'error';
 
-// A time-domain limit on playback, enforced on the audio rendering thread
-// rather than by a React effect. A hidden page (a locked phone screen) stops
-// being serviced requestAnimationFrame, so anything that watches currentTime
-// from React silently stops firing while the audio graph keeps rendering.
-// Native loopStart/loopEnd wrapping and a scheduled stop() both survive that.
-// The engine knows nothing about segments — callers project their loop state
-// down to seconds.
-export type PlaybackBoundary =
-  | { readonly kind: 'loop'; readonly startSec: number; readonly endSec: number }
-  | { readonly kind: 'stop'; readonly endSec: number };
+// A wrap or stop due within this many seconds is handled now rather than
+// re-armed: timers have a few ms of slop, and re-arming for a sub-frame
+// remainder would just overshoot by a timer tick instead.
+const BOUNDARY_TOLERANCE_SEC = 0.005;
 
-// Clamps a requested boundary against the loaded buffer. Resolved lazily on
-// read rather than at set time, so a boundary set before the buffer finishes
-// loading is still clamped once the duration is known.
-function resolveBoundary(boundary: PlaybackBoundary | null, duration: number): PlaybackBoundary | null {
-  if (!boundary) return null;
-  const max = duration > 0 ? duration : Number.POSITIVE_INFINITY;
-  const endSec = Math.min(boundary.endSec, max);
-  if (boundary.kind === 'stop') {
-    return endSec > 0 ? { kind: 'stop', endSec } : null;
-  }
-  const startSec = Math.max(0, Math.min(boundary.startSec, max));
-  // A degenerate range would make the wrap math divide by zero; treat it as
-  // no boundary at all rather than as a zero-length loop.
-  if (endSec <= startSec) return null;
-  return { kind: 'loop', startSec, endSec };
+type ElementFactory = () => HTMLAudioElement | null;
+
+function createDefaultElement(): HTMLAudioElement | null {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') return null;
+  return new Audio();
 }
 
-function getAudioContext(): typeof AudioContext | null {
-  if (typeof window === 'undefined') return null;
-  return window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext ?? null;
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'AbortError';
+}
+
+// play() rejects with a DOMException, which is not an Error subclass in every
+// environment.
+function playErrorMessage(err: unknown): string {
+  return err instanceof Error || err instanceof DOMException ? err.message : 'Playback failed';
 }
 
 export class AudioEngine {
-  private _ctx: AudioContext | null = null;
-  private _cache: { url: string; buffer: AudioBuffer } | null = null;
-  private _sourceNode: AudioBufferSourceNode | null = null;
+  private _audio: HTMLAudioElement | null = null;
+  private _objectUrl: string | null = null;
+  private _url: string | null = null;
+  private _loadingUrl: string | null = null;
   private _status: AudioStatus = 'idle';
   private _isPlaying = false;
   private _error: string | null = null;
-  private _startOffset = 0;       // seconds into the buffer when play began
-  private _startedAt = 0;         // ctx.currentTime when play began
-  private _playbackRate = 1;
   private _pendingSeek: number | null = null;
+  private _playbackRate = 1;
+  private _boundary: PlaybackBoundary | null = null;  // as requested, unclamped
+  private _boundaryTimer: ReturnType<typeof setTimeout> | null = null;
   private _subscribers = new Set<() => void>();
   private _endSubscribers = new Set<() => void>();
-  private _loadingUrl: string | null = null;
-  private _workletLoaded = false;
-  private _workletLoading: Promise<void> | null = null;
-  private _pitchNode: AudioWorkletNode | null = null;
-  private _SoundTouchNode: typeof SoundTouchNode | null = null;
-  private _boundary: PlaybackBoundary | null = null;  // as requested, unclamped
-  private _stopScheduled = false;
 
-  private _getOrCreateContext(): AudioContext | null {
-    if (typeof window === 'undefined') return null;
-    if (!this._ctx) {
-      const Ctor = getAudioContext();
-      if (!Ctor) return null;
-      this._ctx = new Ctor();
-    }
-    return this._ctx;
+  constructor(private readonly _createElement: ElementFactory = createDefaultElement) {}
+
+  private _getElement(): HTMLAudioElement | null {
+    if (this._audio) return this._audio;
+    const audio = this._createElement();
+    if (!audio) return null;
+    audio.preload = 'auto';
+    audio.preservesPitch = true;
+    // The element can change state without the engine asking: the media
+    // notification, a headphone button, or another app taking audio focus.
+    // Treat its events as the source of truth for isPlaying.
+    audio.addEventListener('play', this._onElementPlay);
+    audio.addEventListener('pause', this._onElementPause);
+    audio.addEventListener('ended', this._onElementEnded);
+    audio.addEventListener('timeupdate', this._onTimeUpdate);
+    audio.addEventListener('error', this._onElementError);
+    audio.addEventListener('seeked', this._armBoundary);
+    audio.addEventListener('playing', this._armBoundary);
+    this._audio = audio;
+    return audio;
   }
 
   private _notify() {
     this._subscribers.forEach((fn) => fn());
   }
 
-  unlock(): Promise<void> {
-    const ctx = this._getOrCreateContext();
-    if (ctx && ctx.state === 'suspended') {
-      ctx.resume().catch(() => undefined);
-    }
-    return this._loadWorklet();
-  }
-
-  private _loadWorklet(): Promise<void> {
-    const ctx = this._ctx;
-    if (!ctx?.audioWorklet || this._workletLoaded) return Promise.resolve();
-    if (this._workletLoading) return this._workletLoading;
-    const loading = import('@soundtouchjs/audio-worklet').then(({ SoundTouchNode }) => {
-      this._SoundTouchNode = SoundTouchNode;
-      // Reference the processor by its public/ path. new URL(bareSpecifier,
-      // import.meta.url) does not resolve package exports — it produces a
-      // path relative to the bundle file which 404s in production.
-      return SoundTouchNode.register(ctx, '/soundtouch-processor.js');
-    })
-      .then(() => { this._workletLoaded = true; this._workletLoading = null; this._notify(); })
-      .catch((err: unknown) => {
-        this._workletLoading = null;
-        // Pitch correction will silently fall back to uncompensated playback;
-        // log so the failure is diagnosable without blocking audio.
-        console.warn('SoundTouch worklet failed to load — pitch correction unavailable:', err);
-      });
-    this._workletLoading = loading;
-    return loading;
-  }
-
   async load(url: string): Promise<void> {
-    if (this._cache?.url === url && this._status === 'ready') return;
+    if (this._url === url && this._status === 'ready') return;
     if (this._loadingUrl === url && this._status === 'loading') return;
 
-    // Evict previous buffer
-    this._cache = null;
     this._loadingUrl = url;
+    this._url = null;
     this._status = 'loading';
     this._error = null;
+    this._clearBoundaryTimer();
+    if (this._isPlaying) {
+      this._isPlaying = false;
+      this._audio?.pause();
+    }
     this._notify();
 
     try {
-      const ctx = this._getOrCreateContext();
-      if (!ctx) throw new Error('Web Audio API is not supported in this browser.');
+      const audio = this._getElement();
+      if (!audio) throw new Error('Audio playback is not supported in this browser.');
 
+      // A plain, Range-less fetch: one full download, which the service
+      // worker's audio cache also captures for offline use.
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Audio fetch failed: ${response.status}`);
-
-      const rawBuffer = await response.arrayBuffer();
-      // .slice() prevents detached-buffer errors if decodeAudioData is called
-      // again with the same ArrayBuffer reference on some browsers.
-      const buffer = await ctx.decodeAudioData(rawBuffer.slice(0));
-
-      // Guard against a newer load() call having evicted us while we awaited
+      const blob = await response.blob();
       if (this._loadingUrl !== url) return;
 
-      this._cache = { url, buffer };
-      this._status = 'ready';
-      this._loadingUrl = null;
+      this._replaceObjectUrl(audio, URL.createObjectURL(blob));
+      await waitForMetadata(audio);
+      if (this._loadingUrl !== url) return;
+
+      audio.playbackRate = this._playbackRate;
       if (this._pendingSeek !== null) {
-        this._startOffset = Math.max(0, Math.min(buffer.duration, this._pendingSeek));
+        audio.currentTime = this._clamp(this._pendingSeek);
         this._pendingSeek = null;
       }
+      this._url = url;
+      this._loadingUrl = null;
+      this._status = 'ready';
       this._notify();
     } catch (err: unknown) {
       if (this._loadingUrl !== url) return;
@@ -148,186 +130,94 @@ export class AudioEngine {
     }
   }
 
-  play(startSec?: number): void {
-    const ctx = this._ctx;
-    const buffer = this._cache?.buffer;
-    if (!ctx || !buffer) return;
+  private _replaceObjectUrl(audio: HTMLAudioElement, objectUrl: string): void {
+    const previous = this._objectUrl;
+    this._objectUrl = objectUrl;
+    audio.src = objectUrl;
+    if (previous) URL.revokeObjectURL(previous);
+  }
 
-    // Stop any existing source without triggering onended bookkeeping
-    this._stopSource();
+  play(startSec?: number): void {
+    const audio = this._audio;
+    if (!audio || this._status !== 'ready') return;
 
     const boundary = this._resolvedBoundary;
-    const requested = startSec !== undefined
-      ? Math.max(0, Math.min(buffer.duration, startSec))
-      : this._startOffset;
-    // Starting at or past loopEnd would never wrap — the node plays straight
-    // out to the end of the buffer — so pull the offset back into the range.
-    const offset = boundary?.kind === 'loop' && requested >= boundary.endSec
+    const requested = startSec !== undefined ? this._clamp(startSec) : audio.currentTime;
+    // Starting at or past a loop's end would never wrap, so pull the start
+    // back into the range.
+    audio.currentTime = boundary?.kind === 'loop' && requested >= boundary.endSec
       ? boundary.startSec
       : requested;
 
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.playbackRate.value = this._playbackRate;
-    this._applyLoopRegion(source);
-    if (this._playbackRate !== 1 && this._workletLoaded && this._SoundTouchNode) {
-      const pitchNode = new this._SoundTouchNode({ context: ctx });
-      // Telling SoundTouch the playbackRate lets it auto-compensate pitch so
-      // the output plays at the right speed but retains the original pitch.
-      pitchNode.playbackRate.value = this._playbackRate;
-      source.connect(pitchNode);
-      pitchNode.connect(ctx.destination);
-      this._pitchNode = pitchNode;
-    } else {
-      source.connect(ctx.destination);
-    }
-    source.onended = () => {
-      // onended fires on natural end AND on explicit stop(). Distinguish by
-      // checking whether we are still tracking this node as current.
-      if (this._sourceNode === source) {
-        this._sourceNode = null;
-        if (this._pitchNode) {
-          this._pitchNode.disconnect();
-          this._pitchNode = null;
-        }
-        this._startOffset = 0;
-        this._isPlaying = false;
-        // Notify general subscribers first, then end subscribers.
-        // End subscribers (e.g. loop handlers) may call play() which will fire
-        // another general notification — React 18 batches these into one render.
-        this._notify();
-        this._endSubscribers.forEach((fn) => fn());
-      }
-    };
-    try {
-      source.start(0, offset);
-    } catch (err) {
-      // source.start() can throw InvalidStateError on iOS Safari when the
-      // AudioContext is suspended and resume() silently failed.
-      this._isPlaying = false;
-      this._error = err instanceof Error ? err.message : 'Playback failed';
-      this._notify();
-      return;
-    }
-
-    this._sourceNode = source;
-    this._startOffset = offset;
-    this._startedAt = ctx.currentTime;
+    this._error = null;
     this._isPlaying = true;
-    // stop() must be scheduled after start(), never before it.
-    this._scheduleBoundaryStop(source, offset);
     this._notify();
-  }
+    this._armBoundary();
 
-  // Projects a time-domain boundary onto the audio graph. Loop state itself
-  // stays with the caller (PlayerState.loopRange on the episode page, a local
-  // flag on the study page); this is a one-way push, like setPlaybackRate.
-  setBoundary(boundary: PlaybackBoundary | null): void {
-    // Resolve the position under the *previous* boundary — currentTime's wrap
-    // math reads _boundary, so it must be sampled before the swap.
-    const pos = this.currentTime;
-    const hadScheduledStop = this._stopScheduled;
-    this._boundary = boundary;
-    const next = this._resolvedBoundary;
-
-    const source = this._sourceNode;
-    const ctx = this._ctx;
-    if (!this._isPlaying || !source || !ctx) return;
-
-    // A range that shrank under the playhead (an endpoint dragged in the
-    // gutter) can never wrap natively — the node is already past loopEnd.
-    if (next?.kind === 'loop' && pos >= next.endSec) {
-      this.play(next.startSec);
-      return;
-    }
-
-    // A scheduled stop() cannot be cancelled; a fresh source node is the only
-    // way to clear or re-time one.
-    if (hadScheduledStop) {
-      this.play(pos);
-      return;
-    }
-
-    // Rebase the linear clock onto the node's true position: wraps already
-    // played out under the old boundary, future ones follow the new one.
-    this._startOffset = pos;
-    this._startedAt = ctx.currentTime;
-    this._stopScheduled = false;
-    this._applyLoopRegion(source);
-    this._scheduleBoundaryStop(source, pos);
-  }
-
-  private get _resolvedBoundary(): PlaybackBoundary | null {
-    return resolveBoundary(this._boundary, this.duration);
-  }
-
-  private _applyLoopRegion(source: AudioBufferSourceNode): void {
-    const boundary = this._resolvedBoundary;
-    if (boundary?.kind === 'loop') {
-      source.loop = true;
-      source.loopStart = boundary.startSec;
-      source.loopEnd = boundary.endSec;
-    } else {
-      source.loop = false;
-    }
-  }
-
-  private _scheduleBoundaryStop(source: AudioBufferSourceNode, fromSec: number): void {
-    this._stopScheduled = false;
-    const boundary = this._resolvedBoundary;
-    const ctx = this._ctx;
-    if (boundary?.kind !== 'stop' || !ctx) return;
-    const remaining = Math.max(0, (boundary.endSec - fromSec) / this._playbackRate);
-    try {
-      source.stop(ctx.currentTime + remaining);
-      this._stopScheduled = true;
-    } catch {
-      /* source already stopped */
-    }
+    audio.play().catch((err: unknown) => {
+      // pause() during a pending play() rejects it with AbortError — that is
+      // the user stopping playback, not a failure.
+      if (isAbortError(err)) return;
+      this._isPlaying = false;
+      this._error = playErrorMessage(err);
+      this._clearBoundaryTimer();
+      this._notify();
+    });
   }
 
   pause(): void {
     if (!this._isPlaying) return;
-    this._startOffset = this.currentTime;
-    this._stopSource();
     this._isPlaying = false;
+    this._clearBoundaryTimer();
+    this._audio?.pause();
     this._notify();
   }
 
-  // Atomically stops playback and resets position to 0 without calling play().
-  // Use this instead of seek(0)+pause() to avoid briefly starting a new source
-  // node at position 0 when the engine is currently playing.
   restartAtZero(): void {
-    this._stopSource();
-    this._startOffset = 0;
-    this._isPlaying = false;
+    this._clearBoundaryTimer();
     this._pendingSeek = null;
+    this._isPlaying = false;
+    if (this._audio) {
+      this._audio.pause();
+      if (this._status === 'ready') this._audio.currentTime = 0;
+    }
     this._notify();
   }
 
   seek(sec: number): void {
-    const buffer = this._cache?.buffer;
-    if (!buffer) {
+    const audio = this._audio;
+    if (!audio || this._status !== 'ready') {
       this._pendingSeek = sec;
       return;
     }
     this._pendingSeek = null;
-    const clamped = Math.max(0, Math.min(buffer.duration, sec));
     if (this._isPlaying) {
-      this.play(clamped);
+      this.play(sec);
     } else {
-      this._startOffset = clamped;
+      audio.currentTime = this._clamp(sec);
     }
   }
 
   setPlaybackRate(rate: number): void {
-    // Snapshot position before changing rate — currentTime uses _playbackRate
-    // in its formula, so the rate must not change until after the capture.
-    const pos = this.currentTime;
     this._playbackRate = rate;
-    if (this._isPlaying) {
-      this.play(pos);
+    if (this._audio) {
+      this._audio.playbackRate = rate;
+      this._audio.preservesPitch = true;
     }
+    // The wall-clock time left until the boundary depends on the rate.
+    this._armBoundary();
+  }
+
+  setBoundary(boundary: PlaybackBoundary | null): void {
+    this._boundary = boundary;
+    const next = this._resolvedBoundary;
+    // A range that shrank under the playhead (an endpoint dragged in the
+    // gutter) would never be reached again — jump to its start.
+    if (this._isPlaying && next?.kind === 'loop' && this.currentTime >= next.endSec) {
+      this.play(next.startSec);
+      return;
+    }
+    this._armBoundary();
   }
 
   subscribe(fn: () => void): () => void {
@@ -335,27 +225,20 @@ export class AudioEngine {
     return () => this._subscribers.delete(fn);
   }
 
-  // subscribeToEnd fires only on natural file end (not explicit pause/seek).
-  // Use this to handle behaviors like "loop a segment when the file runs out."
+  // Fires on natural file end and when a stop boundary is reached — both mean
+  // this playback ran out, as opposed to an explicit pause or seek.
   subscribeToEnd(fn: () => void): () => void {
     this._endSubscribers.add(fn);
     return () => this._endSubscribers.delete(fn);
   }
 
   get currentTime(): number {
-    if (!this._isPlaying || !this._ctx) return this._startOffset;
-    const raw = this._startOffset + (this._ctx.currentTime - this._startedAt) * this._playbackRate;
-    // The linear clock keeps counting past loopEnd while the node wraps, so
-    // fold it back into the range. This is what lets the UI resume at the
-    // right position after the page was hidden for many loop iterations.
-    const boundary = this._resolvedBoundary;
-    if (boundary?.kind !== 'loop' || raw < boundary.endSec) return raw;
-    const length = boundary.endSec - boundary.startSec;
-    return boundary.startSec + ((raw - boundary.startSec) % length);
+    if (!this._audio || this._status !== 'ready') return 0;
+    return this._audio.currentTime;
   }
 
   get duration(): number {
-    return this._cache?.buffer.duration ?? 0;
+    return this._status === 'ready' ? this._elementDuration() : 0;
   }
 
   get status(): AudioStatus {
@@ -370,23 +253,122 @@ export class AudioEngine {
     return this._error;
   }
 
-  get workletReady(): boolean {
-    return this._workletLoaded;
+  private get _resolvedBoundary(): PlaybackBoundary | null {
+    return resolveBoundary(this._boundary, this.duration);
   }
 
-  private _stopSource(): void {
-    this._stopScheduled = false;
-    if (this._sourceNode) {
-      const node = this._sourceNode;
-      // Null out first so onended skips its bookkeeping for this stop
-      this._sourceNode = null;
-      try { node.stop(); } catch { /* already stopped */ }
-    }
-    if (this._pitchNode) {
-      this._pitchNode.disconnect();
-      this._pitchNode = null;
+  // Reads the element directly rather than the public getter, which reports 0
+  // until the status flips to ready — a seek queued during load is applied
+  // just before that flip.
+  private _elementDuration(): number {
+    const duration = this._audio?.duration;
+    return duration !== undefined && Number.isFinite(duration) ? duration : 0;
+  }
+
+  private _clamp(sec: number): number {
+    return Math.max(0, Math.min(this._elementDuration(), sec));
+  }
+
+  private _clearBoundaryTimer(): void {
+    if (this._boundaryTimer !== null) {
+      clearTimeout(this._boundaryTimer);
+      this._boundaryTimer = null;
     }
   }
+
+  // Aims a timer at the boundary. Arrow function so it can double as an
+  // element event listener (seeked / playing re-sync the timer to the real
+  // media clock, which can lag behind a just-requested seek).
+  private _armBoundary = (): void => {
+    this._clearBoundaryTimer();
+    const boundary = this._resolvedBoundary;
+    if (!this._isPlaying || !boundary) return;
+    const remainingSec = boundary.endSec - this.currentTime;
+    if (remainingSec <= BOUNDARY_TOLERANCE_SEC) {
+      this._reachBoundary(boundary);
+      return;
+    }
+    const delayMs = (remainingSec / this._playbackRate) * 1000;
+    this._boundaryTimer = setTimeout(this._armBoundary, delayMs);
+  };
+
+  private _reachBoundary(boundary: PlaybackBoundary): void {
+    const audio = this._audio;
+    if (!audio) return;
+    if (boundary.kind === 'loop') {
+      audio.currentTime = boundary.startSec;
+      this._armBoundary();
+      return;
+    }
+    this._finish();
+  }
+
+  // Common tail of a stop boundary and the natural end of the file.
+  private _finish(): void {
+    this._clearBoundaryTimer();
+    this._isPlaying = false;
+    if (this._audio) {
+      this._audio.pause();
+      this._audio.currentTime = 0;
+    }
+    this._notify();
+    this._endSubscribers.forEach((fn) => fn());
+  }
+
+  private _onTimeUpdate = (): void => {
+    const boundary = this._resolvedBoundary;
+    if (!this._isPlaying || !boundary) return;
+    if (this.currentTime >= boundary.endSec - BOUNDARY_TOLERANCE_SEC) {
+      this._reachBoundary(boundary);
+    }
+  };
+
+  private _onElementPlay = (): void => {
+    if (this._isPlaying) return;
+    this._isPlaying = true;
+    this._armBoundary();
+    this._notify();
+  };
+
+  private _onElementPause = (): void => {
+    if (!this._isPlaying) return;
+    // The element pauses itself just before firing 'ended'; leave that case
+    // to the ended handler so end subscribers still run.
+    if (this._audio?.ended) return;
+    this._isPlaying = false;
+    this._clearBoundaryTimer();
+    this._notify();
+  };
+
+  // Load-time errors are reported by waitForMetadata; this covers a failure
+  // after the file was accepted (e.g. a corrupt frame mid-file).
+  private _onElementError = (): void => {
+    if (this._status !== 'ready') return;
+    this._clearBoundaryTimer();
+    this._isPlaying = false;
+    this._error = 'Audio playback failed.';
+    this._notify();
+  };
+
+  private _onElementEnded = (): void => {
+    this._finish();
+  };
+}
+
+function waitForMetadata(audio: HTMLAudioElement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      audio.removeEventListener('loadedmetadata', onLoaded);
+      audio.removeEventListener('error', onError);
+    };
+    const onLoaded = () => { cleanup(); resolve(); };
+    const onError = () => {
+      cleanup();
+      reject(new Error('Audio file could not be decoded.'));
+    };
+    audio.addEventListener('loadedmetadata', onLoaded);
+    audio.addEventListener('error', onError);
+  });
 }
 
 export const audioEngine = new AudioEngine();

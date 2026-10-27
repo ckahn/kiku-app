@@ -7,13 +7,11 @@ export interface MockAudioEngineState {
   isPlaying: boolean;
   error: string | null;
   status: AudioStatus;
-  workletReady: boolean;
   pendingSeek: number | null;
   boundary: PlaybackBoundary | null;
 }
 
 export interface MockAudioEngine {
-  unlock: Mock<() => void>;
   load: Mock<(url: string) => Promise<void>>;
   play: Mock<(startSec?: number) => void>;
   pause: Mock<() => void>;
@@ -28,7 +26,6 @@ export interface MockAudioEngine {
   _setIsPlaying: (v: boolean) => void;
   _setError: (e: string | null) => void;
   _setStatus: (s: AudioStatus) => void;
-  _setWorkletReady: (v: boolean) => void;
   _triggerNaturalEnd: () => void;
   _reset: () => void;
   readonly currentTime: number;
@@ -36,7 +33,6 @@ export interface MockAudioEngine {
   readonly status: AudioStatus;
   readonly isPlaying: boolean;
   readonly error: string | null;
-  readonly workletReady: boolean;
   readonly boundary: PlaybackBoundary | null;
 }
 
@@ -46,7 +42,6 @@ export function createMockAudioEngine(): MockAudioEngine {
     isPlaying: false,
     error: null,
     status: 'ready',
-    workletReady: true,
     pendingSeek: null,
     boundary: null,
   };
@@ -58,7 +53,6 @@ export function createMockAudioEngine(): MockAudioEngine {
   }
 
   const mock: MockAudioEngine = {
-    unlock: vi.fn(),
     load: vi.fn().mockResolvedValue(undefined),
     play: vi.fn((startSec?: number) => {
       if (startSec !== undefined) state.time = startSec;
@@ -113,7 +107,6 @@ export function createMockAudioEngine(): MockAudioEngine {
       }
       notifyGeneral();
     },
-    _setWorkletReady(v: boolean) { state.workletReady = v; notifyGeneral(); },
     _triggerNaturalEnd() {
       state.isPlaying = false;
       notifyGeneral();
@@ -124,7 +117,6 @@ export function createMockAudioEngine(): MockAudioEngine {
       state.isPlaying = false;
       state.error = null;
       state.status = 'ready';
-      state.workletReady = true;
       state.pendingSeek = null;
       state.boundary = null;
       generalSubs.clear();
@@ -136,7 +128,6 @@ export function createMockAudioEngine(): MockAudioEngine {
     get status() { return state.status; },
     get isPlaying() { return state.isPlaying; },
     get error() { return state.error; },
-    get workletReady() { return state.workletReady; },
     get boundary() { return state.boundary; },
   };
 

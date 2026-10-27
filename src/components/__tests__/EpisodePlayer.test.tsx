@@ -17,7 +17,6 @@ const { engineMock } = vi.hoisted(() => {
   function notifyGeneral() { generalSubs.forEach((fn) => fn()); }
 
   const mock = {
-    unlock: vi.fn(),
     load: vi.fn().mockResolvedValue(undefined),
     play: vi.fn((startSec?: number) => {
       if (startSec !== undefined) state.time = startSec;

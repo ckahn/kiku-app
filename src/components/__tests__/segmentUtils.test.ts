@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { segmentStartSec, findActiveSegmentId, stripFurigana, formatMs } from '../player/segmentUtils';
+import { segmentStartSec, findActiveSegmentId, findAdjacentSegmentId, stripFurigana, formatMs } from '../player/segmentUtils';
 import type { Segment } from '@/db/schema';
 
 function makeSegment(id: number, startMs: number, endMs: number): Segment {
@@ -134,5 +134,33 @@ describe('stripFurigana', () => {
   it('is case-insensitive for tag names', () => {
     const html = '<RUBY>漢字<RT>かんじ</RT></RUBY>';
     expect(stripFurigana(html)).toBe('漢字');
+  });
+});
+
+describe('findAdjacentSegmentId', () => {
+  it('returns the next segment', () => {
+    expect(findAdjacentSegmentId(SEGMENTS, 2, 'next')).toBe(3);
+  });
+
+  it('returns the previous segment', () => {
+    expect(findAdjacentSegmentId(SEGMENTS, 2, 'previous')).toBe(1);
+  });
+
+  it('stays on the first and last segments at the edges', () => {
+    expect(findAdjacentSegmentId(SEGMENTS, 1, 'previous')).toBe(1);
+    expect(findAdjacentSegmentId(SEGMENTS, 3, 'next')).toBe(3);
+  });
+
+  it('orders by start time, not input order', () => {
+    const shuffled = [SEGMENTS[2], SEGMENTS[0], SEGMENTS[1]];
+    expect(findAdjacentSegmentId(shuffled, 1, 'next')).toBe(2);
+  });
+
+  it('falls back to the first segment when there is no current segment', () => {
+    expect(findAdjacentSegmentId(SEGMENTS, null, 'next')).toBe(1);
+  });
+
+  it('returns null when there are no segments', () => {
+    expect(findAdjacentSegmentId([], 1, 'next')).toBeNull();
   });
 });
